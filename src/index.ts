@@ -1,9 +1,14 @@
 import fsSync from 'fs';
 import fs from 'fs/promises';
+import handlebars from 'handlebars';
 import path from 'path';
 import { Browser, Page, chromium } from 'playwright';
+import { encoding_for_model } from 'tiktoken';
 
 import { SemgrepResultSchema } from '@etabli/semgrep';
+import { resultSample } from '@etabli/template';
+
+const gptModel = 'gpt-3.5-turbo';
 
 export interface Initiative {
   name: string;
@@ -106,6 +111,8 @@ export async function main() {
     await $`pandoc ${htmlPath} --lua-filter ${noImgAndSvgFilterPath} --lua-filter ${extractMetaDescriptionFilterPath} -t gfm-raw_html -o ${markdownPath}`;
   }
 
+  const websiteContent = await fs.readFile(markdownPath, 'utf-8');
+
   // Get the source code
   const codeFolderPath = path.resolve(projectDirectory, 'code');
 
@@ -151,6 +158,30 @@ export async function main() {
   // Unique ones
   functions = [...new Set(functions)];
   dependencies = [...new Set(dependencies)];
+
+  // Prepare the content for GPT
+  const gptTemplatePath = path.resolve(__dirname, '../src', 'gpt-template.md');
+  const gptTemplateContent = await fs.readFile(gptTemplatePath, 'utf-8');
+  const gptTemplate = handlebars.compile(gptTemplateContent);
+
+  const finalGptContent = gptTemplate({
+    resultSample: resultSample,
+    functions: functions,
+    dependencies: dependencies,
+    websiteContent: websiteContent,
+  });
+
+  // Make sure the content is valid
+  const encoder = encoding_for_model(gptModel);
+  const tokens = encoder.encode(finalGptContent);
+  encoder.free();
+
+  if (tokens.length >= 32000) {
+    throw new Error('there are too many tokens for this model to accept it');
+  }
+
+  // Process data
+  console.log(finalGptContent);
 }
 
 main();

@@ -10,7 +10,9 @@
   "scripts": {},
   "dependencies": {
     "execa": "^8.0.1",
+    "handlebars": "^4.7.8",
     "playwright": "^1.39.0",
+    "tiktoken": "^1.0.10",
     "zod": "^3.22.4"
   },
   "devDependencies": {

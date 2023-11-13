@@ -1,0 +1,16 @@
+{
+  "name": "etabli",
+  "version": "0.0.0",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/betagouv/etabli.git"
+  },
+  "license": "AGPL-3.0",
+  "scripts": {},
+  "devDependencies": {},
+  "packageManager": "npm@8.5.5",
+  "engines": {
+    "node": "16.15.0"
+  }
+}

@@ -1,0 +1,61 @@
+rules:
+  - id: node-extract-functions
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern: |
+          function $FUNC(...)
+      - metavariable-regex:
+          # Most of the time meaningless callbacks
+          metavariable: $FUNC
+          regex: '^(?!on[A-Z]).*'
+      - metavariable-regex:
+          # Most of the time components
+          metavariable: $FUNC
+          regex: '^(?![A-Z]).*'
+      # - metavariable-comparison:
+      #     # TODO: trying to exclude those being class constructor
+      #     metavariable: $FUNC
+      #     comparison: $FUNC != "constructor"
+    message: 'Function name: $FUNC'
+    languages:
+      - javascript
+      - typescript
+    severity: ERROR
+    paths:
+      exclude:
+        - 'tests/**/*'
+        - '*.spec.js'
+        - '*.spec.ts'
+  - id: node-find-dependencies
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern-either:
+          - pattern: |
+              {
+                "dependencies": {
+                  $DEPENDENCY_NAME: "$VALUE",
+                  ...
+                },
+                ...
+              }
+          - pattern: |
+              {
+                "devDependencies": {
+                  $DEPENDENCY_NAME: "$VALUE",
+                  ...
+                },
+                ...
+              }
+      - metavariable-regex:
+          # `$DEPENDENCY_NAME` has additional wrapping quotes for no reason (but not $VALUE), having this workaround to strip them and get core value into $1...
+          metavariable: $DEPENDENCY_NAME
+          regex: '^"(.*)"$'
+    message: "Dependency '$DEPENDENCY_NAME' in package.json"
+    languages:
+      - json
+    severity: ERROR
+    paths:
+      include:
+        - 'package.json'

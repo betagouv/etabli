@@ -9,15 +9,15 @@
   "license": "AGPL-3.0",
   "scripts": {},
   "dependencies": {
-    "adm-zip": "^0.5.10",
     "execa": "^8.0.1",
-    "playwright": "^1.39.0"
+    "playwright": "^1.39.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^4.3.0",
-    "@types/adm-zip": "^0.5.4",
     "@types/node": "^20.9.0",
     "ts-node": "^10.9.1",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.2.2"
   },
   "packageManager": "npm@8.5.5",

@@ -1,8 +1,9 @@
-import AdmZip from 'adm-zip';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import { Browser, Page, chromium } from 'playwright';
+
+import { SemgrepResultSchema } from '@etabli/semgrep';
 
 export interface Initiative {
   name: string;
@@ -106,22 +107,50 @@ export async function main() {
   }
 
   // Get the source code
-  // TODO: only for Github for now, to adjust (using GitHub API domain helped not guessing the default branch)
-  const repositoryUrl = new URL('https://github.com/inclusion-numerique/mediature');
-  const sourceCodeZipUrl = `https://api.github.com/repos${repositoryUrl.pathname}/zipball`;
-  const zipPath = path.resolve(projectDirectory, 'code.zip');
+  const codeFolderPath = path.resolve(projectDirectory, 'code');
 
-  if (!fsSync.existsSync(zipPath)) {
-    const codeFolderPath = path.resolve(projectDirectory, 'code');
-
-    await downloadFile(sourceCodeZipUrl, zipPath);
-
-    const zip = new AdmZip(zipPath);
-    zip.extractAllTo(codeFolderPath, true);
-    // TODO: use async but requires intermediate promise (whereas they are "Promise" variants for other methods...)
-    // zip.extractAllToAsync(codeFolderPath, true, () => {});
-    // Note: it's unzipped in its own top folder
+  if (!fsSync.existsSync(codeFolderPath)) {
+    await $`git clone ${initiativeToProcess.repositoryUrl} ${codeFolderPath}`;
   }
+
+  // Extract information from the source code
+  const codeAnalysisPath = path.resolve(projectDirectory, 'code-analysis.json');
+  const codeAnalysisRulesPath = path.resolve(__dirname, '../', 'semgrep-rules.yaml');
+
+  if (!fsSync.existsSync(codeAnalysisPath)) {
+    await $`semgrep --metrics=off --config ${codeAnalysisRulesPath} ${codeFolderPath} --json -o ${codeAnalysisPath}`;
+  }
+
+  const codeAnalysisDataString = await fs.readFile(codeAnalysisPath, 'utf-8');
+  const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);
+  const codeAnalysisData = SemgrepResultSchema.parse(codeAnalysisDataObject);
+
+  let functions: string[] = [];
+  let dependencies: string[] = [];
+
+  for (const result of codeAnalysisData.results) {
+    switch (result.check_id) {
+      case 'node-extract-functions':
+        if (result.extra.metavars.$FUNC?.abstract_content) {
+          functions.push(result.extra.metavars.$FUNC?.abstract_content);
+        }
+        break;
+      case 'node-find-dependencies':
+        if (result.extra.metavars.$1?.abstract_content) {
+          // We had to use a regex that cannot be named to escape additional quotes around the dependency name
+          dependencies.push(result.extra.metavars.$1.abstract_content);
+        } else if (result.extra.metavars.$DEPENDENCY_NAME?.abstract_content) {
+          dependencies.push(result.extra.metavars.$DEPENDENCY_NAME.abstract_content);
+        }
+        break;
+      default:
+        throw new Error('rule handler not implemented');
+    }
+  }
+
+  // Unique ones
+  functions = [...new Set(functions)];
+  dependencies = [...new Set(dependencies)];
 }
 
 main();

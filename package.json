@@ -8,9 +8,18 @@
   },
   "license": "AGPL-3.0",
   "scripts": {},
-  "devDependencies": {},
+  "dependencies": {
+    "execa": "^8.0.1",
+    "playwright": "^1.39.0"
+  },
+  "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^4.3.0",
+    "@types/node": "^20.9.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  },
   "packageManager": "npm@8.5.5",
   "engines": {
-    "node": "16.15.0"
+    "node": "18.16.0"
   }
 }

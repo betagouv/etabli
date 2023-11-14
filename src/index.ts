@@ -5,9 +5,11 @@ import OpenAI from 'openai';
 import path from 'path';
 import { Browser, Page, chromium } from 'playwright';
 import { encoding_for_model } from 'tiktoken';
+import Wappalyzer from 'wappalyzer';
 
 import { SemgrepResultSchema } from '@etabli/semgrep';
 import { ResultSchema, resultSample } from '@etabli/template';
+import { WappalyzerResultSchema } from '@etabli/wappalyzer';
 
 const gptModel = 'gpt-3.5-turbo-1106';
 const gptCountModel = 'gpt-3.5-turbo'; // The counter does not understand precise GPT versions
@@ -16,6 +18,21 @@ const gptPer1000TokensCost = 0.001; // https://openai.com/pricing
 const gptSeed = 100;
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+});
+
+const wappalyzer = new Wappalyzer({
+  debug: false,
+  delay: 1000,
+  headers: {},
+  maxDepth: 1,
+  maxUrls: 10,
+  maxWait: 10000,
+  recursive: true,
+  probe: true,
+  userAgent: 'Wappalyzer',
+  htmlMaxCols: 2000,
+  htmlMaxRows: 2000,
+  noRedirect: true,
 });
 
 export interface Initiative {
@@ -121,6 +138,39 @@ export async function main() {
 
   const websiteContent = await fs.readFile(markdownPath, 'utf-8');
 
+  // Try to deduce tools used from the frontend
+  const wappalyzerAnalysisPath = path.resolve(projectDirectory, 'wappalyzer-analysis.json');
+
+  if (!fsSync.existsSync(wappalyzerAnalysisPath)) {
+    try {
+      await wappalyzer.init();
+
+      const headers = {};
+      const storage = {
+        local: {},
+        session: {},
+      };
+      const site = await wappalyzer.open(initiativeToProcess.websiteUrl, headers, storage);
+
+      const results = await site.analyze();
+
+      fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
+    } finally {
+      await wappalyzer.destroy();
+    }
+  }
+
+  const wappalyzerAnalysisDataString = await fs.readFile(wappalyzerAnalysisPath, 'utf-8');
+  const wappalyzerAnalysisDataObject = JSON.parse(wappalyzerAnalysisDataString);
+  const wappalyzerAnalysisData = WappalyzerResultSchema.parse(wappalyzerAnalysisDataObject);
+
+  const deducedTools: string[] = wappalyzerAnalysisData.technologies
+    .filter((technology) => {
+      // Set a minimum so uncertain tools like backend ones for compilation are ignored
+      return technology.confidence >= 75;
+    })
+    .map((technology) => technology.name);
+
   // Get the source code
   const codeFolderPath = path.resolve(projectDirectory, 'code');
 
@@ -175,6 +225,7 @@ export async function main() {
   const finalGptContent = gptTemplate({
     resultSample: JSON.stringify(resultSample, null, 2), // Format otherwise it's `[object Object]`
     functions: functions,
+    deducedTools: deducedTools,
     dependencies: dependencies,
     websiteContent: websiteContent,
   });

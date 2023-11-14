@@ -14,6 +14,7 @@
     "openai": "^4.17.5",
     "playwright": "^1.39.0",
     "tiktoken": "^1.0.10",
+    "wappalyzer": "6.10.66",
     "zod": "^3.22.4"
   },
   "devDependencies": {

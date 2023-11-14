@@ -7,10 +7,10 @@ I describe below a project and I want you output some information:
    - sends emails
    - generates PDF
 
-I want you to answer me with JSON format in the following format (adjust values only, and write them in french):
+You must answer by respecting the following JSON format (adjust values only, and write them in french):
 
 ```json
-{{resultSample}}
+{{{resultSample}}}
 ```
 
 Here is the list of functions in the source code:
@@ -33,5 +33,5 @@ Here is the list of dependencies listed in the source code:
 And here is the resume from the public website:
 
 ```
-{{websiteContent}}
+{{{websiteContent}}}
 ```

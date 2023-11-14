@@ -1,14 +1,21 @@
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import handlebars from 'handlebars';
+import OpenAI from 'openai';
 import path from 'path';
 import { Browser, Page, chromium } from 'playwright';
 import { encoding_for_model } from 'tiktoken';
 
 import { SemgrepResultSchema } from '@etabli/semgrep';
-import { resultSample } from '@etabli/template';
+import { ResultSchema, resultSample } from '@etabli/template';
 
 const gptModel = 'gpt-3.5-turbo';
+const gptModelTokenLimit = 4096;
+const gptPer1000TokensCost = 0.001; // https://openai.com/pricing
+const gptSeed = 100;
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export interface Initiative {
   name: string;
@@ -165,7 +172,7 @@ export async function main() {
   const gptTemplate = handlebars.compile(gptTemplateContent);
 
   const finalGptContent = gptTemplate({
-    resultSample: resultSample,
+    resultSample: JSON.stringify(resultSample, null, 2), // Format otherwise it's `[object Object]`
     functions: functions,
     dependencies: dependencies,
     websiteContent: websiteContent,
@@ -176,12 +183,73 @@ export async function main() {
   const tokens = encoder.encode(finalGptContent);
   encoder.free();
 
-  if (tokens.length >= 32000) {
+  if (tokens.length >= gptModelTokenLimit) {
     throw new Error('there are too many tokens for this model to accept it');
   }
 
+  console.log(`the content to send is ${tokens.length} tokens long (${gptModelTokenLimit} is the input+output limit)`);
+
   // Process data
-  console.log(finalGptContent);
+  const answer = await openai.chat.completions.create({
+    model: gptModel,
+    messages: [
+      {
+        role: 'user',
+        content: finalGptContent,
+      },
+    ],
+    // `response_format` not available with GPT 3.5
+    // response_format: {
+    //   type: 'json_object',
+    // },
+    temperature: 0, // Less creative answer, more deterministic
+    top_p: 0.1,
+    seed: gptSeed, // Cannot guarantee exact same answers for the same prompt, but should help (`system_fingerprint` can also be watched to detect a system change on their side)
+  });
+
+  if (answer.usage) {
+    console.log(
+      `the GPT input and output represent ${answer.usage.total_tokens} tokens in total (for a cost of ~$${
+        (answer.usage.total_tokens / 1000) * gptPer1000TokensCost
+      })`
+    );
+
+    if (answer.usage.total_tokens > gptModelTokenLimit) {
+      console.warn('it seemed to process more token than the limit, the content may be truncated and invalid');
+    }
+  }
+
+  if (answer.choices.length !== 1) {
+    throw new Error('GPT result should send only 1 answer');
+  } else if (answer.choices[0].finish_reason !== 'stop') {
+    throw new Error('GPT result should have a normal finish reason');
+  } else if (!answer.choices[0].message.content) {
+    throw new Error('GPT result content cannot be null');
+  }
+
+  const answerObject = JSON.parse(answer.choices[0].message.content);
+  const answerData = ResultSchema.parse(answerObject);
+  const beautifiedAnswerData = JSON.stringify(answerData, null, 2);
+
+  const gptAnswerPath = path.resolve(projectDirectory, 'gpt-answer.json');
+
+  await fs.writeFile(gptAnswerPath, beautifiedAnswerData);
+
+  console.log('\n');
+  console.log('\n');
+  console.log(beautifiedAnswerData);
+  console.log('\n');
+  console.log('\n');
+  console.log(`the JSON result has been written to: ${gptAnswerPath}`);
 }
 
-main();
+main().catch((err) => {
+  if (err instanceof OpenAI.APIError) {
+    console.log(err.status);
+    console.log(err.name);
+
+    throw err;
+  } else {
+    throw err;
+  }
+});

@@ -1,14 +1,17 @@
-export interface Result {
-  businessUseCases: string[];
-  description: string;
-  functionalUseCases: {
-    hasVirtualEmailInboxes: boolean;
-    sendsEmails: boolean;
-    generatesPDF: boolean;
-  };
-}
+import { z } from 'zod';
 
-export const resultSample: Result = {
+export const ResultSchema = z.object({
+  businessUseCases: z.array(z.string()),
+  description: z.string(),
+  functionalUseCases: z.object({
+    hasVirtualEmailInboxes: z.boolean(),
+    sendsEmails: z.boolean(),
+    generatesPDF: z.boolean(),
+  }),
+});
+export type ResultSchemaType = z.infer<typeof ResultSchema>;
+
+export const resultSample: ResultSchemaType = {
   businessUseCases: [],
   description: '',
   functionalUseCases: {

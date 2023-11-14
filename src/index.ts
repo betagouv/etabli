@@ -9,8 +9,9 @@ import { encoding_for_model } from 'tiktoken';
 import { SemgrepResultSchema } from '@etabli/semgrep';
 import { ResultSchema, resultSample } from '@etabli/template';
 
-const gptModel = 'gpt-3.5-turbo';
-const gptModelTokenLimit = 4096;
+const gptModel = 'gpt-3.5-turbo-1106';
+const gptCountModel = 'gpt-3.5-turbo'; // The counter does not understand precise GPT versions
+const gptModelTokenLimit = 16385; // Precise token maximum can be found on https://www.scriptbyai.com/token-limit-openai-chatgpt/
 const gptPer1000TokensCost = 0.001; // https://openai.com/pricing
 const gptSeed = 100;
 const openai = new OpenAI({
@@ -179,7 +180,7 @@ export async function main() {
   });
 
   // Make sure the content is valid
-  const encoder = encoding_for_model(gptModel);
+  const encoder = encoding_for_model(gptCountModel);
   const tokens = encoder.encode(finalGptContent);
   encoder.free();
 
@@ -198,10 +199,9 @@ export async function main() {
         content: finalGptContent,
       },
     ],
-    // `response_format` not available with GPT 3.5
-    // response_format: {
-    //   type: 'json_object',
-    // },
+    response_format: {
+      type: 'json_object',
+    },
     temperature: 0, // Less creative answer, more deterministic
     top_p: 0.1,
     seed: gptSeed, // Cannot guarantee exact same answers for the same prompt, but should help (`system_fingerprint` can also be watched to detect a system change on their side)

@@ -120,10 +120,10 @@ export async function main() {
   const htmlPath = path.resolve(projectDirectory, 'website.html');
 
   if (!fsSync.existsSync(htmlPath)) {
-    fs.mkdir(projectDirectory, { recursive: true });
+    await fs.mkdir(projectDirectory, { recursive: true });
 
     const tmpHtmlContent = await getHTML(initiativeToProcess.websiteUrl);
-    fs.writeFile(htmlPath, tmpHtmlContent, {});
+    await fs.writeFile(htmlPath, tmpHtmlContent, {});
   }
 
   // Reduce content by using `pandoc` to save tokens on GPT
@@ -154,7 +154,7 @@ export async function main() {
 
       const results = await site.analyze();
 
-      fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
+      await fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
     } finally {
       await wappalyzer.destroy();
     }

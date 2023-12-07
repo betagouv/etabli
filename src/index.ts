@@ -230,6 +230,9 @@ export async function main() {
     websiteContent: websiteContent,
   });
 
+  const gptPromptPath = path.resolve(projectDirectory, 'gpt-prompt.md');
+  await fs.writeFile(gptPromptPath, finalGptContent);
+
   // Make sure the content is valid
   const encoder = encoding_for_model(gptCountModel);
   const tokens = encoder.encode(finalGptContent);

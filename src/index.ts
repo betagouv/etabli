@@ -7,15 +7,13 @@ import { Browser, Page, chromium } from 'playwright';
 import { encoding_for_model } from 'tiktoken';
 import Wappalyzer from 'wappalyzer';
 
+import { gptInstances, gptSeed } from '@etabli/gpt';
 import { SemgrepResultSchema } from '@etabli/semgrep';
 import { ResultSchema, resultSample } from '@etabli/template';
 import { WappalyzerResultSchema } from '@etabli/wappalyzer';
 
-const gptModel = 'gpt-3.5-turbo-1106';
-const gptCountModel = 'gpt-3.5-turbo'; // The counter does not understand precise GPT versions
-const gptModelTokenLimit = 16385; // Precise token maximum can be found on https://www.scriptbyai.com/token-limit-openai-chatgpt/
-const gptPer1000TokensCost = 0.001; // https://openai.com/pricing
-const gptSeed = 100;
+const gptInstance = gptInstances['v4'];
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -244,19 +242,19 @@ export async function main() {
   await fs.writeFile(gptPromptPath, finalGptContent);
 
   // Make sure the content is valid
-  const encoder = encoding_for_model(gptCountModel);
+  const encoder = encoding_for_model(gptInstance.countModel);
   const tokens = encoder.encode(finalGptContent);
   encoder.free();
 
-  if (tokens.length >= gptModelTokenLimit) {
+  if (tokens.length >= gptInstance.modelTokenLimit) {
     throw new Error('there are too many tokens for this model to accept it');
   }
 
-  console.log(`the content to send is ${tokens.length} tokens long (${gptModelTokenLimit} is the input+output limit)`);
+  console.log(`the content to send is ${tokens.length} tokens long (${gptInstance.modelTokenLimit} is the input+output limit)`);
 
   // Process data
   const answer = await openai.chat.completions.create({
-    model: gptModel,
+    model: gptInstance.model,
     messages: [
       {
         role: 'user',
@@ -274,11 +272,11 @@ export async function main() {
   if (answer.usage) {
     console.log(
       `the GPT input and output represent ${answer.usage.total_tokens} tokens in total (for a cost of ~$${
-        (answer.usage.total_tokens / 1000) * gptPer1000TokensCost
+        (answer.usage.total_tokens / 1000) * gptInstance.per1000TokensCost
       })`
     );
 
-    if (answer.usage.total_tokens > gptModelTokenLimit) {
+    if (answer.usage.total_tokens > gptInstance.modelTokenLimit) {
       console.warn('it seemed to process more token than the limit, the content may be truncated and invalid');
     }
   }

@@ -11,5 +11,5 @@ Binaries:
 - wappalyzer local alternative?
 - ts-node (for now)
 
-Run with:
-`ts-node -r tsconfig-paths/register src/index.ts`
+Run distinct commands with:
+`ts-node -r tsconfig-paths/register src/cli.ts`

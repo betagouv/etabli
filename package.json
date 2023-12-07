@@ -9,6 +9,7 @@
   "license": "AGPL-3.0",
   "scripts": {},
   "dependencies": {
+    "@commander-js/extra-typings": "^11.1.0",
     "execa": "^8.0.1",
     "handlebars": "^4.7.8",
     "openai": "^4.17.5",

@@ -7,7 +7,6 @@
     "paths": {
       "@etabli/*": ["./src/*"]
     },
-    "typeRoots": ["./src/@types"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true

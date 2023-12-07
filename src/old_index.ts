@@ -100,17 +100,6 @@ export async function getHTML(url: string): Promise<string> {
   return html;
 }
 
-export async function downloadFile(url: string, destination: string): Promise<void> {
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
-  }
-
-  const content = await response.arrayBuffer();
-  await fs.writeFile(destination, new Uint8Array(content));
-}
-
 export async function main() {
   // Cannot be imported directly due because it needs `"type": "module"` but Playwright cannot work with it
   const { $ } = await import('execa');

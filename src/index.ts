@@ -12,7 +12,7 @@ import { SemgrepResultSchema } from '@etabli/semgrep';
 import { ResultSchema, resultSample } from '@etabli/template';
 import { WappalyzerResultSchema } from '@etabli/wappalyzer';
 
-const gptInstance = gptInstances['v4'];
+const gptInstance = gptInstances['v3.5'];
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,

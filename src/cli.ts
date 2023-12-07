@@ -1,6 +1,6 @@
 import { Command } from '@commander-js/extra-typings';
 
-import { saveDomainCsvFile } from './features/domain';
+import { formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
 
 const program = new Command();
 
@@ -22,7 +22,7 @@ domain
   .command('format')
   .description('format the local csv file into the database for further analyses')
   .action(async () => {
-    console.log('domain.format');
+    await formatDomainsIntoDatabase();
   });
 
 domain

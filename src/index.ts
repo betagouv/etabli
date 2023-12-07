@@ -50,6 +50,16 @@ export const initiatives: Initiative[] = [
     websiteUrl: 'https://www.mediateur-public.fr/',
   },
   {
+    name: 'Sillon',
+    repositoryUrl: 'https://github.com/betagouv/sillon',
+    websiteUrl: 'https://sillon.incubateur.net/',
+  },
+  {
+    name: 'react-dsfr',
+    repositoryUrl: 'https://github.com/codegouvfr/react-dsfr',
+    websiteUrl: 'https://react-dsfr.codegouv.studio/',
+  },
+  {
     name: 'Aides Jeunes',
     repositoryUrl: 'https://github.com/betagouv/aides-jeunes',
     websiteUrl: 'https://www.1jeune1solution.gouv.fr/mes-aides',

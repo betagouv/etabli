@@ -9,7 +9,7 @@ export interface GptSettings {
 
 export type GptInstance = 'v3.5' | 'v4';
 
-export const gptInstances: { [key in GptInstance]: GptSettings } = {
+export const gptInstances: Record<GptInstance, GptSettings> = {
   'v3.5': {
     model: 'gpt-3.5-turbo-1106',
     countModel: 'gpt-3.5-turbo',

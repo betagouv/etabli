@@ -46,7 +46,7 @@ export const CsvDomainSchema = z
   .strict();
 export type CsvDomainSchemaType = z.infer<typeof CsvDomainSchema>;
 
-export async function saveDomainCsvFile(cache: boolean = true) {
+export async function saveDomainCsvFile(cache = true) {
   if (!cache || !fsSync.existsSync(localCsvPath)) {
     await downloadFile(latestRemoteCsvUrl, localCsvPath);
   }
@@ -129,7 +129,7 @@ export async function formatDomainsIntoDatabase() {
             return false;
           }
 
-          const { subDomains, domain, topLevelDomains } = parsedDomain;
+          const { subDomains } = parsedDomain;
           const isolatedParts: string[] = subDomains.join('.').split(/\.|-|_/);
           if (knownTechnicalPatterns.some((pattern) => isolatedParts.includes(pattern))) {
             return false;

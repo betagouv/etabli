@@ -59,7 +59,7 @@ export const JsonRepositorySchema = z
   .strict();
 export type JsonRepositorySchemaType = z.infer<typeof JsonRepositorySchema>;
 
-export async function saveRepositoryListFile(cache: boolean = true) {
+export async function saveRepositoryListFile(cache = true) {
   if (!cache || !fsSync.existsSync(localJsonPath)) {
     await downloadFile(latestRemoteJsonUrl, localJsonPath);
   }
@@ -67,7 +67,7 @@ export async function saveRepositoryListFile(cache: boolean = true) {
 
 export async function formatRepositoriesIntoDatabase() {
   const content = await fs.readFile(localJsonPath, 'utf-8');
-  const records: any[] = JSON.parse(content);
+  const records: unknown[] = JSON.parse(content);
 
   const jsonRepositories = records
     .map((record) => {

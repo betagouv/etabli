@@ -16,7 +16,7 @@ const customJestConfig = {
       ? pathsToModuleNameMapper(fullTsconfig.config.compilerOptions.paths, { prefix: '<rootDir>/' })
       : undefined,
   testEnvironment: 'jest-environment-jsdom',
-  testPathIgnorePatterns: ['<rootDir>/node_modules/'],
+  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/data/'],
   // transform: {
   //   '\\.[jt]sx?$': [
   //     'ts-jest',

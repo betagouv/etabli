@@ -1,6 +1,7 @@
 import { Command } from '@commander-js/extra-typings';
 
 import { formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
+import { formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/features/repository';
 
 const program = new Command();
 
@@ -29,28 +30,30 @@ domain
   .command('prepare')
   .description('execute "fetch" and "format" sequentially')
   .action(async () => {
-    console.log('domain.prepare');
+    await saveDomainCsvFile();
+    await formatDomainsIntoDatabase();
   });
 
 repository
   .command('fetch')
   .description('retrieve all public repositories')
   .action(async () => {
-    console.log('repository.fetch');
+    await saveRepositoryListFile();
   });
 
 repository
   .command('format')
   .description('format repositories into the database for further analyses')
   .action(async () => {
-    console.log('repository.format');
+    await formatRepositoriesIntoDatabase();
   });
 
 repository
   .command('prepare')
   .description('execute "fetch" and "format" sequentially')
   .action(async () => {
-    console.log('repository.prepare');
+    await saveRepositoryListFile();
+    await formatRepositoriesIntoDatabase();
   });
 
 initiative

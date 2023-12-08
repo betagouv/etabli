@@ -35,7 +35,7 @@ export type CsvDomainTypeSchemaType = z.infer<typeof CsvDomainTypeSchema>;
 
 export const CsvDomainSchema = z
   .object({
-    name: z.string().min(1).max(500), // The name is the
+    name: z.string().min(1).max(500), // The name corresponds to the hostname of the domain `hello.aaa.com` in case of `http://hello.aaa.com:443/`
     http_status: z.string().or(z.number().int()), // Integer is an exception in the list but taking it into account (it's not even a 200 code)
     https_status: z.string().or(z.number().int()), // Integer is an exception in the list but taking it into account (it's not even a 200 code)
     SIREN: z.string(),

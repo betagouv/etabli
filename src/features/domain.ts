@@ -76,12 +76,13 @@ export async function formatDomainsIntoDatabase() {
           return CsvDomainSchema.parse(record);
         })
         .filter((csvDomain: CsvDomainSchemaType) => {
-          // "Only" consider sites returning HTTP code 200
+          // "Only" consider sites returning HTTPS code 200
+          // (as of 2023, we consider a website without a valid HTTPS not being worth it. It will simplify in the meantime the analysis of the certificate to aggregate domains)
           //
           // Information for those with a 3xx redirection:
           // - the redirection destination has a high chance to be referenced too if it's legit
           // - domains outside of public gTLD can be purchased by individuals and the redirection could bring to bad websites (fair, the purchased website by someone could end in being the bad website, but this list is ideally supposed to be updated soon enough)
-          if (![csvDomain.http_status, csvDomain.https_status].includes('200 OK')) {
+          if (csvDomain.https_status === '200 OK') {
             return false;
           }
 

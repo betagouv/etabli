@@ -1,0 +1,102 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["filteredRelationCount", "fullTextSearch", "views"]
+}
+
+datasource db {
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "foreignKeys"
+}
+
+enum RawRepositoryPlatform {
+  GITHUB
+  GITLAB
+}
+
+model RawRepository {
+  id                     String                @id @default(uuid()) @db.Uuid
+  initialId              Int
+  name                   String
+  organizationName       String
+  platform               RawRepositoryPlatform
+  repositoryUrl          String
+  description            String                @db.Text
+  defaultBranch          String
+  isFork                 Boolean?
+  isArchived             Boolean
+  creationDate           DateTime
+  lastUpdate             DateTime
+  lastModification       DateTime
+  homepage               String?
+  starsCount             Int
+  forksCount             Int
+  license                String?
+  openIssuesCount        Int
+  language               String?
+  topics                 String? // Format `aaa,bbb,ccc`
+  softwareHeritageExists Boolean?
+  softwareHeritageUrl    String?
+
+  probableWebsiteUrl    String?
+  probableWebsiteDomain String?
+
+  mainSimilarRepositoryId     String? @unique @db.Uuid
+  updateMainSimilarRepository Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  mainSimilarRepository RawRepository?  @relation("SimilarRepositories", fields: [mainSimilarRepositoryId], references: [id], onDelete: SetNull)
+  similarRepositories   RawRepository[] @relation("SimilarRepositories")
+}
+
+enum RawDomainType {
+  COMMUNE
+  PUBLIC_INTERCOMMUNAL_COOPERATION_ESTABLISHMENT
+  COLLECTIVITY
+  REGIONAL_COUNCIL
+  LIBRARY
+  MANAGEMENT_CENTER
+  EDUCATIONAL_INSTITUTION
+  DEPARTMENTAL_COUNCIL
+  UNIVERSITY
+  EMBASSY
+  ACADEMY
+  DEPARTMENTAL_AUTONOMY_HOUSE
+  HOSPITAL
+  GOVERNMENT
+  PREFECTURE
+  HEALTH
+}
+
+model RawDomain {
+  id      String         @id @default(uuid()) @db.Uuid
+  name    String // Domain name format (e.g. `www.example.com`)
+  siren   String
+  type    RawDomainType?
+  sources String
+
+  canBeIndexed       Boolean?
+  updateCanBeIndexed Boolean  @default(true)
+  robotsTxtContent   String?
+
+  wildcardCertificate       Boolean?
+  updateWildcardCertificate Boolean  @default(true)
+  certificateContent        String?
+
+  websiteContent    String? @db.Text
+  websiteTitle      String?
+  updateWebsiteData Boolean @default(true)
+
+  mainSimilarDomainId     String? @unique @db.Uuid
+  updateMainSimilarDomain Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  mainSimilarDomain RawDomain?  @relation("SimilarDomains", fields: [mainSimilarDomainId], references: [id], onDelete: SetNull)
+  similarDomains    RawDomain[] @relation("SimilarDomains")
+}

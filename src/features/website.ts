@@ -1,4 +1,33 @@
 import substrings from 'common-substrings';
+import { Browser, Page, chromium } from 'playwright';
+
+export interface getWebsiteDataResponse {
+  status: number;
+  html: string;
+  title: string;
+}
+
+export async function getWebsiteData(url: string): Promise<getWebsiteDataResponse> {
+  console.log('getting website HTML content');
+
+  const browser: Browser = await chromium.launch();
+  const page: Page = await browser.newPage();
+
+  await page.goto(url);
+  await page.waitForTimeout(2000); // Wait for JS to init page (in case it's needed)
+
+  const html: string = await page.content();
+  const title = await page.title();
+  const status = await page.context();
+
+  await browser.close();
+
+  return {
+    status: status,
+    html: html,
+    title: title,
+  };
+}
 
 export function guessWebsiteNameFromPageTitles(title1: string, title2: string): string | null {
   const result = substrings([title1, title2], {

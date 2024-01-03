@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@commander-js/extra-typings": "^11.1.0",
+    "@donedeal0/superdiff": "^1.0.9",
     "@prisma/client": "^4.11.0",
     "common-substrings": "^3.0.1",
     "csv-parse": "^5.5.2",
@@ -47,6 +48,7 @@
     "parse-domain": "^8.0.1",
     "playwright": "^1.39.0",
     "prisma": "^4.11.0",
+    "robots-parser": "^3.0.1",
     "tiktoken": "^1.0.10",
     "wappalyzer": "6.10.66",
     "zod": "^3.22.4"

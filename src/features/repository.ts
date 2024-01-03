@@ -4,6 +4,7 @@ import path from 'path';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/common';
+import { prisma } from '@etabli/prisma';
 
 // We did not used the CSV format even if less heavy to avoid extra parsing for numbers, null, string on multiple lines... (ref: https://code.gouv.fr/data/repositories/csv/all.csv)
 
@@ -88,4 +89,8 @@ export async function formatRepositoriesIntoDatabase() {
 
   // TODO: DEBUG FOR NOW
   console.log(jsonRepositories.length);
+}
+
+export async function enhanceRepositoriesIntoDatabase() {
+  // TODO: ...
 }

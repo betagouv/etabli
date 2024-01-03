@@ -1,6 +1,6 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["filteredRelationCount", "fullTextSearch", "views"]
+  previewFeatures = ["fullTextSearch", "views"]
 }
 
 datasource db {
@@ -48,8 +48,11 @@ model RawRepository {
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 
-  mainSimilarRepository RawRepository?  @relation("SimilarRepositories", fields: [mainSimilarRepositoryId], references: [id], onDelete: SetNull)
-  similarRepositories   RawRepository[] @relation("SimilarRepositories")
+  mainSimilarRepository           RawRepository?                   @relation("SimilarRepositories", fields: [mainSimilarRepositoryId], references: [id], onDelete: SetNull)
+  similarRepositories             RawRepository[]                  @relation("SimilarRepositories")
+  RawRepositoriesOnInitiativeMaps RawRepositoriesOnInitiativeMaps?
+
+  @@unique([platform, organizationName, name])
 }
 
 enum RawDomainType {
@@ -73,7 +76,7 @@ enum RawDomainType {
 
 model RawDomain {
   id      String         @id @default(uuid()) @db.Uuid
-  name    String // Domain name format (e.g. `www.example.com`)
+  name    String         @unique // Domain name format (e.g. `www.example.com`)
   siren   String
   type    RawDomainType?
   sources String
@@ -86,9 +89,10 @@ model RawDomain {
   updateWildcardCertificate Boolean  @default(true)
   certificateContent        String?
 
-  websiteContent    String? @db.Text
-  websiteTitle      String?
-  updateWebsiteData Boolean @default(true)
+  websiteContent           String? @db.Text
+  websiteTitle             String?
+  websitePseudoFingerprint String?
+  updateWebsiteData        Boolean @default(true)
 
   mainSimilarDomainId     String? @unique @db.Uuid
   updateMainSimilarDomain Boolean @default(true)
@@ -97,6 +101,102 @@ model RawDomain {
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 
-  mainSimilarDomain RawDomain?  @relation("SimilarDomains", fields: [mainSimilarDomainId], references: [id], onDelete: SetNull)
-  similarDomains    RawDomain[] @relation("SimilarDomains")
+  mainSimilarDomain          RawDomain?                  @relation("SimilarDomains", fields: [mainSimilarDomainId], references: [id], onDelete: SetNull)
+  similarDomains             RawDomain[]                 @relation("SimilarDomains")
+  RawDomainsOnInitiativeMaps RawDomainsOnInitiativeMaps?
+}
+
+model Tool {
+  id   String @id @default(uuid()) @db.Uuid
+  name String @unique
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  ToolsOnInitiatives ToolsOnInitiatives[]
+}
+
+model BusinessUseCase {
+  id   String @id @default(uuid()) @db.Uuid
+  name String @unique
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  BusinessUseCasesOnInitiatives BusinessUseCasesOnInitiatives[]
+}
+
+enum FunctionalUseCase {
+  HAS_VIRTUAL_EMAIL_INBOXES
+  SENDS_EMAILS
+  GENERATES_PDF
+}
+
+model ToolsOnInitiatives {
+  toolId       String @db.Uuid
+  initiativeId String @db.Uuid
+
+  tool       Tool       @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  initiative Initiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+
+  @@id([toolId, initiativeId])
+}
+
+model BusinessUseCasesOnInitiatives {
+  businessUseCaseId String @db.Uuid
+  initiativeId      String @db.Uuid
+
+  businessUseCase BusinessUseCase @relation(fields: [businessUseCaseId], references: [id], onDelete: Cascade)
+  initiative      Initiative      @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+
+  @@id([businessUseCaseId, initiativeId])
+}
+
+model RawDomainsOnInitiativeMaps {
+  rawDomainId     String @unique @db.Uuid
+  initiativeMapId String @db.Uuid
+
+  rawDomain  RawDomain     @relation(fields: [rawDomainId], references: [id], onDelete: Cascade)
+  initiative InitiativeMap @relation(fields: [initiativeMapId], references: [id], onDelete: Cascade)
+
+  @@id([rawDomainId, initiativeMapId])
+}
+
+model RawRepositoriesOnInitiativeMaps {
+  rawRepositoryId String @unique @db.Uuid
+  initiativeMapId String @db.Uuid
+
+  rawRepository RawRepository @relation(fields: [rawRepositoryId], references: [id], onDelete: Cascade)
+  initiative    InitiativeMap @relation(fields: [initiativeMapId], references: [id], onDelete: Cascade)
+
+  @@id([rawRepositoryId, initiativeMapId])
+}
+
+model InitiativeMap {
+  id     String  @id @default(uuid()) @db.Uuid
+  update Boolean
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  Initiative                      Initiative?
+  RawDomainsOnInitiativeMaps      RawDomainsOnInitiativeMaps[]
+  RawRepositoriesOnInitiativeMaps RawRepositoriesOnInitiativeMaps[]
+}
+
+model Initiative {
+  id                 String              @id @default(uuid()) @db.Uuid
+  originId           String              @unique @db.Uuid
+  name               String
+  description        String
+  websites           String[]
+  repositories       String[]
+  functionalUseCases FunctionalUseCase[]
+
+  origin                        InitiativeMap                   @relation(fields: [originId], references: [id])
+  ToolsOnInitiatives            ToolsOnInitiatives[]
+  BusinessUseCasesOnInitiatives BusinessUseCasesOnInitiatives[]
 }

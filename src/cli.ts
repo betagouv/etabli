@@ -1,7 +1,7 @@
 import { Command } from '@commander-js/extra-typings';
 
-import { formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
-import { formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/features/repository';
+import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
+import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/features/repository';
 
 const program = new Command();
 
@@ -27,11 +27,19 @@ domain
   });
 
 domain
+  .command('enhance')
+  .description('do extra work to bring domain information that needs a third-party')
+  .action(async () => {
+    await enhanceDomainsIntoDatabase();
+  });
+
+domain
   .command('prepare')
-  .description('execute "fetch" and "format" sequentially')
+  .description('execute "fetch", "format" and "enhance" sequentially')
   .action(async () => {
     await saveDomainCsvFile();
     await formatDomainsIntoDatabase();
+    await enhanceDomainsIntoDatabase();
   });
 
 repository
@@ -49,11 +57,19 @@ repository
   });
 
 repository
+  .command('enhance')
+  .description('do extra work to bring repository information that needs a third-party')
+  .action(async () => {
+    await enhanceRepositoriesIntoDatabase();
+  });
+
+repository
   .command('prepare')
-  .description('execute "fetch" and "format" sequentially')
+  .description('execute "fetch", "format" and "enhance" sequentially')
   .action(async () => {
     await saveRepositoryListFile();
     await formatRepositoriesIntoDatabase();
+    await enhanceRepositoriesIntoDatabase();
   });
 
 initiative

@@ -75,6 +75,11 @@ export async function formatRepositoriesIntoDatabase() {
       return JsonRepositorySchema.parse(record);
     })
     .filter((jsonRepository: JsonRepositorySchemaType) => {
+      // TODO: to remove due to tests on a small subset
+      if (!jsonRepository.repository_url.includes('https://github.com/betagouv/')) {
+        return false;
+      }
+
       // Skip forks since there is a high chance of being something not new (it's rare people forking for new projects, they should use templates instead)
       if (jsonRepository.is_fork === true) {
         return false;

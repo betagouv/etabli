@@ -89,6 +89,11 @@ export async function formatDomainsIntoDatabase() {
           return CsvDomainSchema.parse(record);
         })
         .filter((csvDomain: CsvDomainSchemaType) => {
+          // TODO: to remove due to tests on a small subset
+          if (!csvDomain.name.includes('.beta.gouv.fr')) {
+            return false;
+          }
+
           // "Only" consider sites returning HTTPS code 200
           // (as of 2023, we consider a website without a valid HTTPS not being worth it. It will simplify in the meantime the analysis of the certificate to aggregate domains)
           //

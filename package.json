@@ -52,6 +52,7 @@
     "prisma": "^4.11.0",
     "robots-parser": "^3.0.1",
     "tiktoken": "^1.0.10",
+    "ts-custom-error": "^3.3.1",
     "wappalyzer": "6.10.66",
     "zod": "^3.22.4"
   },

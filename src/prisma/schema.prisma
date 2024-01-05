@@ -81,18 +81,26 @@ model RawDomain {
   type    RawDomainType?
   sources String
 
-  canBeIndexed       Boolean?
-  updateCanBeIndexed Boolean  @default(true)
-  robotsTxtContent   String?
+  redirectDomainTargetName String?
+  redirectDomainTargetId   String? @unique @db.Uuid
+
+  indexableFromRobotsTxt       Boolean?
+  updateIndexableFromRobotsTxt Boolean  @default(true)
+  robotsTxtContent             String?
 
   wildcardCertificate       Boolean?
   updateWildcardCertificate Boolean  @default(true)
   certificateContent        String?
 
-  websiteContent           String? @db.Text
-  websiteTitle             String?
+  websiteRawContent        String?  @db.Text
+  websiteTitle             String?  @db.Text
+  websiteAnotherPageTitle  String?  @db.Text
+  websiteInferredName      String?  @db.Text
+  websiteHasContent        Boolean?
+  websiteHasStyle          Boolean?
+  websiteContentIndexable  Boolean?
   websitePseudoFingerprint String?
-  updateWebsiteData        Boolean @default(true)
+  updateWebsiteData        Boolean  @default(true)
 
   mainSimilarDomainId     String? @unique @db.Uuid
   updateMainSimilarDomain Boolean @default(true)
@@ -101,6 +109,8 @@ model RawDomain {
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 
+  redirectDomainTarget       RawDomain?                  @relation("RedirectDomains", fields: [redirectDomainTargetId], references: [id], onDelete: SetNull)
+  redirectDomainOrigins      RawDomain[]                 @relation("RedirectDomains")
   mainSimilarDomain          RawDomain?                  @relation("SimilarDomains", fields: [mainSimilarDomainId], references: [id], onDelete: SetNull)
   similarDomains             RawDomain[]                 @relation("SimilarDomains")
   RawDomainsOnInitiativeMaps RawDomainsOnInitiativeMaps?

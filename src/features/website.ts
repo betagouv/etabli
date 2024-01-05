@@ -2,10 +2,15 @@ import assert from 'assert';
 import substrings from 'common-substrings';
 import { Browser, Page, chromium } from 'playwright';
 
+import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/models/entities/errors';
+
 export interface getWebsiteDataResponse {
   status: number;
   html: string;
-  title: string;
+  title: string | null;
+  headers: {
+    [key: string]: string;
+  };
 }
 
 export async function getWebsiteData(url: string): Promise<getWebsiteDataResponse> {
@@ -19,16 +24,25 @@ export async function getWebsiteData(url: string): Promise<getWebsiteDataRespons
 
   await page.waitForTimeout(2000); // Wait for JS to init page (in case it's needed)
 
+  // We want to prevent redirection on another domain to keep integrity but we let pathname redirection pass, so looking at domain only
+  const originalUrl = new URL(url);
+  const resultingUrl = new URL(await page.evaluate(() => document.location.href));
+  if (resultingUrl.host !== originalUrl.host) {
+    throw new BusinessDomainError(unexpectedDomainRedirectionError, resultingUrl.hostname);
+  }
+
   const html: string = await page.content();
   const title = await page.title();
   const status = response.status();
+  const headers = response.headers();
 
   await browser.close();
 
   return {
     status: status,
     html: html,
-    title: title,
+    title: title !== '' ? title : null,
+    headers: headers,
   };
 }
 

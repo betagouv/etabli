@@ -5,19 +5,20 @@ import fsSync from 'fs';
 import fs from 'fs/promises';
 import https from 'https';
 import { JSDOM } from 'jsdom';
+import { FetchError } from 'node-fetch';
 import path from 'path';
 import robotsParser from 'robots-parser';
 import { PeerCertificate, TLSSocket } from 'tls';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/common';
-import { getWebsiteData } from '@etabli/features/website';
+import { getWebsiteData, guessWebsiteNameFromPageTitles } from '@etabli/features/website';
+import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/models/entities/errors';
 import { LiteRawDomainSchema, LiteRawDomainSchemaType } from '@etabli/models/entities/raw-domain';
 import { rawDomainTypeCsvToModel } from '@etabli/models/mappers/raw-domain';
 import { prisma } from '@etabli/prisma';
+import { containsHtml } from '@etabli/utils/html';
 import { sleep } from '@etabli/utils/sleep';
-
-const serverJsdom = new JSDOM();
 
 export const latestRemoteCsvUrl =
   'https://gitlab.adullact.net/dinum/noms-de-domaine-organismes-secteur-public/-/raw/master/domains.csv?ref_type=heads';
@@ -194,14 +195,19 @@ export async function formatDomainsIntoDatabase() {
                   siren: liteRawDomain.siren,
                   type: liteRawDomain.type,
                   sources: liteRawDomain.sources,
-                  canBeIndexed: null,
-                  updateCanBeIndexed: true,
+                  indexableFromRobotsTxt: null,
+                  updateIndexableFromRobotsTxt: true,
                   robotsTxtContent: null,
                   wildcardCertificate: null,
                   updateWildcardCertificate: true,
                   certificateContent: null,
-                  websiteContent: null,
+                  websiteRawContent: null,
                   websiteTitle: null,
+                  websiteAnotherPageTitle: null,
+                  websiteInferredName: null,
+                  websiteHasContent: null,
+                  websiteHasStyle: null,
+                  websiteContentIndexable: null,
                   websitePseudoFingerprint: null,
                   updateWebsiteData: true,
                   updateMainSimilarDomain: true,
@@ -289,7 +295,8 @@ export async function formatDomainsIntoDatabase() {
 export async function updateRobotsTxtOnDomains() {
   const rawDomains = await prisma.rawDomain.findMany({
     where: {
-      updateCanBeIndexed: true,
+      updateIndexableFromRobotsTxt: true,
+      redirectDomainTargetName: null,
     },
     include: {
       RawDomainsOnInitiativeMaps: true,
@@ -297,42 +304,97 @@ export async function updateRobotsTxtOnDomains() {
   });
 
   for (const rawDomain of rawDomains) {
-    const rootUrl = new URL(`https://${rawDomain.name}`);
-    const robotsUrl = `${rootUrl.toString()}/robots.txt`;
-    const result = await fetch(robotsUrl, {
-      redirect: 'error',
-    });
+    console.log(`try to process robots.txt for domain ${rawDomain.name} (${rawDomain.id})`);
 
-    if (result.status >= 200 && result.status < 300) {
-      const body = await result.text();
+    try {
+      const rootUrl = new URL(`https://${rawDomain.name}`);
+      const robotsUrl = `${rootUrl.toString()}robots.txt`;
+      const result = await fetch(robotsUrl);
 
-      const robots = robotsParser(robotsUrl, body);
-      const canBeIndexed = robots.isAllowed(rootUrl.toString()); // Testing the root pathname is enough to know if the website is indexable or not
+      // We want to prevent redirection on another domain to keep integrity but we let pathname redirection pass, so looking at domain only
+      const resultingUrl = new URL(result.url);
+      if (resultingUrl.host !== rootUrl.host) {
+        throw new BusinessDomainError(unexpectedDomainRedirectionError, resultingUrl.hostname);
+      }
 
-      await prisma.rawDomain.update({
-        where: {
-          id: rawDomain.id,
-        },
-        data: {
-          canBeIndexed: canBeIndexed,
-          updateCanBeIndexed: false,
-          robotsTxtContent: body,
-        },
-      });
-    } else if (result.status > 500) {
-      // Website not reachable yet, hope to have it on next attempt
-    } else {
-      // In case of an error, set to null
-      await prisma.rawDomain.update({
-        where: {
-          id: rawDomain.id,
-        },
-        data: {
-          canBeIndexed: null,
-          updateCanBeIndexed: false,
-          robotsTxtContent: null,
-        },
-      });
+      if (result.status >= 200 && result.status < 300) {
+        const body = await result.text();
+
+        // By default we expect the website to explicitly opt out from crawling (because by default, having no robots.txt to be fully indexed is easier)
+        // Note: the HTML tag `<meta name="robots" content="noindex">` may be used to opt out, we check this into the website data processing
+        let indexableAccordingToRobotsTxt = true;
+
+        // Some websites have no robots.txt defined and fallback to content (so we don't parse those)
+        // Our tiny workaround it to prevent HTML content inside since there is no robots.txt format validator available
+        if (!containsHtml(body)) {
+          const robots = robotsParser(robotsUrl, body);
+          const isAllowed = robots.isAllowed(rootUrl.toString()); // Testing the root pathname is enough to know if the website is indexable or not
+
+          if (isAllowed) {
+            indexableAccordingToRobotsTxt = isAllowed;
+          }
+        }
+
+        await prisma.rawDomain.update({
+          where: {
+            id: rawDomain.id,
+          },
+          data: {
+            indexableFromRobotsTxt: indexableAccordingToRobotsTxt,
+            updateIndexableFromRobotsTxt: false,
+            robotsTxtContent: body,
+          },
+        });
+      } else if (result.status > 500) {
+        // Website not reachable yet, hope to have it on next attempt
+      } else {
+        // In case of an error, set to null
+        await prisma.rawDomain.update({
+          where: {
+            id: rawDomain.id,
+          },
+          data: {
+            indexableFromRobotsTxt: null,
+            updateIndexableFromRobotsTxt: false,
+            robotsTxtContent: null,
+          },
+        });
+      }
+    } catch (error) {
+      if (error instanceof BusinessDomainError && error.code === unexpectedDomainRedirectionError.code) {
+        const relatedRawDomain = await prisma.rawDomain.findUnique({
+          where: {
+            name: error.name,
+          },
+        });
+
+        await prisma.rawDomain.update({
+          where: {
+            id: rawDomain.id,
+          },
+          data: {
+            redirectDomainTargetName: error.domain,
+            redirectDomainTarget: {
+              connect: !!relatedRawDomain
+                ? {
+                    id: relatedRawDomain.id,
+                  }
+                : undefined,
+            },
+          },
+        });
+
+        continue;
+      } else if (error instanceof Error && ['ENETUNREACH', 'ENOTFOUND'].includes((error.cause as FetchError)?.code || '')) {
+        // The server is unreachable, since the route may be broken temporarily we skip the domain to be reprocessed next time
+      } else if (error instanceof Error && (error.cause as any)?.code === 'HPE_INVALID_HEADER_TOKEN') {
+        // Note: HTTPParserError is not a known type so casting manually (I don't even understand why I can find it on internet... only in a Ruby project)
+        // Some websites return wrongly formatted headers (like https://mesads.beta.gouv.fr/robots.txt due to the provider Clever Cloud)
+        // Which makes `fetch()` failing with `HPE_INVALID_HEADER_TOKEN ... Invalid header value char`. We just skip this domain
+        // because it may be fixed in the future. Also, there is no easy way into new Node.js versions to disable this check.
+      } else {
+        throw error;
+      }
     }
 
     // Do not flood network
@@ -344,6 +406,7 @@ export async function updateWildcardCertificateOnDomains() {
   const rawDomains = await prisma.rawDomain.findMany({
     where: {
       updateWildcardCertificate: true,
+      redirectDomainTargetName: null,
     },
     include: {
       RawDomainsOnInitiativeMaps: true,
@@ -351,6 +414,8 @@ export async function updateWildcardCertificateOnDomains() {
   });
 
   for (const rawDomain of rawDomains) {
+    console.log(`try to process SSL certificate for domain ${rawDomain.name} (${rawDomain.id})`);
+
     const certificate = await new Promise<PeerCertificate | null>((resolve) => {
       const request = https.request(
         {
@@ -390,48 +455,140 @@ export async function updateWebsiteDataOnDomains() {
   const rawDomains = await prisma.rawDomain.findMany({
     where: {
       updateWebsiteData: true,
+      redirectDomainTargetName: null,
     },
   });
 
   for (const rawDomain of rawDomains) {
-    const url = new URL(`https://${rawDomain.name}`);
-    const websiteData = await getWebsiteData(url.toString());
+    console.log(`try to process website content for domain ${rawDomain.name} (${rawDomain.id})`);
 
-    if (websiteData.status >= 200 && websiteData.status < 300) {
-      // We consider the head tag content as a fingerprint common
-      // between different environments (dev, staging, production) for the same website.
-      // It's not perfect but it's in addition to other filters performed aside this
-      const parser = new serverJsdom.window.DOMParser();
-      const dom = parser.parseFromString(websiteData.html, 'text/html');
+    try {
+      const url = new URL(`https://${rawDomain.name}`);
+      const websiteData = await getWebsiteData(url.toString());
 
-      const headContent = dom.querySelector('head')?.innerHTML;
+      if (websiteData.status >= 200 && websiteData.status < 300) {
+        if (containsHtml(websiteData.html)) {
+          // We consider the head tag content as a fingerprint common
+          // between different environments (dev, staging, production) for the same website.
+          // It's not perfect but it's in addition to other filters performed aside this
+          const dom = new JSDOM(websiteData.html, {
+            url: url.toString(),
+            contentType: 'text/html',
+          });
 
-      await prisma.rawDomain.update({
-        where: {
-          id: rawDomain.id,
-        },
-        data: {
-          websiteContent: websiteData.html,
-          websiteTitle: websiteData.title,
-          websitePseudoFingerprint: headContent || null,
-          updateWebsiteData: false,
-        },
-      });
-    } else if (websiteData.status > 500) {
-      // Website not reachable yet, hope to have it on next attempt
-    } else {
-      // In case of an error, set to null
-      await prisma.rawDomain.update({
-        where: {
-          id: rawDomain.id,
-        },
-        data: {
-          websiteContent: null,
-          websiteTitle: null,
-          websitePseudoFingerprint: null,
-          updateWebsiteData: false,
-        },
-      });
+          const headContent = dom.window.document.querySelector('head')?.innerHTML;
+          const contentText = dom.window.document.querySelector('body')?.innerText.trim();
+          const hasContent = !!contentText && contentText !== '';
+          const hasStyle = dom.window.document.querySelectorAll('link[rel="stylesheet"], style').length > 0;
+
+          // A missing `noindex` means it can be indexed in this context (don't forget a `robots.txt`)
+          // Note: we don't look at specific crawler restriction because we only want to know if the website is considered "private" or not
+          const indexableMetaElement = dom.window.document.querySelector('meta[name="robots"]');
+          const isIndexableAccordingToThisContentOnly = indexableMetaElement ? indexableMetaElement.getAttribute('content') !== 'noindex' : true;
+          const isIndexableAccordingToHeadersOnly = websiteData.headers['x-robots-tag'] !== 'noindex'; // As for the `meta` tag, is not globally `noindex` we don't try to parse other form of complexity since it's unlikely formatted like that (and also no header parser library exists for this case)
+          const isIndexableAccordingToWebsiteData = isIndexableAccordingToThisContentOnly && isIndexableAccordingToHeadersOnly;
+
+          // Find another page of this website to infer website name according to 2 titles
+          // Note: if not working perflectly we could count how many `/` into the path, and sort links to look for the link with fewer "/" (indicating a main page)
+          // Note: by specifying the `url` with `JSDOM` it turns relative paths into absolute ones (which is ideal to browse across)
+          let anotherPageTitle: string | null = null;
+
+          const links = dom.window.document.querySelectorAll('a');
+          for (const link of links) {
+            // We also consider excluding the URL in case of a redirection or `window.replace` from the website
+            if (link.href.startsWith(url.toString()) && link.href !== url.toString() && link.href !== websiteData.title) {
+              const anotherPageUrl = link.href;
+
+              const anotherPageData = await getWebsiteData(anotherPageUrl);
+              anotherPageTitle = anotherPageData.title;
+
+              break;
+            }
+          }
+
+          await prisma.rawDomain.update({
+            where: {
+              id: rawDomain.id,
+            },
+            data: {
+              websiteRawContent: websiteData.html,
+              websiteTitle: websiteData.title,
+              websiteAnotherPageTitle: anotherPageTitle,
+              websiteInferredName: websiteData.title && anotherPageTitle ? guessWebsiteNameFromPageTitles(websiteData.title, anotherPageTitle) : null,
+              websiteHasContent: hasContent,
+              websiteHasStyle: hasStyle,
+              websiteContentIndexable: isIndexableAccordingToWebsiteData,
+              websitePseudoFingerprint: headContent || null,
+              updateWebsiteData: false,
+            },
+          });
+        } else {
+          await prisma.rawDomain.update({
+            where: {
+              id: rawDomain.id,
+            },
+            data: {
+              websiteRawContent: websiteData.html,
+              websiteTitle: null,
+              websiteAnotherPageTitle: null,
+              websiteInferredName: rawDomain.name,
+              websiteHasContent: false,
+              websiteHasStyle: false,
+              websiteContentIndexable: true, // Since no specific tag, we consider it as indexable even if we won't due to missing HTML content
+              websitePseudoFingerprint: null,
+              updateWebsiteData: false,
+            },
+          });
+        }
+      } else if (websiteData.status > 500) {
+        // Website not reachable yet, hope to have it on next attempt
+      } else {
+        // In case of an error, set to null
+        await prisma.rawDomain.update({
+          where: {
+            id: rawDomain.id,
+          },
+          data: {
+            websiteRawContent: null,
+            websiteTitle: null,
+            websiteAnotherPageTitle: null,
+            websiteInferredName: null,
+            websiteHasContent: null,
+            websiteHasStyle: null,
+            websiteContentIndexable: null,
+            websitePseudoFingerprint: null,
+            updateWebsiteData: false,
+          },
+        });
+      }
+    } catch (error) {
+      if (error instanceof BusinessDomainError && error.code === unexpectedDomainRedirectionError.code) {
+        const relatedRawDomain = await prisma.rawDomain.findUnique({
+          where: {
+            name: error.name,
+          },
+        });
+
+        await prisma.rawDomain.update({
+          where: {
+            id: rawDomain.id,
+          },
+          data: {
+            redirectDomainTargetName: error.name,
+            redirectDomainTarget: {
+              connect: !!relatedRawDomain
+                ? {
+                    id: relatedRawDomain.id,
+                  }
+                : undefined,
+            },
+          },
+        });
+
+        continue;
+      } else {
+        throw error;
+      }
     }
 
     // Do not flood network
@@ -445,6 +602,7 @@ export async function matchDomains() {
   const rawDomainsToUpdate = await prisma.rawDomain.findMany({
     where: {
       updateMainSimilarDomain: true,
+      redirectDomainTargetName: null,
     },
   });
 
@@ -463,6 +621,8 @@ export async function matchDomains() {
   });
 
   for (const rawDomainToUpdate of rawDomainsToUpdate) {
+    console.log(`try to bind similar domains to domain ${rawDomainToUpdate.name} (${rawDomainToUpdate.id})`);
+
     const rootRawDomain = sortedRootRawDomains.find((d) => {
       // Look for `.abc.com` in case of `subdomain.abc.com`
       return rawDomainToUpdate.name.includes(`.${d.name}`);
@@ -481,6 +641,9 @@ export async function matchDomains() {
       },
     });
 
+    // TODO: some websites may use the same code (the same shell) with different sets of data. A solution can be to look
+    // at equivalent inferred website name under a same subdomain/domain (exclundig gTLD). It allows gathering cloned sites but
+    // the negative side is: which one to process? None? If one, how to tell it's more important than other...
     const similarRawDomain = rootRawDomain || mainRawDomainClone;
 
     await prisma.rawDomain.update({

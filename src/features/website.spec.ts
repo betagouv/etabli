@@ -1,4 +1,10 @@
+/**
+ * @jest-environment node
+ */
+import { JSDOM } from 'jsdom';
+
 import { guessWebsiteNameFromPageTitles } from '@etabli/features/website';
+import { containsHtml } from '@etabli/utils/html';
 
 describe('guessWebsiteNameFromPageTitles()', () => {
   it('should extract interesting part', async () => {
@@ -27,5 +33,31 @@ describe('guessWebsiteNameFromPageTitles()', () => {
 
     const commonPattern = guessWebsiteNameFromPageTitles(title1, title2);
     expect(commonPattern).toBeNull();
+  });
+});
+
+describe('DOMParser.parseFromString()', () => {
+  it('should confirm library cannot detect invalid html', async () => {
+    const content = 'raw hello world!';
+
+    const serverJsdom = new JSDOM();
+    const parser = new serverJsdom.window.DOMParser();
+    const dom = parser.parseFromString(content, 'text/html');
+
+    expect(dom.querySelector('html')?.outerHTML).toBe('<html><head></head><body>raw hello world!</body></html>');
+
+    // So using another check instead
+    expect(containsHtml(content)).toBeFalsy();
+  });
+
+  it('should confirm relative paths can turn into absolute ones', async () => {
+    const content = '<a href="/hello">Hello world!</a>';
+
+    const dom = new JSDOM(content, {
+      url: 'https://test.com/',
+      contentType: 'text/html',
+    });
+
+    expect(dom.window.document.querySelector('a')?.href).toBe('https://test.com/hello');
   });
 });

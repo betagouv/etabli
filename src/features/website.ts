@@ -1,3 +1,4 @@
+import assert from 'assert';
 import substrings from 'common-substrings';
 import { Browser, Page, chromium } from 'playwright';
 
@@ -13,12 +14,14 @@ export async function getWebsiteData(url: string): Promise<getWebsiteDataRespons
   const browser: Browser = await chromium.launch();
   const page: Page = await browser.newPage();
 
-  await page.goto(url);
+  const response = await page.goto(url);
+  assert(response);
+
   await page.waitForTimeout(2000); // Wait for JS to init page (in case it's needed)
 
   const html: string = await page.content();
   const title = await page.title();
-  const status = await page.context();
+  const status = response.status();
 
   await browser.close();
 

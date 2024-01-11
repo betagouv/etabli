@@ -46,6 +46,7 @@
     "csv-parse": "^5.5.2",
     "execa": "^8.0.1",
     "handlebars": "^4.7.8",
+    "linkify-it": "^5.0.0",
     "openai": "^4.17.5",
     "parse-domain": "^8.0.1",
     "playwright": "^1.39.0",
@@ -59,6 +60,7 @@
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^4.3.0",
     "@types/jest": "^29.4.0",
+    "@types/linkify-it": "^3.0.5",
     "@types/node": "^20.9.0",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",

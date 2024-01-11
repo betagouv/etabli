@@ -2,12 +2,16 @@ import { getListDiff } from '@donedeal0/superdiff';
 import { Prisma } from '@prisma/client';
 import fsSync from 'fs';
 import fs from 'fs/promises';
+import linkifyit from 'linkify-it';
 import path from 'path';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/common';
 import { LiteRawRepositorySchema, LiteRawRepositorySchemaType } from '@etabli/models/entities/raw-repository';
 import { prisma } from '@etabli/prisma';
+import { sleep } from '@etabli/utils/sleep';
+
+const linkify = linkifyit();
 
 // We did not used the CSV format even if less heavy to avoid extra parsing for numbers, null, string on multiple lines... (ref: https://code.gouv.fr/data/repositories/csv/all.csv)
 
@@ -306,6 +310,210 @@ export async function formatRepositoriesIntoDatabase() {
   );
 }
 
+export async function updateInferredMetadataOnRepositories() {
+  const rawRepositories = await prisma.rawRepository.findMany({
+    where: {
+      updateInferredMetadata: true,
+    },
+    include: {
+      RawRepositoriesOnInitiativeMaps: true,
+    },
+  });
+
+  for (const rawRepository of rawRepositories) {
+    console.log(
+      `try to locally infer metadata for repository {${rawRepository.platform}} ${rawRepository.organizationName}/${rawRepository.name} (${rawRepository.id})`
+    );
+
+    // If there is a declared URL, take it as it comes
+    let probableWebsiteUrl: URL | null = null;
+    try {
+      if (rawRepository.homepage) {
+        probableWebsiteUrl = new URL(rawRepository.homepage);
+      }
+    } catch (error) {
+      // Silent :)
+    }
+
+    if (!probableWebsiteUrl && rawRepository.description) {
+      // Try to find a link into the description, and skip if more than one because maybe it targets different things
+      const matches = (linkify.match(rawRepository.description) || []).filter((match) => {
+        try {
+          const parsedUrl = new URL(match.url);
+
+          return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+        } catch (error) {
+          return false;
+        }
+      });
+
+      if (matches.length === 1) {
+        probableWebsiteUrl = new URL(matches[0].url);
+      }
+    }
+
+    await prisma.rawRepository.update({
+      where: {
+        id: rawRepository.id,
+      },
+      data: {
+        probableWebsiteUrl: probableWebsiteUrl ? probableWebsiteUrl.toString() : null,
+        probableWebsiteDomain: probableWebsiteUrl ? probableWebsiteUrl.hostname : null,
+        updateInferredMetadata: false,
+      },
+    });
+
+    // Do not flood network
+    await sleep(1000);
+  }
+}
+
+const multirepositoriesPatterns = [
+  // Due to complicated regexes below (I didn't figure it a better way of doing)
+  // we have to specify longer string like "application" before "app" otherwise it strips despite using delimiter into regex... I'm sorry the syntax is too complicated
+  'application',
+  'app',
+  'dashboard',
+  'site',
+  'web',
+  'www',
+  'landing',
+  'mobile',
+  'api',
+  'frontend',
+  'front',
+  'ui',
+  'blog',
+  'backend',
+  'backoffice',
+  'back',
+  'admin',
+  'core',
+  'docs',
+  'doc',
+  'tools',
+  'utils',
+  'scripts',
+  'cli',
+  'lib',
+  'client',
+  'sdk',
+  'infra',
+  'config',
+  'charts',
+  'docker',
+  'test',
+];
+
+export function stripMultirepositoriesPatterns(name: string): string {
+  // Note: I didn't succeed to make it with 2 regex... even with GPT help :D
+  // Note: it remove versions in addition to common words, those written `v6` or `v247`
+  const patternsRegex = new RegExp(`((?<=^)|(?<=[/\\-_\.]))(${multirepositoriesPatterns.join('|')}|v\\\d+)((?<=$)|(?<![/\\-_\.]))`, 'g');
+
+  return (
+    name
+      // Remove common words
+      .replace(patternsRegex, '')
+      // Clean remaining double delimiters
+      .replace(/(?<=[-_\.])([-_\.])/g, '')
+      // Remove them in case at start, end, or next to a slash
+      .replace(/(?<=^|\/)[-_\.]/g, '')
+      .replace(/[-_\.](?<=$|\/)/g, '')
+  );
+}
+
+export async function matchRepositories() {
+  const rawRepositoriesToUpdate = await prisma.rawRepository.findMany({
+    where: {
+      updateMainSimilarRepository: true,
+    },
+  });
+
+  for (const rawRepositoryToUpdate of rawRepositoriesToUpdate) {
+    console.log(
+      `try to bind similar repositories to repository {${rawRepositoryToUpdate.platform}} ${rawRepositoryToUpdate.organizationName}/${rawRepositoryToUpdate.name} (${rawRepositoryToUpdate.id})`
+    );
+
+    // The repositories to look for should be under the same platform and organization (unlikely people would set code for the same application at multiple locations)
+    const otherOrganizationRepositories = await prisma.rawRepository.findMany({
+      where: {
+        platform: rawRepositoryToUpdate.platform,
+        organizationName: rawRepositoryToUpdate.organizationName,
+        id: {
+          not: rawRepositoryToUpdate.id,
+        },
+      },
+      orderBy: [
+        // If there is a matching we try to consider the main one based on naming pattern (root name would be the main one since other pattern is hard to say it has more value than others),
+        // but if those criterias don't apply we consider the one with the more stars, consider alphabetical order too
+        {
+          starsCount: 'desc',
+        },
+        {
+          name: 'asc',
+        },
+      ],
+    });
+
+    const strippedNameToLookFor = stripMultirepositoriesPatterns(rawRepositoryToUpdate.name);
+
+    // Only keep repositories having the exact same stripped name
+    const sameRepositories = otherOrganizationRepositories.filter((repository) => {
+      return stripMultirepositoriesPatterns(repository.name) === strippedNameToLookFor;
+    });
+
+    // If any of them has the stripped name equivalent to the name, we can consider as main one since no additional word
+    let mainReposistoryFromStrippedName = sameRepositories.find((repository) => {
+      return repository.name === strippedNameToLookFor;
+    });
+
+    // Otherwise take the first of the list
+    if (!mainReposistoryFromStrippedName && sameRepositories.length > 0) {
+      mainReposistoryFromStrippedName = sameRepositories[0];
+    }
+
+    const mainRepositoryFromProbableDomainName = await prisma.rawRepository.findFirst({
+      where: {
+        id: {
+          not: rawRepositoryToUpdate.id,
+        },
+        probableWebsiteDomain: rawRepositoryToUpdate.probableWebsiteDomain,
+      },
+      orderBy: [
+        // Keep always the same order so for next occurences they would be linked to the same
+        {
+          starsCount: 'desc',
+        },
+        {
+          name: 'asc',
+        },
+      ],
+    });
+
+    const similarRawRepository = mainReposistoryFromStrippedName || mainRepositoryFromProbableDomainName;
+
+    await prisma.rawRepository.update({
+      where: {
+        id: rawRepositoryToUpdate.id,
+      },
+      data: {
+        mainSimilarRepository: {
+          connect: similarRawRepository
+            ? {
+                id: similarRawRepository.id,
+              }
+            : undefined,
+          disconnect: !similarRawRepository ? true : undefined,
+        },
+        updateMainSimilarRepository: false,
+      },
+    });
+  }
+}
+
 export async function enhanceRepositoriesIntoDatabase() {
-  // TODO: ...
+  // We do not parallelize with `Promise.all` to have
+  // logs readable to not flood the network and be consider as a bad actor
+  await updateInferredMetadataOnRepositories();
+  await matchRepositories();
 }

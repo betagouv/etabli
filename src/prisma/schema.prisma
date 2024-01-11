@@ -16,12 +16,11 @@ enum RawRepositoryPlatform {
 
 model RawRepository {
   id                     String                @id @default(uuid()) @db.Uuid
-  initialId              Int
   name                   String
   organizationName       String
   platform               RawRepositoryPlatform
   repositoryUrl          String
-  description            String                @db.Text
+  description            String?               @db.Text
   defaultBranch          String
   isFork                 Boolean?
   isArchived             Boolean
@@ -38,10 +37,11 @@ model RawRepository {
   softwareHeritageExists Boolean?
   softwareHeritageUrl    String?
 
-  probableWebsiteUrl    String?
-  probableWebsiteDomain String?
+  probableWebsiteUrl     String?
+  probableWebsiteDomain  String?
+  updateInferredMetadata Boolean @default(true)
 
-  mainSimilarRepositoryId     String? @unique @db.Uuid
+  mainSimilarRepositoryId     String? @db.Uuid
   updateMainSimilarRepository Boolean @default(true)
 
   createdAt DateTime  @default(now())
@@ -102,7 +102,7 @@ model RawDomain {
   websitePseudoFingerprint String?
   updateWebsiteData        Boolean  @default(true)
 
-  mainSimilarDomainId     String? @unique @db.Uuid
+  mainSimilarDomainId     String? @db.Uuid
   updateMainSimilarDomain Boolean @default(true)
 
   createdAt DateTime  @default(now())

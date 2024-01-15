@@ -2,8 +2,6 @@ import { CsvDomainTypeSchema, CsvDomainTypeSchemaType } from '@etabli/features/d
 import { RawDomainTypeSchema, RawDomainTypeSchemaType } from '@etabli/models/entities/raw-domain';
 
 export function rawDomainTypeCsvToModel(csvType: CsvDomainTypeSchemaType): RawDomainTypeSchemaType | null {
-  CsvDomainTypeSchema.Values['Ajout Manuel Matthieu Faure'];
-
   switch (csvType) {
     case CsvDomainTypeSchema.Values['Commune']:
       return RawDomainTypeSchema.Values.COMMUNE;

@@ -8,6 +8,7 @@ import z from 'zod';
 
 import { downloadFile } from '@etabli/common';
 import { LiteRawRepositorySchema, LiteRawRepositorySchemaType } from '@etabli/models/entities/raw-repository';
+import { rawRepositoryPlatformJsonToModel } from '@etabli/models/mappers/raw-repository';
 import { prisma } from '@etabli/prisma';
 import { sleep } from '@etabli/utils/sleep';
 
@@ -108,8 +109,8 @@ export async function formatRepositoriesIntoDatabase() {
       });
 
       // To make the diff we compare only meaningful properties
-      const storedLiteRawRepositories = storedRawRepositories.map((rawRepository) =>
-        LiteRawRepositorySchema.parse({
+      const storedLiteRawRepositories = storedRawRepositories.map((rawRepository) => {
+        return LiteRawRepositorySchema.parse({
           name: rawRepository.name,
           organizationName: rawRepository.organizationName,
           platform: rawRepository.platform,
@@ -129,14 +130,14 @@ export async function formatRepositoriesIntoDatabase() {
           language: rawRepository.language,
           topics: rawRepository.topics,
           softwareHeritageExists: rawRepository.softwareHeritageExists,
-          softwareHeritageUurl: rawRepository.softwareHeritageUrl,
-        })
-      );
-      const csvLiteRepositories = jsonRepositories.map((jsonRepository) =>
-        LiteRawRepositorySchema.parse({
+          softwareHeritageUrl: rawRepository.softwareHeritageUrl,
+        });
+      });
+      const csvLiteRepositories = jsonRepositories.map((jsonRepository) => {
+        return LiteRawRepositorySchema.parse({
           name: jsonRepository.name,
           organizationName: jsonRepository.organization_name,
-          platform: jsonRepository.platform,
+          platform: rawRepositoryPlatformJsonToModel(jsonRepository.platform),
           repositoryUrl: jsonRepository.repository_url,
           description: jsonRepository.description,
           defaultBranch: jsonRepository.default_branch,
@@ -153,9 +154,9 @@ export async function formatRepositoriesIntoDatabase() {
           language: jsonRepository.language,
           topics: jsonRepository.topics,
           softwareHeritageExists: jsonRepository.software_heritage_exists,
-          softwareHeritageUurl: jsonRepository.software_heritage_url,
-        })
-      );
+          softwareHeritageUrl: jsonRepository.software_heritage_url,
+        });
+      });
 
       const diffResult = getListDiff(storedLiteRawRepositories, csvLiteRepositories);
 

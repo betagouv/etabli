@@ -37,6 +37,8 @@ model RawRepository {
   softwareHeritageExists Boolean?
   softwareHeritageUrl    String?
 
+  repositoryDomain String
+
   probableWebsiteUrl     String?
   probableWebsiteDomain  String?
   updateInferredMetadata Boolean @default(true)
@@ -100,6 +102,8 @@ model RawDomain {
   websiteHasStyle          Boolean?
   websiteContentIndexable  Boolean?
   websitePseudoFingerprint String?
+  probableRepositoryUrl    String?
+  probableRepositoryDomain String?
   updateWebsiteData        Boolean  @default(true)
 
   mainSimilarDomainId     String? @db.Uuid

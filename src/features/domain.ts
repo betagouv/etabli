@@ -506,6 +506,41 @@ export async function updateWebsiteDataOnDomains() {
             }
           }
 
+          // Try to find a link to a repository by only looking at header, sidebar, footer
+          // to avoid links that could be written into posts or so
+          // By default we look at main repository forges
+          let sourceForgesDomains = ['github.com', 'gitlab.com', 'bitbucket.org'];
+
+          // But we look at other forges that are used when the repositories table is filled (it improves the search)
+          const additionalForgesDomainsThroughRepositories = await prisma.rawRepository.findMany({
+            where: {},
+            distinct: ['probableWebsiteDomain'],
+          });
+
+          sourceForgesDomains.push(...additionalForgesDomainsThroughRepositories.map((proxyRepository) => proxyRepository.repositoryDomain));
+          sourceForgesDomains = [...new Set(sourceForgesDomains)];
+
+          const matchingLinks: string[] = [];
+          const linksForRepository = dom.window.document.querySelectorAll('header a, footer a, nav a, aside a');
+          for (const linkElement of linksForRepository) {
+            try {
+              const parsedUrl = new URL((linkElement as HTMLAnchorElement).href);
+
+              if (sourceForgesDomains.includes(parsedUrl.hostname)) {
+                matchingLinks.push(parsedUrl.toString());
+              }
+            } catch (error) {
+              // Silent :)
+            }
+          }
+
+          let probableRepositoryUrl: URL | null = null;
+
+          // We consider the website lists its own repository if only 1 pseudo-repository link is found (we make unique filter over the array)
+          if ([...new Set(matchingLinks)].length === 1) {
+            probableRepositoryUrl = new URL(matchingLinks[0]);
+          }
+
           await prisma.rawDomain.update({
             where: {
               id: rawDomain.id,
@@ -519,6 +554,8 @@ export async function updateWebsiteDataOnDomains() {
               websiteHasStyle: hasStyle,
               websiteContentIndexable: isIndexableAccordingToWebsiteData,
               websitePseudoFingerprint: headContent || null,
+              probableRepositoryUrl: probableRepositoryUrl?.toString() || null,
+              probableRepositoryDomain: probableRepositoryUrl?.hostname || null,
               updateWebsiteData: false,
             },
           });

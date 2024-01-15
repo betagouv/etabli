@@ -163,12 +163,14 @@ export async function formatRepositoriesIntoDatabase() {
         if (diffItem.status === 'added') {
           const liteRawRepository = diffItem.value as LiteRawRepositorySchemaType;
 
+          const parsedRepositoryUrl = new URL(liteRawRepository.repositoryUrl); // Helps standardizing format with ending slash
+
           await tx.rawRepository.create({
             data: {
               name: liteRawRepository.name,
               organizationName: liteRawRepository.organizationName,
               platform: liteRawRepository.platform,
-              repositoryUrl: liteRawRepository.repositoryUrl,
+              repositoryUrl: parsedRepositoryUrl.toString(),
               description: liteRawRepository.description,
               defaultBranch: liteRawRepository.defaultBranch,
               isFork: liteRawRepository.isFork,
@@ -185,6 +187,7 @@ export async function formatRepositoriesIntoDatabase() {
               topics: liteRawRepository.topics,
               softwareHeritageExists: liteRawRepository.softwareHeritageExists,
               softwareHeritageUrl: liteRawRepository.softwareHeritageUrl,
+              repositoryDomain: parsedRepositoryUrl.hostname,
               probableWebsiteUrl: null,
               probableWebsiteDomain: null,
               updateInferredMetadata: true,
@@ -253,6 +256,8 @@ export async function formatRepositoriesIntoDatabase() {
         } else if (diffItem.status === 'updated') {
           const liteRawRepository = diffItem.value as LiteRawRepositorySchemaType;
 
+          const parsedRepositoryUrl = new URL(liteRawRepository.repositoryUrl); // Helps standardizing format with ending slash
+
           const updatedRawRepository = await tx.rawRepository.update({
             where: {
               platform_organizationName_name: {
@@ -265,7 +270,7 @@ export async function formatRepositoriesIntoDatabase() {
               name: liteRawRepository.name,
               organizationName: liteRawRepository.organizationName,
               platform: liteRawRepository.platform,
-              repositoryUrl: liteRawRepository.repositoryUrl,
+              repositoryUrl: parsedRepositoryUrl.toString(),
               description: liteRawRepository.description,
               defaultBranch: liteRawRepository.defaultBranch,
               isFork: liteRawRepository.isFork,
@@ -282,6 +287,7 @@ export async function formatRepositoriesIntoDatabase() {
               topics: liteRawRepository.topics,
               softwareHeritageExists: liteRawRepository.softwareHeritageExists,
               softwareHeritageUrl: liteRawRepository.softwareHeritageUrl,
+              repositoryDomain: parsedRepositoryUrl.hostname,
               // Recompute some generated values since it was based on above values
               updateInferredMetadata: true,
               updateMainSimilarRepository: true,

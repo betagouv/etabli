@@ -10,7 +10,6 @@ import { downloadFile } from '@etabli/common';
 import { LiteRawRepositorySchema, LiteRawRepositorySchemaType } from '@etabli/models/entities/raw-repository';
 import { rawRepositoryPlatformJsonToModel } from '@etabli/models/mappers/raw-repository';
 import { prisma } from '@etabli/prisma';
-import { sleep } from '@etabli/utils/sleep';
 
 const linkify = linkifyit();
 
@@ -356,6 +355,9 @@ export async function updateInferredMetadataOnRepositories() {
 
       if (matches.length === 1) {
         probableWebsiteUrl = new URL(matches[0].url);
+
+        // The link parser may return links with `http:` but it's unlikely they work like that in 2023+, so forcing to HTTPS
+        probableWebsiteUrl.protocol = 'https:';
       }
     }
 
@@ -369,9 +371,6 @@ export async function updateInferredMetadataOnRepositories() {
         updateInferredMetadata: false,
       },
     });
-
-    // Do not flood network
-    await sleep(1000);
   }
 }
 
@@ -463,39 +462,74 @@ export async function matchRepositories() {
     });
 
     const strippedNameToLookFor = stripMultirepositoriesPatterns(rawRepositoryToUpdate.name);
+    const isRepositoryMainOneFromStrippedName = rawRepositoryToUpdate.name !== strippedNameToLookFor;
 
     // Only keep repositories having the exact same stripped name
     const sameRepositories = otherOrganizationRepositories.filter((repository) => {
       return stripMultirepositoriesPatterns(repository.name) === strippedNameToLookFor;
     });
 
-    // If any of them has the stripped name equivalent to the name, we can consider as main one since no additional word
-    let mainReposistoryFromStrippedName = sameRepositories.find((repository) => {
-      return repository.name === strippedNameToLookFor;
-    });
+    // Only look for main repository through naming if the current one is not equal "to our root name"
+    let mainReposistoryFromStrippedName: (typeof otherOrganizationRepositories)[0] | null = null;
+    if (isRepositoryMainOneFromStrippedName) {
+      // If any of them has the stripped name equivalent to the name, we can consider as main one since no additional word
+      mainReposistoryFromStrippedName =
+        sameRepositories.find((repository) => {
+          return repository.name === strippedNameToLookFor;
+        }) || null;
 
-    // Otherwise take the first of the list
-    if (!mainReposistoryFromStrippedName && sameRepositories.length > 0) {
-      mainReposistoryFromStrippedName = sameRepositories[0];
+      // Otherwise take the first of the list
+      if (!mainReposistoryFromStrippedName && sameRepositories.length > 0) {
+        mainReposistoryFromStrippedName = sameRepositories[0];
+      }
     }
 
-    const mainRepositoryFromProbableDomainName = await prisma.rawRepository.findFirst({
-      where: {
-        id: {
-          not: rawRepositoryToUpdate.id,
+    // And have a look to repository probably targeting the same domain or exact same URL
+    // Note: at start we wanted to look for same probable domains but since websites may be hosted by same websites we added an hardcoded condition
+    let hasGenericDomain = false;
+    if (
+      // For repositories targeting a repository, looking at domain is not helpful
+      ['github.com', 'gitlab.com', 'bitbucket.org'].includes(rawRepositoryToUpdate.probableWebsiteDomain || '') ||
+      // Some publish their website on a specific shared with many other projects of their organization (some excluding this case and relying on URLs instead)
+      rawRepositoryToUpdate.probableWebsiteDomain?.endsWith('.github.io') ||
+      rawRepositoryToUpdate.probableWebsiteDomain?.endsWith('.gitbooks.io') ||
+      // [WORKAROUND] Some beta.gouv.fr projects target their own product sheet instead of their product (this workaround should be removed once Établi is adopted so they adjust their description)
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startup/')
+    ) {
+      hasGenericDomain = true;
+    }
+
+    let mainRepositoryFromProbableDomainName: (typeof otherOrganizationRepositories)[0] | null = null;
+
+    // If there is no website information to look from, skip
+    if (!!rawRepositoryToUpdate.probableWebsiteDomain && !!rawRepositoryToUpdate.probableWebsiteUrl) {
+      mainRepositoryFromProbableDomainName = await prisma.rawRepository.findFirst({
+        where: {
+          id: {
+            notIn: [
+              // Note: we switched to not exclude the current repository to have the top item for all similar ones
+              ...(isRepositoryMainOneFromStrippedName ? sameRepositories.map((repository) => repository.id) : []), // And if the current one was the main one for naming pattern, exclude its "siblings" to not break the tree direction
+            ],
+          },
+          probableWebsiteDomain: !hasGenericDomain ? rawRepositoryToUpdate.probableWebsiteDomain : undefined,
+          probableWebsiteUrl: hasGenericDomain ? rawRepositoryToUpdate.probableWebsiteUrl : undefined,
         },
-        probableWebsiteDomain: rawRepositoryToUpdate.probableWebsiteDomain,
-      },
-      orderBy: [
-        // Keep always the same order so for next occurences they would be linked to the same
-        {
-          starsCount: 'desc',
-        },
-        {
-          name: 'asc',
-        },
-      ],
-    });
+        orderBy: [
+          // Keep always the same order so for next occurences they would be linked to the same
+          {
+            starsCount: 'desc',
+          },
+          {
+            name: 'asc',
+          },
+        ],
+      });
+
+      if (rawRepositoryToUpdate.id === mainRepositoryFromProbableDomainName?.id) {
+        // See `where` condition to understand the logic moved
+        mainRepositoryFromProbableDomainName = null;
+      }
+    }
 
     const similarRawRepository = mainReposistoryFromStrippedName || mainRepositoryFromProbableDomainName;
 

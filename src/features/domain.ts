@@ -417,7 +417,7 @@ export async function updateWildcardCertificateOnDomains() {
   for (const rawDomain of rawDomains) {
     console.log(`try to process SSL certificate for domain ${rawDomain.name} (${rawDomain.id})`);
 
-    const certificate = await new Promise<PeerCertificate | null>((resolve) => {
+    const certificate = await new Promise<PeerCertificate | null>((resolve, reject) => {
       const request = https.request(
         {
           host: rawDomain.name,
@@ -432,6 +432,15 @@ export async function updateWildcardCertificateOnDomains() {
           }
         }
       );
+
+      request.on('error', (error) => {
+        if (error instanceof Error && ['ENETUNREACH', 'ENOTFOUND'].includes((error as FetchError).code || '')) {
+          // The server is unreachable, since the route may be broken temporarily we skip the domain to be reprocessed next time
+          resolve(null);
+        } else {
+          reject(error);
+        }
+      });
 
       request.end();
     });

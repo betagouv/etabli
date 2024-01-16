@@ -25,6 +25,12 @@ describe('guessWebsiteNameFromPageTitles()', () => {
 
     const commonPattern3 = guessWebsiteNameFromPageTitles(libraryTitle1, libraryTitle2);
     expect(commonPattern3).toBe('react-dsfr');
+
+    const symbolTitle1 = ' Accueil | Administration+';
+    const symbolTitle2 = 'Contact | Administration+';
+
+    const commonPattern4 = guessWebsiteNameFromPageTitles(symbolTitle1, symbolTitle2);
+    expect(commonPattern4).toBe('Administration+');
   });
 
   it('should find no common pattern', async () => {

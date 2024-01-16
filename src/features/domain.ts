@@ -511,44 +511,48 @@ export async function updateWebsiteDataOnDomains() {
           const isIndexableAccordingToHeadersOnly = websiteData.headers['x-robots-tag'] !== 'noindex'; // As for the `meta` tag, is not globally `noindex` we don't try to parse other form of complexity since it's unlikely formatted like that (and also no header parser library exists for this case)
           const isIndexableAccordingToWebsiteData = isIndexableAccordingToThisContentOnly && isIndexableAccordingToHeadersOnly;
 
-          // Find another page of this website to infer website name according to 2 titles
+          const websiteNameMetaElement = dom.window.document.querySelector('meta[name="application-name"]');
+          const properWebsiteName = websiteNameMetaElement?.getAttribute('content') || null;
+
+          // If no proper website name, find another page of this website to infer website name according to 2 titles
           // Note: if not working perflectly we could count how many `/` into the path, and sort links to look for the link with fewer "/" (indicating a main page)
           // Note: by specifying the `url` with `JSDOM` it turns relative paths into absolute ones (which is ideal to browse across)
           let anotherPageTitle: string | null = null;
+          if (!properWebsiteName) {
+            const links = dom.window.document.querySelectorAll('a');
+            for (const link of links) {
+              try {
+                // Reset the "hash" because in most case it's just targetting a section of the same page
+                // So we cannot consider it as another page (even it may in a few cases of Single Page Application)
+                // (not necessary on the initial `url` because built from manually from a raw domain)
+                const parsedLink = new URL(link.href);
+                parsedLink.hash = '';
+                const cleanLink = parsedLink.toString();
 
-          const links = dom.window.document.querySelectorAll('a');
-          for (const link of links) {
-            try {
-              // Reset the "hash" because in most case it's just targetting a section of the same page
-              // So we cannot consider it as another page (even it may in a few cases of Single Page Application)
-              // (not necessary on the initial `url` because built from manually from a raw domain)
-              const parsedLink = new URL(link.href);
-              parsedLink.hash = '';
-              const cleanLink = parsedLink.toString();
+                if (websiteData.redirectTargetUrl) {
+                  websiteData.redirectTargetUrl.hash = '';
+                }
 
-              if (websiteData.redirectTargetUrl) {
-                websiteData.redirectTargetUrl.hash = '';
+                // We also consider excluding the URL in case of a redirection or a `window.replace` from the website, or if the page targets itself
+                if (
+                  cleanLink.startsWith(url.toString()) &&
+                  cleanLink !== url.toString() &&
+                  (!websiteData.redirectTargetUrl || cleanLink !== websiteData.redirectTargetUrl.toString())
+                ) {
+                  const anotherPageUrl = cleanLink;
+
+                  // Wait a bit to not flood this website
+                  await sleep(1000);
+
+                  const anotherPageData = await getWebsiteData(anotherPageUrl);
+                  anotherPageTitle = anotherPageData.title;
+
+                  break;
+                }
+              } catch (error) {
+                // The `href` may not be a valid URL, just skip this link
+                continue;
               }
-
-              // We also consider excluding the URL in case of a redirection or a `window.replace` from the website, or if the page targets itself
-              if (
-                cleanLink.startsWith(url.toString()) &&
-                cleanLink !== url.toString() &&
-                (!websiteData.redirectTargetUrl || cleanLink !== websiteData.redirectTargetUrl.toString())
-              ) {
-                const anotherPageUrl = cleanLink;
-
-                // Wait a bit to not flood this website
-                await sleep(1000);
-
-                const anotherPageData = await getWebsiteData(anotherPageUrl);
-                anotherPageTitle = anotherPageData.title;
-
-                break;
-              }
-            } catch (error) {
-              // The `href` may not be a valid URL, just skip this link
-              continue;
             }
           }
 
@@ -593,9 +597,11 @@ export async function updateWebsiteDataOnDomains() {
             },
             data: {
               websiteRawContent: websiteData.html,
-              websiteTitle: websiteData.title,
-              websiteAnotherPageTitle: anotherPageTitle,
-              websiteInferredName: websiteData.title && anotherPageTitle ? guessWebsiteNameFromPageTitles(websiteData.title, anotherPageTitle) : null,
+              websiteTitle: !properWebsiteName ? websiteData.title : null,
+              websiteAnotherPageTitle: !properWebsiteName ? anotherPageTitle : null,
+              websiteInferredName:
+                properWebsiteName ||
+                (websiteData.title && anotherPageTitle ? guessWebsiteNameFromPageTitles(websiteData.title, anotherPageTitle) : null),
               websiteHasContent: hasContent,
               websiteHasStyle: hasStyle,
               websiteContentIndexable: isIndexableAccordingToWebsiteData,

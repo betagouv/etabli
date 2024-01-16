@@ -11,6 +11,7 @@ export interface getWebsiteDataResponse {
   headers: {
     [key: string]: string;
   };
+  redirectTargetUrl: URL | null;
 }
 
 export async function getWebsiteData(url: string): Promise<getWebsiteDataResponse> {
@@ -26,7 +27,8 @@ export async function getWebsiteData(url: string): Promise<getWebsiteDataRespons
 
   // We want to prevent redirection on another domain to keep integrity but we let pathname redirection pass, so looking at domain only
   const originalUrl = new URL(url);
-  const resultingUrl = new URL(await page.evaluate(() => document.location.href));
+  const resultingRawUrl = await page.evaluate(() => document.location.href);
+  const resultingUrl = new URL(resultingRawUrl);
   if (resultingUrl.host !== originalUrl.host) {
     throw new BusinessDomainError(unexpectedDomainRedirectionError, resultingUrl.hostname);
   }
@@ -43,6 +45,7 @@ export async function getWebsiteData(url: string): Promise<getWebsiteDataRespons
     html: html,
     title: title !== '' ? title : null,
     headers: headers,
+    redirectTargetUrl: originalUrl.toString() !== resultingUrl.toString() ? resultingUrl : null,
   };
 }
 

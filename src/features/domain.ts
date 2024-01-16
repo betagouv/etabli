@@ -518,8 +518,12 @@ export async function updateWebsiteDataOnDomains() {
 
           const links = dom.window.document.querySelectorAll('a');
           for (const link of links) {
-            // We also consider excluding the URL in case of a redirection or `window.replace` from the website
-            if (link.href.startsWith(url.toString()) && link.href !== url.toString() && link.href !== websiteData.title) {
+            // We also consider excluding the URL in case of a redirection or a `window.replace` from the website, or if the page targets itself
+            if (
+              link.href.startsWith(url.toString()) &&
+              link.href !== url.toString() &&
+              (!websiteData.redirectTargetUrl || link.href !== websiteData.redirectTargetUrl.toString())
+            ) {
               const anotherPageUrl = link.href;
 
               const anotherPageData = await getWebsiteData(anotherPageUrl);

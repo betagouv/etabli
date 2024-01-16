@@ -518,18 +518,37 @@ export async function updateWebsiteDataOnDomains() {
 
           const links = dom.window.document.querySelectorAll('a');
           for (const link of links) {
-            // We also consider excluding the URL in case of a redirection or a `window.replace` from the website, or if the page targets itself
-            if (
-              link.href.startsWith(url.toString()) &&
-              link.href !== url.toString() &&
-              (!websiteData.redirectTargetUrl || link.href !== websiteData.redirectTargetUrl.toString())
-            ) {
-              const anotherPageUrl = link.href;
+            try {
+              // Reset the "hash" because in most case it's just targetting a section of the same page
+              // So we cannot consider it as another page (even it may in a few cases of Single Page Application)
+              // (not necessary on the initial `url` because built from manually from a raw domain)
+              const parsedLink = new URL(link.href);
+              parsedLink.hash = '';
+              const cleanLink = parsedLink.toString();
 
-              const anotherPageData = await getWebsiteData(anotherPageUrl);
-              anotherPageTitle = anotherPageData.title;
+              if (websiteData.redirectTargetUrl) {
+                websiteData.redirectTargetUrl.hash = '';
+              }
 
-              break;
+              // We also consider excluding the URL in case of a redirection or a `window.replace` from the website, or if the page targets itself
+              if (
+                cleanLink.startsWith(url.toString()) &&
+                cleanLink !== url.toString() &&
+                (!websiteData.redirectTargetUrl || cleanLink !== websiteData.redirectTargetUrl.toString())
+              ) {
+                const anotherPageUrl = cleanLink;
+
+                // Wait a bit to not flood this website
+                await sleep(1000);
+
+                const anotherPageData = await getWebsiteData(anotherPageUrl);
+                anotherPageTitle = anotherPageData.title;
+
+                break;
+              }
+            } catch (error) {
+              // The `href` may not be a valid URL, just skip this link
+              continue;
             }
           }
 

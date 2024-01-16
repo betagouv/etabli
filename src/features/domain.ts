@@ -13,6 +13,7 @@ import z from 'zod';
 
 import { downloadFile } from '@etabli/common';
 import { getWebsiteData, guessWebsiteNameFromPageTitles } from '@etabli/features/website';
+import { LitePeerCertificateSchema } from '@etabli/models/entities/certificate';
 import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/models/entities/errors';
 import { LiteRawDomainSchema, LiteRawDomainSchemaType } from '@etabli/models/entities/raw-domain';
 import { rawDomainTypeCsvToModel } from '@etabli/models/mappers/raw-domain';
@@ -435,6 +436,13 @@ export async function updateWildcardCertificateOnDomains() {
       request.end();
     });
 
+    // The content has no defined structure, we just kept the library format to debug if needed main processed values as it comes
+    let certificateContent: object | null = null;
+    if (certificate) {
+      const deepcopyContent = JSON.parse(JSON.stringify(certificate));
+      certificateContent = LitePeerCertificateSchema.parse(deepcopyContent); // To only keep wanted values (excluding unreadable values)
+    }
+
     await prisma.rawDomain.update({
       where: {
         id: rawDomain.id,
@@ -442,7 +450,7 @@ export async function updateWildcardCertificateOnDomains() {
       data: {
         wildcardCertificate: certificate?.issuer.CN === `*.${rawDomain.name}`,
         updateWildcardCertificate: !certificate,
-        certificateContent: certificate?.raw.toString() || null,
+        certificateContent: certificateContent ? JSON.stringify(certificateContent) : null,
       },
     });
 

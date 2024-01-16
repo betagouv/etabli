@@ -74,7 +74,19 @@ export async function getWebsiteData(url: string): Promise<getWebsiteDataRespons
   };
 }
 
+export const toolsWithUnguessableWebsiteTitles = {
+  storybook: / ⋅ Storybook$/, // It was complicated because Storybook titles include stories so the story tree will be the common pattern using `Components / Common / CoordonneesIcone - No Icone ⋅ Storybook` and `Components / Common / CoordonneesIcone - Icone ⋅ Storybook`
+};
+
 export function guessWebsiteNameFromPageTitles(title1: string, title2: string): string | null {
+  // For known tools like Storybook or so that break with our guess logic, we hardcode the usage
+  for (const [tool, regex] of Object.entries(toolsWithUnguessableWebsiteTitles)) {
+    if (regex.test(title1) && regex.test(title2)) {
+      // Like that the website name will be based on other things (we do not return tool name because to distinguish them)
+      return null;
+    }
+  }
+
   // We tried a common substring library but it worked well considering characters, not words (ref: https://github.com/hanwencheng/CommonSubstrings/issues/11)
   // So needed to do our own logic since we didn't find the appropriate library
   const words1 = title1.split(' ');

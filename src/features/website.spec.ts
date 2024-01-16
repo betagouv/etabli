@@ -38,6 +38,12 @@ describe('guessWebsiteNameFromPageTitles()', () => {
     const commonPattern5 = guessWebsiteNameFromPageTitles(longerCommonPatternTitle1, longerCommonPatternTitle2);
     expect(commonPattern5).not.toBe('CarbuRe ∙ A');
     expect(commonPattern5).toBe('CarbuRe');
+
+    const unguessablePatternTitle1 = 'Components / Common / CoordonneesIcone - No Icone ⋅ Storybook';
+    const unguessablePatternTitle2 = 'Components / Common / CoordonneesIcone - Icone ⋅ Storybook';
+
+    const commonPattern6 = guessWebsiteNameFromPageTitles(unguessablePatternTitle1, unguessablePatternTitle2);
+    expect(commonPattern6).toBeNull();
   });
 
   it('should find no common pattern', async () => {

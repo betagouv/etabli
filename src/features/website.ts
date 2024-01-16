@@ -75,17 +75,33 @@ export async function getWebsiteData(url: string): Promise<getWebsiteDataRespons
 }
 
 export function guessWebsiteNameFromPageTitles(title1: string, title2: string): string | null {
-  const result = substrings([title1, title2], {
-    minOccurrence: 2,
-    minLength: 3,
-  });
+  // We tried a common substring library but it worked well considering characters, not words (ref: https://github.com/hanwencheng/CommonSubstrings/issues/11)
+  // So needed to do our own logic since we didn't find the appropriate library
+  const words1 = title1.split(' ');
+  const words2 = title2.split(' ');
 
-  if (result.length === 0) {
-    return null;
+  let commonSubstring = '';
+
+  for (let i = 0; i < words1.length; i++) {
+    for (let j = 0; j < words2.length; j++) {
+      let tempSubstring = '';
+      let x = i;
+      let y = j;
+
+      while (x < words1.length && y < words2.length && words1[x] === words2[y]) {
+        tempSubstring += words1[x] + ' ';
+        x++;
+        y++;
+      }
+
+      if (tempSubstring.split(' ').length > commonSubstring.split(' ').length) {
+        commonSubstring = tempSubstring;
+      }
+    }
   }
 
-  const mainCommonPattern = result.sort((a, b) => b.weight - a.weight)[0].name;
-
   // We make sure to trim spaces and isolated special characters when there is a space like in `- react-dsfr` (can be at start or at the end)
-  return mainCommonPattern.replace(/^\s*[^\w]+\s+|\s+[^\w]+\s*$/g, '').trim();
+  const commonTitle = commonSubstring.replace(/^\s*[^\w]+\s+|\s+[^\w]+\s*$/g, '').trim();
+
+  return commonTitle !== '' ? commonTitle : null;
 }

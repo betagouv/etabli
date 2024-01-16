@@ -26,11 +26,18 @@ describe('guessWebsiteNameFromPageTitles()', () => {
     const commonPattern3 = guessWebsiteNameFromPageTitles(libraryTitle1, libraryTitle2);
     expect(commonPattern3).toBe('react-dsfr');
 
-    const symbolTitle1 = ' Accueil | Administration+';
+    const symbolTitle1 = 'Accueil | Administration+';
     const symbolTitle2 = 'Contact | Administration+';
 
     const commonPattern4 = guessWebsiteNameFromPageTitles(symbolTitle1, symbolTitle2);
     expect(commonPattern4).toBe('Administration+');
+
+    const longerCommonPatternTitle1 = 'CarbuRe ∙ Authentification';
+    const longerCommonPatternTitle2 = 'CarbuRe ∙ Accueil';
+
+    const commonPattern5 = guessWebsiteNameFromPageTitles(longerCommonPatternTitle1, longerCommonPatternTitle2);
+    expect(commonPattern5).not.toBe('CarbuRe ∙ A');
+    expect(commonPattern5).toBe('CarbuRe');
   });
 
   it('should find no common pattern', async () => {

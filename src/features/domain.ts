@@ -650,6 +650,9 @@ export async function updateWebsiteDataOnDomains() {
         });
 
         continue;
+      } else if (['net::ERR_ADDRESS_UNREACHABLE', 'net::ERR_NAME_NOT_RESOLVED'].includes((error as any).errorText)) {
+        // The server is unreachable, since the route may be broken temporarily we skip the domain to be reprocessed next time
+        // Note: Playwright has no common instance to catch and analyze errors, keeping the analysis dirty for now
       } else {
         throw error;
       }

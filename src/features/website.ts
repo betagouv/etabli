@@ -1,6 +1,6 @@
 import assert from 'assert';
 import substrings from 'common-substrings';
-import { Browser, Page, chromium } from 'playwright';
+import { Browser, Page, Response, chromium } from 'playwright';
 
 import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/models/entities/errors';
 
@@ -20,7 +20,32 @@ export async function getWebsiteData(url: string): Promise<getWebsiteDataRespons
   const browser: Browser = await chromium.launch();
   const page: Page = await browser.newPage();
 
-  const response = await page.goto(url);
+  const response = await new Promise<Response | null>((resolve, reject) => {
+    let errorWithDetailsIntoListener: {
+      errorText: string;
+    } | null = null;
+
+    // When an error is thrown from `.goto()` it cannot be destructured to get technical details
+    // So we hack a bit by looking for last request failed error that has details to throw them instead
+    // Note: `requestfailed` notifies about error loading into the page itself, which is problematic so we do not throw from here to be sure it's a fatal error
+    page.on('requestfailed', (request) => {
+      errorWithDetailsIntoListener = request.failure();
+    });
+
+    page
+      .goto(url)
+      .then((res) => {
+        resolve(res);
+      })
+      .catch((error) => {
+        if (errorWithDetailsIntoListener) {
+          reject(errorWithDetailsIntoListener);
+        } else {
+          reject(error);
+        }
+      });
+  });
+
   assert(response);
 
   await page.waitForTimeout(2000); // Wait for JS to init page (in case it's needed)

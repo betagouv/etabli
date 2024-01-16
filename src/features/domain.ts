@@ -663,7 +663,7 @@ export async function updateWebsiteDataOnDomains() {
             id: rawDomain.id,
           },
           data: {
-            redirectDomainTargetName: error.name,
+            redirectDomainTargetName: error.domain,
             redirectDomainTarget: {
               connect: !!relatedRawDomain
                 ? {

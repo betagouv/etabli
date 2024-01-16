@@ -344,6 +344,10 @@ export async function updateRobotsTxtOnDomains() {
             indexableFromRobotsTxt: indexableAccordingToRobotsTxt,
             updateIndexableFromRobotsTxt: false,
             robotsTxtContent: body,
+            redirectDomainTargetName: null,
+            redirectDomainTarget: {
+              disconnect: true,
+            },
           },
         });
       } else if (result.status > 500) {
@@ -381,6 +385,7 @@ export async function updateRobotsTxtOnDomains() {
                     id: relatedRawDomain.id,
                   }
                 : undefined,
+              disconnect: !relatedRawDomain,
             },
           },
         });
@@ -609,6 +614,10 @@ export async function updateWebsiteDataOnDomains() {
               probableRepositoryUrl: probableRepositoryUrl?.toString() || null,
               probableRepositoryDomain: probableRepositoryUrl?.hostname || null,
               updateWebsiteData: false,
+              redirectDomainTargetName: null,
+              redirectDomainTarget: {
+                disconnect: true,
+              },
             },
           });
         } else {
@@ -670,6 +679,7 @@ export async function updateWebsiteDataOnDomains() {
                     id: relatedRawDomain.id,
                   }
                 : undefined,
+              disconnect: !relatedRawDomain,
             },
           },
         });

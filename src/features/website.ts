@@ -14,7 +14,7 @@ export interface getWebsiteDataResponse {
 }
 
 export async function getWebsiteData(url: string): Promise<getWebsiteDataResponse> {
-  console.log('getting website HTML content');
+  console.log(`getting the page content of ${url}`);
 
   const browser: Browser = await chromium.launch();
   const page: Page = await browser.newPage();

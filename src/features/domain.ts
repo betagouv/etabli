@@ -493,10 +493,16 @@ export async function updateWebsiteDataOnDomains() {
             contentType: 'text/html',
           });
 
-          const headContent = dom.window.document.querySelector('head')?.innerHTML;
-          const contentText = dom.window.document.querySelector('body')?.innerText.trim();
-          const hasContent = !!contentText && contentText !== '';
+          const headContent = dom.window.document.head.innerHTML;
           const hasStyle = dom.window.document.querySelectorAll('link[rel="stylesheet"], style').length > 0;
+
+          // Since looking at text content would include content from `script` and `noscript` tags, we do proper analysis aside
+          const deepcopyBody = dom.window.document.body.cloneNode(true) as HTMLElement;
+          deepcopyBody.querySelectorAll('script, noscript').forEach((element) => {
+            element.parentNode?.removeChild(element);
+          });
+          const contentText = deepcopyBody.textContent?.trim();
+          const hasContent = !!contentText && contentText !== '';
 
           // A missing `noindex` means it can be indexed in this context (don't forget a `robots.txt`)
           // Note: we don't look at specific crawler restriction because we only want to know if the website is considered "private" or not

@@ -1,6 +1,7 @@
 import { Command } from '@commander-js/extra-typings';
 
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
+import { inferInitiativesFromDatabase } from '@etabli/features/initiative';
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/features/repository';
 
 const program = new Command();
@@ -77,8 +78,8 @@ initiative
   .description('create initiatives based on domains and repositories')
   .option('-d, --domain [domains...]', 'create initiative for this specific domain')
   .option('-r, --repository [repositories...]', 'create initiative for this specific repository')
-  .action(async () => {
-    console.log('initiative.infer');
+  .action(async (options) => {
+    await inferInitiativesFromDatabase();
   });
 
 initiative
@@ -88,7 +89,7 @@ initiative
   .option('-r, --repository [repositories...]', 'target this specific repository')
   .option('-i, --interval', 'delay the next initiative feed')
   .option('-l, --limit', 'stop feeding after a number of initatives')
-  .action(async () => {
+  .action(async (options) => {
     console.log('initiative.feed');
   });
 
@@ -96,7 +97,7 @@ initiative
   .command('search')
   .description('return initiatives that match the query')
   .argument('<query>', 'query to make the search')
-  .action(async () => {
+  .action(async (options) => {
     console.log('initiative.search');
   });
 

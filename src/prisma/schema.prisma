@@ -169,8 +169,9 @@ model BusinessUseCasesOnInitiatives {
 }
 
 model RawDomainsOnInitiativeMaps {
-  rawDomainId     String @unique @db.Uuid
-  initiativeMapId String @db.Uuid
+  rawDomainId     String  @unique @db.Uuid
+  initiativeMapId String  @db.Uuid
+  main            Boolean
 
   rawDomain  RawDomain     @relation(fields: [rawDomainId], references: [id], onDelete: Cascade)
   initiative InitiativeMap @relation(fields: [initiativeMapId], references: [id], onDelete: Cascade)
@@ -179,8 +180,9 @@ model RawDomainsOnInitiativeMaps {
 }
 
 model RawRepositoriesOnInitiativeMaps {
-  rawRepositoryId String @unique @db.Uuid
-  initiativeMapId String @db.Uuid
+  rawRepositoryId String  @unique @db.Uuid
+  initiativeMapId String  @db.Uuid
+  main            Boolean
 
   rawRepository RawRepository @relation(fields: [rawRepositoryId], references: [id], onDelete: Cascade)
   initiative    InitiativeMap @relation(fields: [initiativeMapId], references: [id], onDelete: Cascade)
@@ -189,8 +191,9 @@ model RawRepositoriesOnInitiativeMaps {
 }
 
 model InitiativeMap {
-  id     String  @id @default(uuid()) @db.Uuid
-  update Boolean
+  id                 String  @id @default(uuid()) @db.Uuid
+  mainItemIdentifier String  @db.Uuid // We can rely on it because we always keep only 1 top parent item in the graph for each group
+  update             Boolean
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
@@ -209,6 +212,10 @@ model Initiative {
   websites           String[]
   repositories       String[]
   functionalUseCases FunctionalUseCase[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
 
   origin                        InitiativeMap                   @relation(fields: [originId], references: [id])
   ToolsOnInitiatives            ToolsOnInitiatives[]

@@ -44,6 +44,7 @@
     "@prisma/client": "^4.11.0",
     "csv-parse": "^5.5.2",
     "execa": "^8.0.1",
+    "graphlib": "^2.1.8",
     "handlebars": "^4.7.8",
     "linkify-it": "^5.0.0",
     "openai": "^4.17.5",
@@ -58,6 +59,7 @@
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^4.3.0",
+    "@types/graphlib": "^2.1.12",
     "@types/jest": "^29.4.0",
     "@types/linkify-it": "^3.0.5",
     "@types/node": "^20.9.0",

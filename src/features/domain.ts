@@ -699,6 +699,8 @@ export async function updateWebsiteDataOnDomains() {
 }
 
 export async function matchDomains() {
+  const { parseDomain, ParseResultType } = await import('parse-domain'); // Cannot be imported at the top of the file due to being ECMAScript
+
   // All checks may not be done before matching (due to network errors)
   // but we cannot take the risk of letting alone a domain that would create an additional initiative
   const rawDomainsToUpdate = await prisma.rawDomain.findMany({
@@ -730,23 +732,53 @@ export async function matchDomains() {
       return rawDomainToUpdate.name.includes(`.${d.name}`);
     });
 
-    // Also look at head content equivalence
+    // Also look at head content equivalence but only under the same top domain to avoid conflicting with other websites
+    // Note: most of the time development environments should be marked as not indexable so they won't end into the listing
     // (sorting by `createdAt` to be sure the same main similar one is always the first of the list no matter the current one and no matter if others added in the future (to not target another one linked to a main similar one)
-    const mainRawDomainClone = await prisma.rawDomain.findFirst({
-      where: {
-        id: {
-          not: rawDomainToUpdate.id,
+    let mainSameParentDomainClone: typeof rawDomainToUpdate | null = null;
+
+    if (!!rawDomainToUpdate.websitePseudoFingerprint) {
+      const mainRawDomainClones = await prisma.rawDomain.findMany({
+        where: {
+          id: {
+            // Note: we switched to not exclude the current repository to have the top item for all similar ones
+          },
+          websitePseudoFingerprint: rawDomainToUpdate.websitePseudoFingerprint,
         },
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+
+      const parsedCurrentDomain = parseDomain(rawDomainToUpdate.name);
+      if (parsedCurrentDomain.type === ParseResultType.Listed && parsedCurrentDomain.subDomains.length > 0) {
+        const currentDomainCompareString = `${parsedCurrentDomain.domain}.${parsedCurrentDomain.topLevelDomains.join('.')}`;
+
+        mainSameParentDomainClone =
+          mainRawDomainClones.find((rawDomainClone) => {
+            const parsedCloneDomain = parseDomain(rawDomainClone.name);
+
+            if (
+              parsedCloneDomain.type === ParseResultType.Listed &&
+              currentDomainCompareString === `${parsedCloneDomain.domain}.${parsedCloneDomain.topLevelDomains.join('.')}`
+            ) {
+              return true;
+            }
+
+            return false;
+          }) || null;
+
+        // See `where` condition with `findMany()` to understand why the logic was moved here
+        if (rawDomainToUpdate.id === mainSameParentDomainClone?.id) {
+          mainSameParentDomainClone = null;
+        }
+      }
+    }
 
     // TODO: some websites may use the same code (the same shell) with different sets of data. A solution can be to look
     // at equivalent inferred website name under a same subdomain/domain (exclundig gTLD). It allows gathering cloned sites but
     // the negative side is: which one to process? None? If one, how to tell it's more important than other...
-    const similarRawDomain = rootRawDomain || mainRawDomainClone;
+    const similarRawDomain = rootRawDomain || mainSameParentDomainClone;
 
     await prisma.rawDomain.update({
       where: {

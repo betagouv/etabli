@@ -1,5 +1,4 @@
 import assert from 'assert';
-import substrings from 'common-substrings';
 import { Browser, Page, Response, chromium } from 'playwright';
 
 import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/models/entities/errors';

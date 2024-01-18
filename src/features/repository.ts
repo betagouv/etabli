@@ -311,6 +311,7 @@ export async function formatRepositoriesIntoDatabase() {
       }
     },
     {
+      timeout: 1 * 60 * 1000, // Since dealing with a lot of data, prevent closing whereas everything is alright
       isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     }
   );

@@ -509,12 +509,8 @@ export async function matchRepositories() {
     if (!!rawRepositoryToUpdate.probableWebsiteDomain && !!rawRepositoryToUpdate.probableWebsiteUrl) {
       mainRepositoryFromProbableDomainName = await prisma.rawRepository.findFirst({
         where: {
-          id: {
-            notIn: [
-              // Note: we switched to not exclude the current repository to have the top item for all similar ones
-              ...(isRepositoryMainOneFromStrippedName ? sameRepositories.map((repository) => repository.id) : []), // And if the current one was the main one for naming pattern, exclude its "siblings" to not break the tree direction
-            ],
-          },
+          // Note: we switched to not exclude the current repository to have the top item for all similar ones
+          // Also, to not break ordering when looking at same domain we do not exclude those from considered as equivalent from `sameRepositories`
           probableWebsiteDomain: !hasGenericDomain ? rawRepositoryToUpdate.probableWebsiteDomain : undefined,
           probableWebsiteUrl: hasGenericDomain ? rawRepositoryToUpdate.probableWebsiteUrl : undefined,
         },
@@ -529,8 +525,10 @@ export async function matchRepositories() {
         ],
       });
 
-      if (rawRepositoryToUpdate.id === mainRepositoryFromProbableDomainName?.id) {
-        // See `where` condition to understand the logic moved
+      if (
+        rawRepositoryToUpdate.id === mainRepositoryFromProbableDomainName?.id || // See `where` condition to understand the logic moved
+        sameRepositories.map((sameRepository) => sameRepository.id).includes(mainRepositoryFromProbableDomainName?.id || '') // If it was considered as linked during the naming pattern matching, exclude it to not break the tree direction
+      ) {
         mainRepositoryFromProbableDomainName = null;
       }
     }

@@ -769,8 +769,10 @@ export async function matchDomains() {
             return false;
           }) || null;
 
-        // See `where` condition with `findMany()` to understand why the logic was moved here
-        if (rawDomainToUpdate.id === mainSameParentDomainClone?.id) {
+        if (
+          rawDomainToUpdate.id === mainSameParentDomainClone?.id || // See `where` condition with `findMany()` to understand why the logic was moved here
+          (!!rootRawDomain && mainSameParentDomainClone?.name.includes(`.${rootRawDomain.name}`)) // If it would be considered as linked to the same wildcard certificate, exclude it to not break the tree direction
+        ) {
           mainSameParentDomainClone = null;
         }
       }

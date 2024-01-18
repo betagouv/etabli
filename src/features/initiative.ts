@@ -85,7 +85,7 @@ export async function inferInitiativesFromDatabase() {
     for (const rawRepository of rawRepositories) {
       let score: number = 0;
 
-      if (rawDomain.probableRepositoryUrl === rawRepository.homepage) {
+      if (!!rawDomain.probableRepositoryUrl && rawDomain.probableRepositoryUrl === rawRepository.homepage) {
         score += 2;
       }
 

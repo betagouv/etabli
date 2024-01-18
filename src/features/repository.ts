@@ -443,11 +443,9 @@ export async function matchRepositories() {
     // The repositories to look for should be under the same platform and organization (unlikely people would set code for the same application at multiple locations)
     const otherOrganizationRepositories = await prisma.rawRepository.findMany({
       where: {
+        // Note: we switched to not exclude the current repository to have the top item for all similar ones
         platform: rawRepositoryToUpdate.platform,
         organizationName: rawRepositoryToUpdate.organizationName,
-        id: {
-          not: rawRepositoryToUpdate.id,
-        },
       },
       orderBy: [
         // If there is a matching we try to consider the main one based on naming pattern (root name would be the main one since other pattern is hard to say it has more value than others),
@@ -482,6 +480,11 @@ export async function matchRepositories() {
       if (!mainReposistoryFromStrippedName && sameRepositories.length > 0) {
         mainReposistoryFromStrippedName = sameRepositories[0];
       }
+    }
+
+    if (rawRepositoryToUpdate.id === mainReposistoryFromStrippedName?.id) {
+      // See `where` condition to understand the logic moved
+      mainReposistoryFromStrippedName = null;
     }
 
     // And have a look to repository probably targeting the same domain or exact same URL

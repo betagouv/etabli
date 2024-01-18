@@ -1,4 +1,3 @@
-import { getListDiff } from '@donedeal0/superdiff';
 import { Prisma } from '@prisma/client';
 import { parse } from 'csv-parse';
 import fsSync from 'fs';
@@ -18,6 +17,7 @@ import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/m
 import { LiteRawDomainSchema, LiteRawDomainSchemaType } from '@etabli/models/entities/raw-domain';
 import { rawDomainTypeCsvToModel } from '@etabli/models/mappers/raw-domain';
 import { prisma } from '@etabli/prisma';
+import { getListDiff } from '@etabli/utils/comparaison';
 import { containsHtml } from '@etabli/utils/html';
 import { sleep } from '@etabli/utils/sleep';
 

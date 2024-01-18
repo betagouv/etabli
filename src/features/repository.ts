@@ -1,4 +1,3 @@
-import { getListDiff } from '@donedeal0/superdiff';
 import { Prisma } from '@prisma/client';
 import fsSync from 'fs';
 import fs from 'fs/promises';
@@ -10,6 +9,7 @@ import { downloadFile } from '@etabli/common';
 import { LiteRawRepositorySchema, LiteRawRepositorySchemaType } from '@etabli/models/entities/raw-repository';
 import { rawRepositoryPlatformJsonToModel } from '@etabli/models/mappers/raw-repository';
 import { prisma } from '@etabli/prisma';
+import { getListDiff } from '@etabli/utils/comparaison';
 
 const linkify = linkifyit();
 

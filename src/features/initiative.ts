@@ -1,6 +1,8 @@
 import { Prisma, RawDomain, RawRepository } from '@prisma/client';
 import assert from 'assert';
+import fs from 'fs/promises';
 import graphlib, { Graph } from 'graphlib';
+import path from 'path';
 
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/models/entities/initiative';
 import { prisma } from '@etabli/prisma';
@@ -97,6 +99,14 @@ export async function inferInitiativesFromDatabase() {
         graph.setEdge(rawRepository.id, rawDomain.id, 1 / score);
       }
     }
+  }
+
+  // To debug it may be useful to print a global JSON representation
+  if (!!false) {
+    const jsonContent = graphlib.json.write(graph);
+    const jsonPath = path.resolve(__dirname, '../../data/graph.json');
+
+    await fs.writeFile(jsonPath, JSON.stringify(jsonContent, null, 2));
   }
 
   // Each initiative map is defined by a ending node (corresponding to the top parent)

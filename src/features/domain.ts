@@ -332,7 +332,7 @@ export async function updateRobotsTxtOnDomains() {
           const robots = robotsParser(robotsUrl, body);
           const isAllowed = robots.isAllowed(rootUrl.toString()); // Testing the root pathname is enough to know if the website is indexable or not
 
-          if (isAllowed) {
+          if (isAllowed !== undefined) {
             indexableAccordingToRobotsTxt = isAllowed;
           }
         }

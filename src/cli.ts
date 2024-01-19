@@ -1,7 +1,7 @@
 import { Command } from '@commander-js/extra-typings';
 
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
-import { inferInitiativesFromDatabase } from '@etabli/features/initiative';
+import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/features/initiative';
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/features/repository';
 
 const program = new Command();
@@ -90,7 +90,7 @@ initiative
   .option('-i, --interval', 'delay the next initiative feed')
   .option('-l, --limit', 'stop feeding after a number of initatives')
   .action(async (options) => {
-    console.log('initiative.feed');
+    await feedInitiativesFromDatabase();
   });
 
 initiative

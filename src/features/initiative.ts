@@ -740,7 +740,6 @@ export async function feedInitiativesFromDatabase() {
       throw error;
     }
   } finally {
-    // For whatever reason despite the official documentation when doing it it hangs forever even if done just after `await wappalyzer.destroy();` (ref: https://github.com/enthec/webappanalyzer/issues/74)
-    // await wappalyzer.destroy();
+    await wappalyzer.destroy();
   }
 }

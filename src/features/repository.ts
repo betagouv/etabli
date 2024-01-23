@@ -10,6 +10,7 @@ import { LiteRawRepositorySchema, LiteRawRepositorySchemaType } from '@etabli/mo
 import { rawRepositoryPlatformJsonToModel } from '@etabli/models/mappers/raw-repository';
 import { prisma } from '@etabli/prisma';
 import { getListDiff } from '@etabli/utils/comparaison';
+import { emptyStringtoNullPreprocessor } from '@etabli/utils/validation';
 
 const linkify = linkifyit();
 
@@ -17,16 +18,6 @@ const linkify = linkifyit();
 
 export const latestRemoteJsonUrl = 'https://code.gouv.fr/data/repositories/json/all.json';
 export const localJsonPath = path.resolve(__dirname, '../../data/repositories.json');
-
-export function emptyStringtoNullPreprocessor(initialValidation: z.ZodNullable<z.ZodString>) {
-  return z.preprocess((value) => {
-    if (value === '') {
-      return null;
-    }
-
-    return value;
-  }, initialValidation);
-}
 
 export const JsonRepositoryPlatformSchema = z.enum(['GitHub', 'GitLab']);
 export type JsonRepositoryPlatformSchemaType = z.infer<typeof JsonRepositoryPlatformSchema>;

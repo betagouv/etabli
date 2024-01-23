@@ -120,9 +120,31 @@ model RawDomain {
   RawDomainsOnInitiativeMaps RawDomainsOnInitiativeMaps?
 }
 
+enum ToolCategory {
+  LANGUAGES_AND_FRAMEWORKS
+  BUILD_TEST_DEPLOY
+  LIBRARIES
+  DATA_STORES
+  COLLABORATION
+  BACK_OFFICE
+  ANALYTICS
+  APPLICATION_HOSTING
+  APPLICATION_UTILITIES
+  ASSETS_AND_MEDIA
+  SUPPORT_SALES_AND_MARKETING
+  DESIGN
+  MONITORING
+  PAYMENTS
+  COMMUNICATIONS
+  MOBILE
+}
+
 model Tool {
-  id   String @id @default(uuid()) @db.Uuid
-  name String @unique
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @unique
+  title       String?
+  description String?
+  category    ToolCategory
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt

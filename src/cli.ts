@@ -1,5 +1,6 @@
 import { Command } from '@commander-js/extra-typings';
 
+import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli//features/tool';
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/features/initiative';
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/features/repository';
@@ -10,6 +11,7 @@ program.name('etabli').description('CLI to some deal with Établi project').vers
 
 const domain = program.command('domain').description('manage domains');
 const repository = program.command('repository').alias('repo').description('manage repositories');
+const tool = program.command('tool').description('manage tools');
 const initiative = program.command('initiative').description('manage initiatives');
 const cache = program.command('cache').description('manage cache across commands');
 
@@ -71,6 +73,36 @@ repository
     await saveRepositoryListFile();
     await formatRepositoriesIntoDatabase();
     await enhanceRepositoriesIntoDatabase();
+  });
+
+tool
+  .command('fetch')
+  .description('retrieve list of possible initiative tools')
+  .action(async () => {
+    await saveToolCsvFile();
+  });
+
+tool
+  .command('format')
+  .description('format tools into the database for further matching')
+  .action(async () => {
+    await formatToolsIntoDatabase();
+  });
+
+tool
+  .command('enhance')
+  .description('do extra work to bring more tool metadata')
+  .action(async () => {
+    await enhanceToolsIntoDatabase();
+  });
+
+tool
+  .command('prepare')
+  .description('execute "fetch", "format" and "enhance" sequentially')
+  .action(async () => {
+    await saveToolCsvFile();
+    await formatToolsIntoDatabase();
+    await enhanceToolsIntoDatabase();
   });
 
 initiative

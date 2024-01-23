@@ -16,7 +16,7 @@
     "test:unit": "jest --ci --passWithNoTests",
     "test:unit:watch": "jest --watch",
     "cli": "dotenv-run-script .env.test -- cli:unsecure",
-    "cli:unsecure": "ts-node -r tsconfig-paths/register src/cli.ts",
+    "cli:unsecure": "tsx src/cli.ts",
     "db:schema:check": "dotenv-run-script .env.test -- db:schema:check:unsecure",
     "db:schema:check:unsecure": "prisma validate",
     "db:schema:compile": "prisma generate",
@@ -74,8 +74,7 @@
     "jest": "^29.3.1",
     "jest-environment-jsdom": "^29.3.1",
     "ts-jest": "^29.0.3",
-    "ts-node": "^10.9.1",
-    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.2.2"
   },
   "packageManager": "npm@8.5.5",

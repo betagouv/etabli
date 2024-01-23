@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import https from 'https';
 import { JSDOM } from 'jsdom';
 import { FetchError } from 'node-fetch';
+import { ParseResultType, parseDomain } from 'parse-domain';
 import path from 'path';
 import robotsParser from 'robots-parser';
 import { PeerCertificate, TLSSocket } from 'tls';
@@ -68,8 +69,6 @@ export async function saveDomainCsvFile(cache = true) {
 }
 
 export async function formatDomainsIntoDatabase() {
-  const { parseDomain, ParseResultType } = await import('parse-domain'); // Cannot be imported at the top of the file due to being ECMAScript
-
   const content = await fs.readFile(localCsvPath, 'utf-8');
 
   parse(
@@ -700,8 +699,6 @@ export async function updateWebsiteDataOnDomains() {
 }
 
 export async function matchDomains() {
-  const { parseDomain, ParseResultType } = await import('parse-domain'); // Cannot be imported at the top of the file due to being ECMAScript
-
   // All checks may not be done before matching (due to network errors)
   // but we cannot take the risk of letting alone a domain that would create an additional initiative
   const rawDomainsToUpdate = await prisma.rawDomain.findMany({

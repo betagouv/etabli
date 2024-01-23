@@ -1,5 +1,6 @@
 import { Prisma, RawDomain, RawRepository } from '@prisma/client';
 import assert from 'assert';
+import { $ } from 'execa';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import { glob } from 'glob';
@@ -367,9 +368,6 @@ export async function inferInitiativesFromDatabase() {
 }
 
 export async function feedInitiativesFromDatabase() {
-  // Cannot be imported directly due because it needs `"type": "module"` but Playwright cannot work with it
-  const { $ } = await import('execa');
-
   // Helper needed when formatting
   handlebars.registerHelper('incrementIndex', function (index: number) {
     return index + 1;

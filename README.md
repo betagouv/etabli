@@ -9,7 +9,6 @@ Binaries:
 - pandoc
 - semgrep
 - wappalyzer local alternative?
-- ts-node (for now)
 
 Run distinct commands with:
-`ts-node -r tsconfig-paths/register src/cli.ts`
+`npm run cli`

@@ -1,6 +1,8 @@
 import { Prisma, RawDomain, RawRepository } from '@prisma/client';
 import assert from 'assert';
+import { differenceInDays } from 'date-fns/differenceInDays';
 import { $ } from 'execa';
+import fastFolderSize from 'fast-folder-size';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import { glob } from 'glob';
@@ -8,7 +10,10 @@ import graphlib, { Graph } from 'graphlib';
 import handlebars from 'handlebars';
 import OpenAI from 'openai';
 import path from 'path';
+import prettyBytes from 'pretty-bytes';
+import { simpleGit } from 'simple-git';
 import { encoding_for_model } from 'tiktoken';
+import { promisify } from 'util';
 import Wappalyzer from 'wappalyzer';
 
 import { gptInstances, gptSeed } from '@etabli/gpt';
@@ -28,7 +33,23 @@ import { getListDiff } from '@etabli/utils/comparaison';
 import { sleep } from '@etabli/utils/sleep';
 import { WappalyzerResultSchema } from '@etabli/wappalyzer';
 
+const fastFolderSizeAsync = promisify(fastFolderSize);
 const useLocalFileCache = true; // Switch it when testing locally to prevent multiplying network request whereas the remote content has probably no change since then
+
+const git = simpleGit();
+const filesToKeepGitEndingPatterns: string[] = [
+  // This is used to reduce size of the repository once downloaded
+  // Note: with the current patterns we cannot rely on using leading `/` for the root, we should convert them to regexp otherwise
+  'README',
+  'README.md',
+  'package.json',
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  // TODO: ...
+];
+const filesToKeepRegex = /\/README$|/i;
 
 const noImgAndSvgFilterPath = path.resolve(__dirname, '../../src/pandoc/no-img-and-svg.lua');
 const extractMetaDescriptionFilterPath = path.resolve(__dirname, '../../src/pandoc/extract-meta-description.lua');
@@ -513,11 +534,71 @@ export async function feedInitiativesFromDatabase() {
 
         const rawRepository = rawRepositoryOnIMap.rawRepository;
 
-        // Get the soure code
+        // Get the soure code if not present or "expired"
         const codeFolderPath = path.resolve(projectDirectory, `repositories/${rawRepository.id}/`);
+        let codeFolderExists = fsSync.existsSync(codeFolderPath);
 
-        if (!useLocalFileCache || !fsSync.existsSync(codeFolderPath)) {
-          await $`git clone ${rawRepository.repositoryUrl} ${codeFolderPath}`;
+        // If the folder is considered too old, we fetch it again
+        if (codeFolderExists) {
+          const folderInformation = await fs.stat(codeFolderPath);
+          const currentDate = new Date();
+
+          if (!useLocalFileCache || differenceInDays(currentDate, folderInformation.birthtime) > 30) {
+            // `git clone` cannot be done on an existing folder, so removing it
+            await fs.rm(codeFolderPath, { recursive: true, force: true });
+
+            codeFolderExists = false;
+          }
+        }
+
+        if (!codeFolderExists) {
+          console.log('downloading the repository code');
+
+          // We use `git clone` since there is no common pattern to download an archive between all forges (GitHub, GitLab...)
+          // We added some parameters to reduce a bit what needs to be downloaded:
+          // * `--single-branch`: do not look for information of other branches (it should use the default branch)
+          // * `--depth=1`: retrieve only information about the latest commit state (not having history will save space)
+          // * `--filter=blob:limit=${SIZE}`: should not download blob objects over $SIZE size (we estimated a size to get big text file for code, while excluding big assets). In fact, it seems not working well because I do see some images fetched... just keeping this parameter in case it may work
+          await git.clone(rawRepository.repositoryUrl, codeFolderPath, {
+            '--single-branch': null,
+            '--depth': 1,
+            '--filter': 'blob:limit=200k',
+          });
+
+          // Since Git does not allow using patterns to download only specific files, we just clean the folder after (to have a local disk cache for the next initiative compute before any erase of the data (container restart or manual delete))
+          // We remove all files not used during the analysis + `git` data since not used at all
+          // Note: the list of patterns must be updated each time new kinds of files to analyze are added
+          const folderSizeBeforeClean = await fastFolderSizeAsync(codeFolderPath);
+          assert(folderSizeBeforeClean !== undefined);
+
+          const projectGit = git.cwd({ path: codeFolderPath });
+          const lsResult = await projectGit.raw(['ls-files']);
+
+          if (lsResult !== '') {
+            const filesToRemove = lsResult.split('\n').filter((filePath) => {
+              // There is an empty line in the output result that cannot be used by `git rm`
+              if (filePath.trim() === '') {
+                return false;
+              }
+
+              return !filesToKeepGitEndingPatterns.some((endingPattern) => {
+                return filePath.endsWith(endingPattern);
+              });
+            });
+
+            if (filesToRemove.length > 0) {
+              await projectGit.rm(filesToRemove);
+            }
+          }
+
+          await $`rm -rf ${path.resolve(codeFolderPath, `./.git/`)}`;
+
+          const folderSizeAfterClean = await fastFolderSizeAsync(codeFolderPath);
+          assert(folderSizeAfterClean !== undefined);
+
+          console.log(
+            `the repository code has been cleaned (before ${prettyBytes(folderSizeBeforeClean)} | after ${prettyBytes(folderSizeAfterClean)})`
+          );
         }
 
         // Extract information from the source code

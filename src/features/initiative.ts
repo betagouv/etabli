@@ -740,6 +740,23 @@ export async function feedInitiativesFromDatabase() {
       throw error;
     }
   } finally {
-    await wappalyzer.destroy();
+    let wappalyzerClosedNormally = false;
+
+    // For whatever reason despite the official documentation when doing it it may hang forever (ref: https://github.com/enthec/webappanalyzer/issues/74)
+    // If not done the program may not quit (it's random), and if done it may be stuck on it... an acceptable workaround is to set a timeout
+    await Promise.race([
+      async () => {
+        await wappalyzer.destroy();
+
+        wappalyzerClosedNormally = true;
+      },
+      async () => {
+        await sleep(4000);
+
+        if (!wappalyzerClosedNormally) {
+          console.warn('wappalyzer seems stuck closing, you may have to force terminating the program if it seems to hang forever');
+        }
+      },
+    ]);
   }
 }

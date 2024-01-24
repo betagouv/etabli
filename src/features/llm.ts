@@ -218,6 +218,12 @@ export async function exportToolListToLlmSystem() {
     file_id: finalStateFile.id,
   });
 
+  // If there was a file before, we remove it since the new one is ready to use
+  // Note: this is only possible because with this assistant we are far from reaching limits so both can live together on this short moment
+  if (!!settings.toolsAnalyzerAssistantFileId) {
+    await openai.beta.assistants.files.del(settings.llmAnalyzerAssistantId, settings.toolsAnalyzerAssistantFileId);
+  }
+
   await prisma.settings.update({
     where: {
       onlyTrueAsId: true,

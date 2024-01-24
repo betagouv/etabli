@@ -157,8 +157,8 @@ export async function exportToolListToLlmSystem() {
     },
   });
 
-  if (!settings.llmBotAssistantId) {
-    throw new Error('the bot assistant must exist to compute initiative through the llm system');
+  if (!settings.llmAnalyzerAssistantId) {
+    throw new Error('the analyzer assistant must exist to compute initiative through the llm system');
   }
 
   const tools = await prisma.tool.findMany({
@@ -213,8 +213,8 @@ export async function exportToolListToLlmSystem() {
     throw new Error(`the file has not be fully processed by the llm system (final status: ${finalStateFile.status}), we deleted it from their side`);
   }
 
-  // Once processed we have to bind it to the bot assistant
-  const assistantFile = await openai.beta.assistants.files.create(settings.llmBotAssistantId, {
+  // Once processed we have to bind it to the analyzer assistant
+  const assistantFile = await openai.beta.assistants.files.create(settings.llmAnalyzerAssistantId, {
     file_id: finalStateFile.id,
   });
 

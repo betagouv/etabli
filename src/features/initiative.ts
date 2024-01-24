@@ -413,8 +413,8 @@ export async function feedInitiativesFromDatabase() {
     },
   });
 
-  if (!settings.llmBotAssistantId) {
-    throw new Error('the bot assistant must exist to compute initiative through the llm system');
+  if (!settings.llmAnalyzerAssistantId) {
+    throw new Error('the analyzer assistant must exist to compute initiative through the llm system');
   }
 
   // Helper needed when formatting

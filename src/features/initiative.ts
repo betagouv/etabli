@@ -703,13 +703,13 @@ export async function feedInitiativesFromDatabase() {
             repositories: repositoriesTemplates.map((repositoryTemplate) => {
               // Note: we give priority to website content over repository `README` to not end with meaningless technical things into the initiative description (which should be business-oriented since there is a website)
               return websitesTemplates.length > 0
-                ? repositoryTemplate
-                : RepositoryTemplateSchema.parse({
+                ? RepositoryTemplateSchema.parse({
                     // We make a deepcopy to not mess in case of a next iteration on this initiative
                     functions: repositoryTemplate.functions,
                     dependencies: repositoryTemplate.dependencies,
                     readme: null,
-                  });
+                  })
+                : repositoryTemplate;
             }),
           })
         );

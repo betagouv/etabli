@@ -415,6 +415,8 @@ export async function feedInitiativesFromDatabase() {
 
   if (!settings.llmAnalyzerAssistantId) {
     throw new Error('the analyzer assistant must exist to compute initiative through the llm system');
+  } else if (!settings.toolsAnalyzerAssistantFileId) {
+    throw new Error('the analyzer assistant must have its knowledge base set up');
   }
 
   // Helper needed when formatting

@@ -95,7 +95,7 @@ export async function initLlmSystem() {
 
   if (!analyzerAssistantId) {
     const analyzerAssistant = await openai.beta.assistants.create({
-      name: openaiBotAssistantName,
+      name: openaiAnalyserAssistantName,
       model: gptInstance.model,
       instructions:
         'You are a bot to help computing information to build an initiative sheet that will be listed in a directory. Use the provided tools to answer questions.',
@@ -226,7 +226,7 @@ export async function exportToolListToLlmSystem() {
 
   // Upload the document to GPT
   const file = await openai.files.create({
-    file: await toFile(Buffer.from(toolsGptContent), `${openaiItemPrefix}_tools`),
+    file: await toFile(Buffer.from(toolsGptContent), `${openaiItemPrefix}tools`),
     purpose: 'assistants',
   });
 
@@ -436,7 +436,7 @@ export async function exportInitiativeListToLlmSystem() {
     const chunkNumber = i + 1;
 
     const file = await openai.files.create({
-      file: await toFile(Buffer.from(chunks[i]), `${openaiItemPrefix}_initiatives_chunk_${chunkNumber}`),
+      file: await toFile(Buffer.from(chunks[i]), `${openaiItemPrefix}initiatives_chunk_${chunkNumber}`),
       purpose: 'assistants',
     });
 

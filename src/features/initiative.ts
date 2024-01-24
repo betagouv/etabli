@@ -260,9 +260,11 @@ export async function inferInitiativesFromDatabase() {
 
       const diffResult = getListDiff(storedLiteInitiativeMaps, computedLiteInitiativeMaps);
 
+      let anyChange = false;
       for (const diffItem of diffResult.diff) {
         if (diffItem.status === 'added') {
           const liteInitiativeMap = diffItem.value as LiteInitiativeMapSchemaType;
+          anyChange = true;
 
           await tx.initiativeMap.create({
             data: {
@@ -294,6 +296,7 @@ export async function inferInitiativesFromDatabase() {
           });
         } else if (diffItem.status === 'deleted') {
           const liteInitiativeMap = diffItem.value as LiteInitiativeMapSchemaType;
+          anyChange = true;
 
           // We do not delete to keep a bit of history for debug
           const deletedInitiativeMap = await tx.initiativeMap.updateMany({
@@ -307,6 +310,7 @@ export async function inferInitiativesFromDatabase() {
           });
         } else if (diffItem.status === 'updated') {
           const liteInitiativeMap = diffItem.value as LiteInitiativeMapSchemaType;
+          anyChange = true;
 
           // Since we cannot make a unique tuple with `deletedAt` we have a hack a bit and take the last one first
           const initiativeMapToUpdate = await tx.initiativeMap.findFirstOrThrow({
@@ -376,6 +380,18 @@ export async function inferInitiativesFromDatabase() {
                   };
                 }),
               },
+            },
+          });
+        }
+
+        if (anyChange) {
+          // There is a modification so on the next job we should tell the LLM system about new updates
+          await prisma.settings.update({
+            where: {
+              onlyTrueAsId: true,
+            },
+            data: {
+              updateInitiativesBotAssistantFiles: true,
             },
           });
         }

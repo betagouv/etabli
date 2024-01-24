@@ -129,9 +129,11 @@ export async function formatToolsIntoDatabase() {
 
           const diffResult = getListDiff(storedLiteTools, csvLiteTools);
 
+          let anyChange = false;
           for (const diffItem of diffResult.diff) {
             if (diffItem.status === 'added') {
               const liteTool = diffItem.value as LiteToolSchemaType;
+              anyChange = true;
 
               await tx.tool.create({
                 data: {
@@ -143,6 +145,7 @@ export async function formatToolsIntoDatabase() {
               });
             } else if (diffItem.status === 'deleted') {
               const liteTool = diffItem.value as LiteToolSchemaType;
+              anyChange = true;
 
               const deletedTool = await tx.tool.delete({
                 where: {
@@ -151,6 +154,7 @@ export async function formatToolsIntoDatabase() {
               });
             } else if (diffItem.status === 'updated') {
               const liteTool = diffItem.value as LiteToolSchemaType;
+              anyChange = true;
 
               const updatedTool = await tx.tool.update({
                 where: {
@@ -167,6 +171,18 @@ export async function formatToolsIntoDatabase() {
                 },
               });
             }
+          }
+
+          if (anyChange) {
+            // There is a modification so on the next job we should tell the LLM system about new updates
+            await prisma.settings.update({
+              where: {
+                onlyTrueAsId: true,
+              },
+              data: {
+                updateToolsAnalyzerAssistantFile: true,
+              },
+            });
           }
         },
         {

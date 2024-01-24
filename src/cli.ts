@@ -3,7 +3,7 @@ import { Command } from '@commander-js/extra-typings';
 import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli//features/tool';
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/features/initiative';
-import { cleanLlmSystem, initLlmSystem } from '@etabli/features/llm';
+import { cleanLlmSystem, exportToolListToLlmSystem, initLlmSystem } from '@etabli/features/llm';
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/features/repository';
 
 const program = new Command();
@@ -120,6 +120,14 @@ llm
   .description('clean data of llm assistants')
   .action(async () => {
     await cleanLlmSystem();
+  });
+
+llm
+  .command('tools')
+  .command('feed')
+  .description('export tool list as documents into the llm system')
+  .action(async () => {
+    await exportToolListToLlmSystem();
   });
 
 initiative

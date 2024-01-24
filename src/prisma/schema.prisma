@@ -10,9 +10,15 @@ datasource db {
 }
 
 model Settings {
-  onlyTrueAsId           Boolean @id @default(true) // This is to guarantee 1 row in the table (not perfect since we didn't succeed setting a constraint with Prisma, but that's acceptable if fetching with the right condition)
-  llmBotAssistantId      String?
-  llmAnalyzerAssistantId String?
+  onlyTrueAsId                          Boolean   @id @default(true) // This is to guarantee 1 row in the table (not perfect since we didn't succeed setting a constraint with Prisma, but that's acceptable if fetching with the right condition)
+  llmBotAssistantId                     String?
+  llmAnalyzerAssistantId                String?
+  initiativesBotAssistantFileIds        String[]
+  initiativesBotAssistantFilesUpdatedAt DateTime?
+  updateInitiativesBotAssistantFiles    Boolean   @default(false)
+  toolsAnalyzerAssistantFileId          String?
+  toolsAnalyzerAssistantFileUpdatedAt   DateTime?
+  updateToolsAnalyzerAssistantFile      Boolean   @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt

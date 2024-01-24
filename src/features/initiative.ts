@@ -389,6 +389,18 @@ export async function inferInitiativesFromDatabase() {
 }
 
 export async function feedInitiativesFromDatabase() {
+  // Note: Prisma does not implement yet locking table though it should help not messing with requesting the LLM system while replacing sensitive components of it
+  // This race condition should remain rare and having error thrown should be fine since replayed on the next iteration
+  const settings = await prisma.settings.findUniqueOrThrow({
+    where: {
+      onlyTrueAsId: true,
+    },
+  });
+
+  if (!settings.llmBotAssistantId) {
+    throw new Error('the bot assistant must exist to compute initiative through the llm system');
+  }
+
   // Helper needed when formatting
   handlebars.registerHelper('incrementIndex', function (index: number) {
     return index + 1;

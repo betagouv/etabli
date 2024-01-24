@@ -9,6 +9,15 @@ datasource db {
   relationMode = "foreignKeys"
 }
 
+model Settings {
+  onlyTrueAsId           Boolean @id @default(true) // This is to guarantee 1 row in the table (not perfect since we didn't succeed setting a constraint with Prisma, but that's acceptable if fetching with the right condition)
+  llmBotAssistantId      String?
+  llmAnalyzerAssistantId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
 enum RawRepositoryPlatform {
   GITHUB
   GITLAB

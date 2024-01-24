@@ -3,6 +3,7 @@ import { Command } from '@commander-js/extra-typings';
 import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli//features/tool';
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/features/initiative';
+import { cleanLlmSystem, initLlmSystem } from '@etabli/features/llm';
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/features/repository';
 
 const program = new Command();
@@ -12,6 +13,7 @@ program.name('etabli').description('CLI to some deal with Établi project').vers
 const domain = program.command('domain').description('manage domains');
 const repository = program.command('repository').alias('repo').description('manage repositories');
 const tool = program.command('tool').description('manage tools');
+const llm = program.command('llm').description('manage llm settings and documents');
 const initiative = program.command('initiative').description('manage initiatives');
 const cache = program.command('cache').description('manage cache across commands');
 
@@ -103,6 +105,21 @@ tool
     await saveToolCsvFile();
     await formatToolsIntoDatabase();
     await enhanceToolsIntoDatabase();
+  });
+
+llm
+  .command('initialize')
+  .alias('init')
+  .description('initialize llm assistants')
+  .action(async () => {
+    await initLlmSystem();
+  });
+
+llm
+  .command('clean')
+  .description('clean data of llm assistants')
+  .action(async () => {
+    await cleanLlmSystem();
   });
 
 initiative

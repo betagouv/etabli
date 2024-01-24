@@ -1,4 +1,4 @@
-import { Prisma, RawDomain, RawRepository } from '@prisma/client';
+import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@prisma/client';
 import assert from 'assert';
 import { differenceInDays } from 'date-fns/differenceInDays';
 import { $ } from 'execa';
@@ -802,34 +802,114 @@ export async function feedInitiativesFromDatabase() {
         console.log('\n');
         console.log('\n');
 
-        await prisma.initiative.upsert({
-          where: {
-            originId: initiativeMap.id,
-          },
-          update: {
-            name: initiativeName,
-            description: answerData.description,
-            websites: initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => `https://${rawDomainOnIMap.rawDomain.name}`),
-            repositories: initiativeMap.RawRepositoriesOnInitiativeMaps.map((rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepository.repositoryUrl),
-            functionalUseCases: [],
-            // functionalUseCases: answerData.functionalUseCases
-            // TODO: tools + business use cases
-          },
-          create: {
-            origin: {
-              connect: {
-                id: initiativeMap.id,
+        // Now prepare and save the results
+        const websites = initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => `https://${rawDomainOnIMap.rawDomain.name}`);
+        const repositories = initiativeMap.RawRepositoriesOnInitiativeMaps.map(
+          (rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepository.repositoryUrl
+        );
+        const functionalUseCases: FunctionalUseCase[] = [];
+
+        if (answerData.functionalUseCases.generatesPDF) {
+          functionalUseCases.push(FunctionalUseCase.GENERATES_PDF);
+        }
+        if (answerData.functionalUseCases.hasVirtualEmailInboxes) {
+          functionalUseCases.push(FunctionalUseCase.HAS_VIRTUAL_EMAIL_INBOXES);
+        }
+        if (answerData.functionalUseCases.sendsEmails) {
+          functionalUseCases.push(FunctionalUseCase.SENDS_EMAILS);
+        }
+
+        await prisma.$transaction(
+          async (tx) => {
+            // To simplify logic between create/update we retrieve associations to use IDs directly
+            const tools = await tx.tool.findMany({
+              where: {
+                name: {
+                  in: answerData.tools,
+                },
               },
-            },
-            name: initiativeName,
-            description: answerData.description,
-            websites: initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => `https://${rawDomainOnIMap.rawDomain.name}`),
-            repositories: initiativeMap.RawRepositoriesOnInitiativeMaps.map((rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepository.repositoryUrl),
-            functionalUseCases: [],
-            // functionalUseCases: answerData.functionalUseCases
-            // TODO: tools + business use cases
+            });
+
+            const businessUseCases = await tx.businessUseCase.findMany({
+              where: {
+                name: {
+                  in: answerData.businessUseCases,
+                },
+              },
+            });
+
+            const existingInitiative = await tx.initiative.findUnique({
+              where: {
+                originId: initiativeMap.id,
+              },
+            });
+
+            await tx.initiative.upsert({
+              where: {
+                originId: initiativeMap.id,
+              },
+              update: {
+                name: initiativeName,
+                description: answerData.description,
+                websites: websites,
+                repositories: repositories,
+                functionalUseCases: functionalUseCases,
+                ToolsOnInitiatives: {
+                  deleteMany: !!existingInitiative
+                    ? {
+                        initiativeId: existingInitiative.id,
+                        NOT: tools.map((tool) => ({ toolId: tool.id })),
+                      }
+                    : undefined,
+                  upsert: !!existingInitiative
+                    ? tools.map((tool) => ({
+                        where: { toolId_initiativeId: { initiativeId: existingInitiative.id, toolId: tool.id } },
+                        create: { toolId: tool.id },
+                        update: { toolId: tool.id },
+                      }))
+                    : undefined,
+                },
+                BusinessUseCasesOnInitiatives: {
+                  deleteMany: !!existingInitiative
+                    ? {
+                        initiativeId: existingInitiative.id,
+                        NOT: businessUseCases.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
+                      }
+                    : undefined,
+                  upsert: !!existingInitiative
+                    ? businessUseCases.map((businessUseCase) => ({
+                        where: { businessUseCaseId_initiativeId: { initiativeId: existingInitiative.id, businessUseCaseId: businessUseCase.id } },
+                        create: { businessUseCaseId: businessUseCase.id },
+                        update: { businessUseCaseId: businessUseCase.id },
+                      }))
+                    : undefined,
+                },
+              },
+              create: {
+                origin: {
+                  connect: {
+                    id: initiativeMap.id,
+                  },
+                },
+                name: initiativeName,
+                description: answerData.description,
+                websites: websites,
+                repositories: repositories,
+                functionalUseCases: functionalUseCases,
+                ToolsOnInitiatives: {
+                  create: tools.map((tool) => ({ toolId: tool.id })),
+                },
+                BusinessUseCasesOnInitiatives: {
+                  create: businessUseCases.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
+                },
+              },
+            });
           },
-        });
+          {
+            timeout: 15 * 1000, // Since dealing with a lot of data, prevent closing whereas everything is alright
+            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+          }
+        );
 
         break; // When successful break the infinite loop
       }

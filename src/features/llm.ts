@@ -4,8 +4,9 @@ import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import handlebars from 'handlebars';
-import OpenAI, { toFile } from 'openai';
+import OpenAI, { APIConnectionTimeoutError, toFile } from 'openai';
 import { AssistantFile } from 'openai/resources/beta/assistants/files';
+import { Run } from 'openai/resources/beta/threads/runs/runs';
 import path from 'path';
 import { encoding_for_model } from 'tiktoken';
 
@@ -13,18 +14,43 @@ import { initSettingsIfNeeded } from '@etabli/features/settings';
 import { gptInstances } from '@etabli/gpt';
 import { DocumentInitiativeTemplateSchema, DocumentInitiativesChunkTemplateSchema } from '@etabli/gpt/template';
 import { prisma } from '@etabli/prisma';
+import { sleep } from '@etabli/utils/sleep';
 
-const openai = new OpenAI({
+export const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const gptInstance = gptInstances['v3.5'];
+export const gptInstance = gptInstances['v3.5'];
 
 export const openaiItemPrefix = 'etabli_';
 export const openaiBotAssistantName = `${openaiItemPrefix}bot`;
 export const openaiAnalyserAssistantName = `${openaiItemPrefix}analyzer`;
 export const openaiDocumentTokensLimit = 2000000;
 export const openaiDocumentsPerAssistantMaximum = 20;
+
+// This is inspired from their `waitForProcessing` for file processing
+export async function waitForRunProcessing(
+  run: Run,
+  { pollInterval = 5000, maxWait = 30 * 60 * 1000 }: { pollInterval?: number; maxWait?: number } = {}
+): Promise<Run> {
+  const TERMINAL_STATES = new Set(['requires_action', 'cancelled', 'failed', 'completed', 'expired']);
+
+  const start = Date.now();
+  let tmpRun = await openai.beta.threads.runs.retrieve(run.thread_id, run.id);
+
+  while (!tmpRun.status || !TERMINAL_STATES.has(tmpRun.status)) {
+    await sleep(pollInterval);
+
+    tmpRun = await openai.beta.threads.runs.retrieve(run.thread_id, run.id);
+    if (Date.now() - start > maxWait) {
+      throw new APIConnectionTimeoutError({
+        message: `Giving up on waiting for run ${run.id} to finish processing after ${maxWait} milliseconds.`,
+      });
+    }
+  }
+
+  return tmpRun;
+}
 
 export async function initLlmSystem() {
   // Note: Prisma does not implement yet locking table though it should help not messing with requesting the LLM system while replacing sensitive components of it

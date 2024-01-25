@@ -30,6 +30,7 @@ import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/mo
 import { prisma } from '@etabli/prisma';
 import { SemgrepResultSchema } from '@etabli/semgrep';
 import { getListDiff } from '@etabli/utils/comparaison';
+import { capitalizeFirstLetter } from '@etabli/utils/format';
 import { sleep } from '@etabli/utils/sleep';
 import { WappalyzerResultSchema } from '@etabli/wappalyzer';
 
@@ -733,6 +734,10 @@ export async function feedInitiativesFromDatabase() {
           console.log(`the JSON result has been written to: ${gptAnswerPath}`);
           console.log('\n');
           console.log('\n');
+
+          // Sanitize a bit free entry fields
+          answerData.businessUseCases = answerData.businessUseCases.map((businessUseCaseName) => capitalizeFirstLetter(businessUseCaseName.trim()));
+          answerData.description = capitalizeFirstLetter(answerData.description.trim());
 
           // Now prepare and save the results
           const websites = initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => `https://${rawDomainOnIMap.rawDomain.name}`);

@@ -1,8 +1,6 @@
 import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@prisma/client';
 import assert from 'assert';
 import { differenceInDays } from 'date-fns/differenceInDays';
-import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
-import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import { $ } from 'execa';
 import fastFolderSize from 'fast-folder-size';
 import fsSync from 'fs';
@@ -14,20 +12,20 @@ import OpenAI from 'openai';
 import path from 'path';
 import prettyBytes from 'pretty-bytes';
 import { simpleGit } from 'simple-git';
-import { encoding_for_model } from 'tiktoken';
 import { promisify } from 'util';
 import Wappalyzer from 'wappalyzer';
 
-import { gptInstance, openai, waitForRunProcessing } from '@etabli/features/llm';
+import { llmManagerInstance } from '@etabli/features/llm';
 import {
   InitiativeTemplateSchema,
   RepositoryTemplateSchema,
   RepositoryTemplateSchemaType,
-  ResultSchema,
+  ResultSchemaType,
   WebsiteTemplateSchema,
   WebsiteTemplateSchemaType,
   resultSample,
 } from '@etabli/gpt/template';
+import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/models/entities/initiative';
 import { prisma } from '@etabli/prisma';
 import { SemgrepResultSchema } from '@etabli/semgrep';
@@ -714,218 +712,150 @@ export async function feedInitiativesFromDatabase() {
           })
         );
 
-        // Make sure the content is valid
-        const encoder = encoding_for_model(gptInstance.countModel);
-        const tokens = encoder.encode(finalGptContent);
-        encoder.free();
+        try {
+          // Process the message if it fits into the LLM limits
+          let answerData: ResultSchemaType = await llmManagerInstance.computeInitiative(settings, projectDirectory, finalGptContent);
 
-        console.log(`the content to send is ${tokens.length} tokens long (${gptInstance.modelTokenLimit} is the input+output limit)`);
+          const gptAnswerPath = path.resolve(projectDirectory, 'gpt-answer.json');
 
-        if (tokens.length >= gptInstance.modelTokenLimit) {
-          console.log('there are too many tokens for this GPT model to accept the current request');
+          const beautifiedAnswerData = JSON.stringify(answerData, null, 2);
+          await fs.writeFile(gptAnswerPath, beautifiedAnswerData);
 
-          // We try with less information if possible
-          // (we try do remove 1 by 1 on each, but the main last one important is the website for business context on the initiative)
-          if (repositoriesTemplates.length >= websitesTemplates.length) {
-            repositoriesTemplates.pop();
-          } else {
-            websitesTemplates.pop();
-          }
+          console.log(`the JSON result has been written to: ${gptAnswerPath}`);
+          console.log('\n');
+          console.log('\n');
 
-          if (repositoriesTemplates.length === 0 && websitesTemplates.length === 0) {
-            throw new Error(
-              'initative with only a website should pass in the context, this case has not been handled yet, maybe we could truncate the website content so it passes?'
-            );
-          }
-
-          console.log('retrying with less information');
-          continue;
-        }
-
-        // Store the prompt for debug
-        const gptPromptPath = path.resolve(projectDirectory, 'gpt-prompt.md');
-        await fs.writeFile(gptPromptPath, finalGptContent);
-
-        // Process data
-        const run = await openai.beta.threads.createAndRun({
-          assistant_id: settings.llmAnalyzerAssistantId,
-          thread: {
-            messages: [
-              {
-                role: 'user',
-                content: finalGptContent,
-              },
-            ],
-          },
-          // [IMPORTANT] With GPT version without Assistant (needed for files) we were able to specify deterministic parameters, but they are no longer available in the beta version of Assistant...
-          // TODO: enable them once they are released (if they are)
-          // ---
-          // response_format: {
-          //   type: 'json_object',
-          // },
-          // temperature: 0, // Less creative answer, more deterministic
-          // top_p: 0.1,
-          // seed: gptSeed, // Cannot guarantee exact same answers for the same prompt, but should help (`system_fingerprint` can also be watched to detect a system change on their side)
-        });
-
-        const finalStateRun = await waitForRunProcessing(run, {
-          pollInterval: secondsToMilliseconds(3),
-          maxWait: minutesToMilliseconds(1),
-        });
-
-        if (finalStateRun.status !== 'completed') {
-          throw new Error(`the run has not be fully completed by the llm system (final status: ${finalStateRun.status}), stopping the whole`);
-        }
-
-        if (run.usage) {
-          console.log(
-            `the GPT input and output represent ${run.usage.total_tokens} tokens in total (for a cost of ~$${
-              (run.usage.total_tokens / 1000) * gptInstance.per1000TokensCost
-            })`
+          // Now prepare and save the results
+          const websites = initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => `https://${rawDomainOnIMap.rawDomain.name}`);
+          const repositories = initiativeMap.RawRepositoriesOnInitiativeMaps.map(
+            (rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepository.repositoryUrl
           );
+          const functionalUseCases: FunctionalUseCase[] = [];
 
-          if (run.usage.total_tokens > gptInstance.modelTokenLimit) {
-            console.warn('it seemed to process more token than the limit, the content may be truncated and invalid');
-            console.log('retrying with less information');
-            continue;
+          if (answerData.functionalUseCases.generatesPDF) {
+            functionalUseCases.push(FunctionalUseCase.GENERATES_PDF);
           }
-        }
+          if (answerData.functionalUseCases.hasVirtualEmailInboxes) {
+            functionalUseCases.push(FunctionalUseCase.HAS_VIRTUAL_EMAIL_INBOXES);
+          }
+          if (answerData.functionalUseCases.sendsEmails) {
+            functionalUseCases.push(FunctionalUseCase.SENDS_EMAILS);
+          }
 
-        const messages = await openai.beta.threads.messages.list(run.thread_id, { order: 'desc', limit: 1 });
-        const answer = messages.data[0];
-
-        if (answer.content.length !== 1 || answer.content[0].type !== 'text') {
-          throw new Error('GPT result should send only 1 textual answer');
-        }
-
-        const textPart = answer.content[0].text;
-
-        for (const annotation of textPart.annotations) {
-          console.log(annotation);
-
-          throw new Error(`our system is not expecting annotation but in case it GPT evolves we want to be warned`);
-        }
-
-        const answerObject = JSON.parse(textPart.value);
-        const answerData = ResultSchema.parse(answerObject);
-
-        const gptAnswerPath = path.resolve(projectDirectory, 'gpt-answer.json');
-
-        const beautifiedAnswerData = JSON.stringify(answerData, null, 2);
-        await fs.writeFile(gptAnswerPath, beautifiedAnswerData);
-
-        console.log(`the JSON result has been written to: ${gptAnswerPath}`);
-        console.log('\n');
-        console.log('\n');
-
-        // Now prepare and save the results
-        const websites = initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => `https://${rawDomainOnIMap.rawDomain.name}`);
-        const repositories = initiativeMap.RawRepositoriesOnInitiativeMaps.map(
-          (rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepository.repositoryUrl
-        );
-        const functionalUseCases: FunctionalUseCase[] = [];
-
-        if (answerData.functionalUseCases.generatesPDF) {
-          functionalUseCases.push(FunctionalUseCase.GENERATES_PDF);
-        }
-        if (answerData.functionalUseCases.hasVirtualEmailInboxes) {
-          functionalUseCases.push(FunctionalUseCase.HAS_VIRTUAL_EMAIL_INBOXES);
-        }
-        if (answerData.functionalUseCases.sendsEmails) {
-          functionalUseCases.push(FunctionalUseCase.SENDS_EMAILS);
-        }
-
-        await prisma.$transaction(
-          async (tx) => {
-            // To simplify logic between create/update we retrieve associations to use IDs directly
-            const tools = await tx.tool.findMany({
-              where: {
-                name: {
-                  in: answerData.tools,
-                },
-              },
-            });
-
-            const businessUseCases = await tx.businessUseCase.findMany({
-              where: {
-                name: {
-                  in: answerData.businessUseCases,
-                },
-              },
-            });
-
-            const existingInitiative = await tx.initiative.findUnique({
-              where: {
-                originId: initiativeMap.id,
-              },
-            });
-
-            await tx.initiative.upsert({
-              where: {
-                originId: initiativeMap.id,
-              },
-              update: {
-                name: initiativeName,
-                description: answerData.description,
-                websites: websites,
-                repositories: repositories,
-                functionalUseCases: functionalUseCases,
-                ToolsOnInitiatives: {
-                  deleteMany: !!existingInitiative
-                    ? {
-                        initiativeId: existingInitiative.id,
-                        NOT: tools.map((tool) => ({ toolId: tool.id })),
-                      }
-                    : undefined,
-                  upsert: !!existingInitiative
-                    ? tools.map((tool) => ({
-                        where: { toolId_initiativeId: { initiativeId: existingInitiative.id, toolId: tool.id } },
-                        create: { toolId: tool.id },
-                        update: { toolId: tool.id },
-                      }))
-                    : undefined,
-                },
-                BusinessUseCasesOnInitiatives: {
-                  deleteMany: !!existingInitiative
-                    ? {
-                        initiativeId: existingInitiative.id,
-                        NOT: businessUseCases.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
-                      }
-                    : undefined,
-                  upsert: !!existingInitiative
-                    ? businessUseCases.map((businessUseCase) => ({
-                        where: { businessUseCaseId_initiativeId: { initiativeId: existingInitiative.id, businessUseCaseId: businessUseCase.id } },
-                        create: { businessUseCaseId: businessUseCase.id },
-                        update: { businessUseCaseId: businessUseCase.id },
-                      }))
-                    : undefined,
-                },
-              },
-              create: {
-                origin: {
-                  connect: {
-                    id: initiativeMap.id,
+          await prisma.$transaction(
+            async (tx) => {
+              // To simplify logic between create/update we retrieve associations to use IDs directly
+              const tools = await tx.tool.findMany({
+                where: {
+                  name: {
+                    in: answerData.tools,
                   },
                 },
-                name: initiativeName,
-                description: answerData.description,
-                websites: websites,
-                repositories: repositories,
-                functionalUseCases: functionalUseCases,
-                ToolsOnInitiatives: {
-                  create: tools.map((tool) => ({ toolId: tool.id })),
+              });
+
+              const businessUseCases = await tx.businessUseCase.findMany({
+                where: {
+                  name: {
+                    in: answerData.businessUseCases,
+                  },
                 },
-                BusinessUseCasesOnInitiatives: {
-                  create: businessUseCases.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
+              });
+
+              const existingInitiative = await tx.initiative.findUnique({
+                where: {
+                  originId: initiativeMap.id,
                 },
-              },
-            });
-          },
-          {
-            timeout: 15 * 1000, // Since dealing with a lot of data, prevent closing whereas everything is alright
-            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+              });
+
+              await tx.initiative.upsert({
+                where: {
+                  originId: initiativeMap.id,
+                },
+                update: {
+                  name: initiativeName,
+                  description: answerData.description,
+                  websites: websites,
+                  repositories: repositories,
+                  functionalUseCases: functionalUseCases,
+                  ToolsOnInitiatives: {
+                    deleteMany: !!existingInitiative
+                      ? {
+                          initiativeId: existingInitiative.id,
+                          NOT: tools.map((tool) => ({ toolId: tool.id })),
+                        }
+                      : undefined,
+                    upsert: !!existingInitiative
+                      ? tools.map((tool) => ({
+                          where: { toolId_initiativeId: { initiativeId: existingInitiative.id, toolId: tool.id } },
+                          create: { toolId: tool.id },
+                          update: { toolId: tool.id },
+                        }))
+                      : undefined,
+                  },
+                  BusinessUseCasesOnInitiatives: {
+                    deleteMany: !!existingInitiative
+                      ? {
+                          initiativeId: existingInitiative.id,
+                          NOT: businessUseCases.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
+                        }
+                      : undefined,
+                    upsert: !!existingInitiative
+                      ? businessUseCases.map((businessUseCase) => ({
+                          where: { businessUseCaseId_initiativeId: { initiativeId: existingInitiative.id, businessUseCaseId: businessUseCase.id } },
+                          create: { businessUseCaseId: businessUseCase.id },
+                          update: { businessUseCaseId: businessUseCase.id },
+                        }))
+                      : undefined,
+                  },
+                },
+                create: {
+                  origin: {
+                    connect: {
+                      id: initiativeMap.id,
+                    },
+                  },
+                  name: initiativeName,
+                  description: answerData.description,
+                  websites: websites,
+                  repositories: repositories,
+                  functionalUseCases: functionalUseCases,
+                  ToolsOnInitiatives: {
+                    create: tools.map((tool) => ({ toolId: tool.id })),
+                  },
+                  BusinessUseCasesOnInitiatives: {
+                    create: businessUseCases.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
+                  },
+                },
+              });
+            },
+            {
+              timeout: 15 * 1000, // Since dealing with a lot of data, prevent closing whereas everything is alright
+              isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+            }
+          );
+        } catch (error) {
+          if (error === tokensReachTheLimitError) {
+            // We try with less information if possible
+            // (we try to remove 1 by 1 on each, but the main last one important is the website for business context on the initiative)
+            if (repositoriesTemplates.length >= websitesTemplates.length) {
+              repositoriesTemplates.pop();
+            } else {
+              websitesTemplates.pop();
+            }
+
+            if (repositoriesTemplates.length === 0 && websitesTemplates.length === 0) {
+              throw new Error(
+                'initative with only a website should pass in the context, this case has not been handled yet, maybe we could truncate the website content so it passes?'
+              );
+            }
+
+            console.log('retrying with less information');
+
+            continue;
+          } else {
+            throw error;
           }
-        );
+        }
 
         break; // When successful break the infinite loop
       }

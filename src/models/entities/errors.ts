@@ -55,3 +55,6 @@ export const unexpectedErrorError = new UnexpectedError('unexpectedError', 'unex
 
 // Validations
 export const unexpectedDomainRedirectionError = new BusinessError('unexpectedDomainRedirection', 'unexpected domain redirection');
+
+// LLM
+export const tokensReachTheLimitError = new BusinessError('tokensReachTheLimit', 'too many tokens according to the model limit');

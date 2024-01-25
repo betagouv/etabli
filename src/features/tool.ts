@@ -127,7 +127,9 @@ export async function formatToolsIntoDatabase() {
             })
           );
 
-          const diffResult = getListDiff(storedLiteTools, csvLiteTools);
+          const diffResult = getListDiff(storedLiteTools, csvLiteTools, {
+            referenceProperty: 'name',
+          });
 
           let anyChange = false;
           for (const diffItem of diffResult.diff) {

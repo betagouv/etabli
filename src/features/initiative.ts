@@ -253,7 +253,9 @@ export async function inferInitiativesFromDatabase() {
         });
       });
 
-      const diffResult = getListDiff(storedLiteInitiativeMaps, computedLiteInitiativeMaps);
+      const diffResult = getListDiff(storedLiteInitiativeMaps, computedLiteInitiativeMaps, {
+        referenceProperty: 'mainItemIdentifier',
+      });
 
       let anyChange = false;
       for (const diffItem of diffResult.diff) {

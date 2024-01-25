@@ -148,7 +148,9 @@ export async function formatRepositoriesIntoDatabase() {
         });
       });
 
-      const diffResult = getListDiff(storedLiteRawRepositories, csvLiteRepositories);
+      const diffResult = getListDiff(storedLiteRawRepositories, csvLiteRepositories, {
+        referenceProperty: 'repositoryUrl',
+      });
 
       for (const diffItem of diffResult.diff) {
         if (diffItem.status === 'added') {

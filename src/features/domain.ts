@@ -183,7 +183,9 @@ export async function formatDomainsIntoDatabase() {
             })
           );
 
-          const diffResult = getListDiff(storedLiteRawDomains, csvLiteDomains);
+          const diffResult = getListDiff(storedLiteRawDomains, csvLiteDomains, {
+            referenceProperty: 'name',
+          });
 
           for (const diffItem of diffResult.diff) {
             if (diffItem.status === 'added') {

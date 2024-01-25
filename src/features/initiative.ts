@@ -754,7 +754,7 @@ export async function feedInitiativesFromDatabase() {
           await prisma.$transaction(
             async (tx) => {
               // To simplify logic between create/update we retrieve associations to use IDs directly
-              const tools = await tx.tool.findMany({
+              const existingToolsInTheDatabase = await tx.tool.findMany({
                 where: {
                   name: {
                     in: answerData.tools,
@@ -762,13 +762,17 @@ export async function feedInitiativesFromDatabase() {
                 },
               });
 
-              const businessUseCases = await tx.businessUseCase.findMany({
+              const existingBusinessUseCasesInTheDatabase = await tx.businessUseCase.findMany({
                 where: {
                   name: {
                     in: answerData.businessUseCases,
                   },
                 },
               });
+
+              const newBusinessUseCases = answerData.businessUseCases.filter(
+                (element) => !existingBusinessUseCasesInTheDatabase.map((bUC) => bUC.name).includes(element)
+              );
 
               const existingInitiative = await tx.initiative.findUnique({
                 where: {
@@ -790,14 +794,14 @@ export async function feedInitiativesFromDatabase() {
                     deleteMany: !!existingInitiative
                       ? {
                           initiativeId: existingInitiative.id,
-                          NOT: tools.map((tool) => ({ toolId: tool.id })),
+                          NOT: existingToolsInTheDatabase.map((tool) => ({ toolId: tool.id })),
                         }
                       : undefined,
                     upsert: !!existingInitiative
-                      ? tools.map((tool) => ({
+                      ? existingToolsInTheDatabase.map((tool) => ({
                           where: { toolId_initiativeId: { initiativeId: existingInitiative.id, toolId: tool.id } },
-                          create: { toolId: tool.id },
                           update: { toolId: tool.id },
+                          create: { toolId: tool.id },
                         }))
                       : undefined,
                   },
@@ -805,16 +809,31 @@ export async function feedInitiativesFromDatabase() {
                     deleteMany: !!existingInitiative
                       ? {
                           initiativeId: existingInitiative.id,
-                          NOT: businessUseCases.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
+                          NOT: existingBusinessUseCasesInTheDatabase.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
                         }
                       : undefined,
                     upsert: !!existingInitiative
-                      ? businessUseCases.map((businessUseCase) => ({
+                      ? existingBusinessUseCasesInTheDatabase.map((businessUseCase) => ({
                           where: { businessUseCaseId_initiativeId: { initiativeId: existingInitiative.id, businessUseCaseId: businessUseCase.id } },
-                          create: { businessUseCaseId: businessUseCase.id },
                           update: { businessUseCaseId: businessUseCase.id },
+                          create: {
+                            businessUseCase: {
+                              connectOrCreate: {
+                                where: { name: businessUseCase.name },
+                                create: { name: businessUseCase.name },
+                              },
+                            },
+                          },
                         }))
                       : undefined,
+                    create: newBusinessUseCases.map((businessUseCaseName) => ({
+                      businessUseCase: {
+                        connectOrCreate: {
+                          where: { name: businessUseCaseName },
+                          create: { name: businessUseCaseName },
+                        },
+                      },
+                    })),
                   },
                 },
                 create: {
@@ -829,10 +848,17 @@ export async function feedInitiativesFromDatabase() {
                   repositories: repositories,
                   functionalUseCases: functionalUseCases,
                   ToolsOnInitiatives: {
-                    create: tools.map((tool) => ({ toolId: tool.id })),
+                    create: existingToolsInTheDatabase.map((tool) => ({ toolId: tool.id })),
                   },
                   BusinessUseCasesOnInitiatives: {
-                    create: businessUseCases.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
+                    create: answerData.businessUseCases.map((businessUseCaseName) => ({
+                      businessUseCase: {
+                        connectOrCreate: {
+                          where: { name: businessUseCaseName },
+                          create: { name: businessUseCaseName },
+                        },
+                      },
+                    })),
                   },
                 },
               });

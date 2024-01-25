@@ -758,6 +758,7 @@ export async function feedInitiativesFromDatabase() {
                 where: {
                   name: {
                     in: answerData.tools,
+                    mode: 'insensitive',
                   },
                 },
               });

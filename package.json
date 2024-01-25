@@ -41,6 +41,9 @@
   "dependencies": {
     "@commander-js/extra-typings": "^11.1.0",
     "@donedeal0/superdiff": "^1.0.9",
+    "@langchain/community": "^0.0.20",
+    "@langchain/core": "0.1.17",
+    "@langchain/mistralai": "^0.0.6",
     "@prisma/client": "^4.11.0",
     "csv-parse": "^5.5.2",
     "date-fns": "^3.3.1",
@@ -48,7 +51,9 @@
     "fast-folder-size": "^2.2.0",
     "graphlib": "^2.1.8",
     "handlebars": "^4.7.8",
+    "langchain": "^0.1.7",
     "linkify-it": "^5.0.0",
+    "mistral-tokenizer-js": "^1.0.0",
     "openai": "^4.25.0",
     "parse-domain": "^8.0.1",
     "playwright": "^1.39.0",
@@ -80,6 +85,9 @@
     "ts-jest": "^29.0.3",
     "tsx": "^4.7.0",
     "typescript": "^5.2.2"
+  },
+  "overrides": {
+    "@langchain/core": "0.1.17"
   },
   "packageManager": "npm@8.5.5",
   "engines": {

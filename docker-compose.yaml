@@ -7,7 +7,8 @@ version: '3.5'
 services:
   postgres:
     container_name: etabli_postgres_container_${DOCKER_COMPOSE_CONTAINER_NAME_SUFFIX:-default}
-    image: postgres:14.6
+    # image: postgres:15.5
+    image: ankane/pgvector:v0.5.1 # It uses `postgres:15` including the `pgvector` extension, using it for local purpose but needs to see if the extension can be deployed on a provider easily (otherwise fallback to a third-party for vectors)
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}

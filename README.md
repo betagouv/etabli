@@ -10,7 +10,16 @@ Binaries:
 - semgrep
 - wappalyzer local alternative?
 
-Run distinct commands with:
+Since we are using a custom Postgres Docker image to have `pgvector` extension installed, use:
+`docker-compose up`
+
+And since no migration files yet due to being under development, please use the raw SQL:
+`CREATE EXTENSION IF NOT EXISTS vector;`
+
+Then you can init the database:
+`npm run db:push && npm run db:schema:compile`
+
+Finally, you can find available commands with:
 `npm run cli`
 
 ## Datasets

@@ -385,7 +385,7 @@ export async function inferInitiativesFromDatabase() {
               onlyTrueAsId: true,
             },
             data: {
-              updateInitiativesBotAssistantFiles: true,
+              updateIngestedInitiatives: true,
             },
           });
         }
@@ -407,11 +407,7 @@ export async function feedInitiativesFromDatabase() {
     },
   });
 
-  if (!settings.llmAnalyzerAssistantId) {
-    throw new Error('the analyzer assistant must exist to compute initiative through the llm system');
-  } else if (!settings.toolsAnalyzerAssistantFileId) {
-    throw new Error('the analyzer assistant must have its knowledge base set up');
-  }
+  await llmManagerInstance.assertToolsDocumentsAreReady(settings);
 
   // Helper needed when formatting
   handlebars.registerHelper('incrementIndex', function (index: number) {
@@ -488,6 +484,7 @@ export async function feedInitiativesFromDatabase() {
         throw new Error('initiative name cannot be inferred');
       }
 
+      let mixedInitiativeTools: string[] = [];
       for (const rawDomainOnIMap of initiativeMap.RawDomainsOnInitiativeMaps) {
         console.log(`domain ${rawDomainOnIMap.rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomainOnIMap.rawDomain.id})`);
 
@@ -537,6 +534,8 @@ export async function feedInitiativesFromDatabase() {
             return technology.confidence >= 75;
           })
           .map((technology) => technology.name);
+
+        mixedInitiativeTools.push(...deducedTools);
 
         // Register for analysis if valid
         if (websiteMarkdownContent) {
@@ -664,6 +663,8 @@ export async function feedInitiativesFromDatabase() {
         functions = [...new Set(functions)];
         dependencies = [...new Set(dependencies)];
 
+        mixedInitiativeTools.push(...dependencies);
+
         // Get README in case it exists
         const readmeEntries = await glob(path.resolve(codeFolderPath, '{README.md,README.txt,README}'));
         let readmeContent: string | null = null;
@@ -688,6 +689,9 @@ export async function feedInitiativesFromDatabase() {
       if (websitesTemplates.length === 0 && repositoriesTemplates.length === 0) {
         throw new Error('this initiative must have items');
       }
+
+      // Unique ones
+      mixedInitiativeTools = [...new Set(mixedInitiativeTools)];
 
       // Since properties for websites and repositories are variable in length, and since GPT accepts a maximum of tokens in the context
       // We try with all information and if it's above, we retry with less content until it passes (if it can) because since sorted by main website/repository
@@ -714,7 +718,12 @@ export async function feedInitiativesFromDatabase() {
 
         try {
           // Process the message if it fits into the LLM limits
-          let answerData: ResultSchemaType = await llmManagerInstance.computeInitiative(settings, projectDirectory, finalGptContent);
+          let answerData: ResultSchemaType = await llmManagerInstance.computeInitiative(
+            settings,
+            projectDirectory,
+            finalGptContent,
+            mixedInitiativeTools
+          );
 
           const gptAnswerPath = path.resolve(projectDirectory, 'gpt-answer.json');
 

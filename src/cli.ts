@@ -3,7 +3,7 @@ import { Command } from '@commander-js/extra-typings';
 import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli//features/tool';
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/features/initiative';
-import { cleanLlmSystem, exportInitiativeListToLlmSystem, exportToolListToLlmSystem, initLlmSystem } from '@etabli/features/llm';
+import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/features/llm';
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/features/repository';
 
 const program = new Command();
@@ -124,18 +124,18 @@ llm
 
 llm
   .command('initiatives')
-  .command('feed')
-  .description('export initiative list as documents into the llm system')
+  .command('ingest')
+  .description('ingest initiative list as documents into the llm system')
   .action(async () => {
-    await exportInitiativeListToLlmSystem();
+    await ingestInitiativeListToLlmSystem();
   });
 
 llm
   .command('tools')
-  .command('feed')
-  .description('export tool list as documents into the llm system')
+  .command('ingest')
+  .description('ingest tool list as documents into the llm system')
   .action(async () => {
-    await exportToolListToLlmSystem();
+    await ingestToolListToLlmSystem();
   });
 
 initiative

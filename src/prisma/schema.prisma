@@ -15,13 +15,31 @@ model Settings {
   llmAnalyzerAssistantId                String?
   initiativesBotAssistantFileIds        String[]
   initiativesBotAssistantFilesUpdatedAt DateTime?
-  updateInitiativesBotAssistantFiles    Boolean   @default(false)
+  updateIngestedInitiatives             Boolean   @default(false)
   toolsAnalyzerAssistantFileId          String?
   toolsAnalyzerAssistantFileUpdatedAt   DateTime?
-  updateToolsAnalyzerAssistantFile      Boolean   @default(false)
+  updateIngestedTools                   Boolean   @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+}
+
+model InitiativeLlmDocument {
+  id           String                 @id @default(cuid())
+  initiativeId String                 @unique @db.Uuid
+  content      String
+  vector       Unsupported("vector")?
+
+  initiative Initiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+}
+
+model ToolLlmDocument {
+  id      String                 @id @default(cuid())
+  toolId  String                 @unique @db.Uuid
+  content String
+  vector  Unsupported("vector")?
+
+  tool Tool @relation(fields: [toolId], references: [id], onDelete: Cascade)
 }
 
 enum RawRepositoryPlatform {
@@ -166,6 +184,7 @@ model Tool {
   deletedAt DateTime?
 
   ToolsOnInitiatives ToolsOnInitiatives[]
+  ToolLlmDocument    ToolLlmDocument[]
 }
 
 model BusinessUseCase {
@@ -257,4 +276,5 @@ model Initiative {
   origin                        InitiativeMap                   @relation(fields: [originId], references: [id])
   ToolsOnInitiatives            ToolsOnInitiatives[]
   BusinessUseCasesOnInitiatives BusinessUseCasesOnInitiatives[]
+  InitiativeLlmDocument         InitiativeLlmDocument[]
 }

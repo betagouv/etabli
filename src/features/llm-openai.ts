@@ -97,8 +97,8 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
       data: {
         llmBotAssistantId: botAssistantId,
         llmAnalyzerAssistantId: analyzerAssistantId,
-        updateToolsAnalyzerAssistantFile: false,
-        updateInitiativesBotAssistantFiles: false,
+        updateIngestedTools: false,
+        updateIngestedInitiatives: false,
       },
     });
   }
@@ -143,10 +143,10 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
         llmAnalyzerAssistantId: null,
         initiativesBotAssistantFileIds: [],
         initiativesBotAssistantFilesUpdatedAt: null,
-        updateInitiativesBotAssistantFiles: false,
+        updateIngestedInitiatives: false,
         toolsAnalyzerAssistantFileId: null,
         toolsAnalyzerAssistantFileUpdatedAt: null,
-        updateToolsAnalyzerAssistantFile: false,
+        updateIngestedTools: false,
       },
     });
   }
@@ -229,7 +229,7 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
       data: {
         toolsAnalyzerAssistantFileId: assistantFile.id,
         toolsAnalyzerAssistantFileUpdatedAt: new Date(),
-        updateToolsAnalyzerAssistantFile: false,
+        updateIngestedTools: false,
       },
     });
 
@@ -446,14 +446,19 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
       data: {
         initiativesBotAssistantFileIds: assistantFiles.map((assistantFile) => assistantFile.id),
         initiativesBotAssistantFilesUpdatedAt: new Date(),
-        updateInitiativesBotAssistantFiles: false,
+        updateIngestedInitiatives: false,
       },
     });
 
     console.log(`the new initiatives documents are ready to use`);
   }
 
-  public async computeInitiative(settings: Settings, projectDirectory: string, prompt: string): Promise<ResultSchemaType> {
+  public async computeInitiative(
+    settings: Settings,
+    projectDirectory: string,
+    prompt: string,
+    rawToolsFromAnalysis: string[]
+  ): Promise<ResultSchemaType> {
     // Make sure the content is valid
     const encoder = encoding_for_model(this.gptInstance.countModel);
     const tokens = encoder.encode(prompt);
@@ -536,6 +541,14 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     const answerObject = JSON.parse(textPart.value);
 
     return ResultSchema.parse(answerObject);
+  }
+
+  public async assertToolsDocumentsAreReady(settings: Settings): Promise<void> {
+    if (!settings.llmAnalyzerAssistantId) {
+      throw new Error('the analyzer assistant must exist to compute initiative through the llm system');
+    } else if (!settings.toolsAnalyzerAssistantFileId) {
+      throw new Error('the analyzer assistant must have its knowledge base set up');
+    }
   }
 
   // This is inspired from their `waitForProcessing` for file processing

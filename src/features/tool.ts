@@ -180,7 +180,7 @@ export async function formatToolsIntoDatabase() {
                 onlyTrueAsId: true,
               },
               data: {
-                updateToolsAnalyzerAssistantFile: true,
+                updateIngestedTools: true,
               },
             });
           }

@@ -20,7 +20,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public readonly mistralaiClient;
   public readonly toolsVectorStore;
   public readonly initiativesVectorStore;
-  public readonly gptInstance = gptInstances['small'];
+  public readonly gptInstance = gptInstances['tiny'];
   // TODO: object of memory by sessionId, clean them at each new chat message (look for those expired)
 
   public constructor() {

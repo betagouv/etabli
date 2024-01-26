@@ -15,6 +15,7 @@ import { gptInstances, gptSeed } from '@etabli/gpt';
 import { ResultSchema, ResultSchemaType } from '@etabli/gpt/template';
 import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
 import { prisma } from '@etabli/prisma';
+import { sleep } from '@etabli/utils/sleep';
 
 export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public readonly mistralaiClient;
@@ -183,11 +184,26 @@ CONTEXT:
       verbose: false,
     });
 
-    const contextPotentielCorrespondingTools = await this.toolsVectorStore.similaritySearch(rawToolsFromAnalysis.join('\n'), 100); // Most of initative won't have more than 30 well-known tools so it should be fine to the bot make the matching without using too many tokens
+    // To help the LLM we give inside the context tools we are looking for
+    // Since we cannot give the 8k+ tools from our database, we try to provide a subset meaningful according to extracted tech references we retrieved
+    const rawToolsVectors = await this.toolsVectorStore.embeddings.embedDocuments(rawToolsFromAnalysis.filter((item) => item.trim() !== ''));
+    await sleep(500);
+
+    const contextTools: string[] = [];
+    for (let i = 0; i < rawToolsVectors.length; i++) {
+      const similaries = await this.toolsVectorStore.similaritySearchVectorWithScore(rawToolsVectors[i], 1);
+      assert(similaries.length > 0);
+
+      // After some testing we evaluated having it under this value responds to our needs (tested on `['@mui/material', '@sentry/browser', 'next', 'mjml', 'crisp-sdk-web', '@gouvfr/dsfr', '@storybook/addon-notes']`)
+      // In opposition to the final matching that must be accurate, here we want to give suggestions of tools according to dependency names that always include prefix, suffix, ... so we have a more flexible threshold
+      if (similaries[0][1] < 0.25 && !contextTools.includes(similaries[0][0].pageContent)) {
+        contextTools.push(similaries[0][0].pageContent);
+      }
+    }
 
     const invocationInputs: ChainValues = {
       input: prompt,
-      context: contextPotentielCorrespondingTools.map((contextTool) => `- ${contextTool.metadata.content}`).join('\n'),
+      context: contextTools.map((contextTool) => `- ${contextTool}`).join('\n'),
     };
 
     // Store the prompt for debug
@@ -267,8 +283,28 @@ CONTEXT:
     }
 
     const answerObject = JSON.parse(jsonString);
+    const result = ResultSchema.parse(answerObject);
 
-    return ResultSchema.parse(answerObject);
+    // We add correction to tools in case the LLM processed them poorly and to adjust to our own internal naming
+    // Since embeddings are calculated by MistralAI we batch all at once to avoid API rate limiting
+    await sleep(500);
+    const resultVectors = await this.toolsVectorStore.embeddings.embedDocuments(result.tools);
+
+    for (let i = 0; i < result.tools.length; i++) {
+      let valueToKeep = result.tools[i];
+
+      const similaries = await this.toolsVectorStore.similaritySearchVectorWithScore(resultVectors[i], 1);
+      assert(similaries.length > 0);
+
+      // After some testing we evaluated having it under this value responds to our needs
+      if (similaries[0][1] < 0.05) {
+        valueToKeep = similaries[0][0].pageContent;
+      }
+
+      result.tools[i] = valueToKeep;
+    }
+
+    return result;
   }
 
   public async assertToolsDocumentsAreReady(settings: Settings): Promise<void> {

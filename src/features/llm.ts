@@ -13,6 +13,8 @@ export interface LlmManager {
   ingestInitiatives(settings: Settings): Promise<void>;
   computeInitiative(settings: Settings, projectDirectory: string, prompt: string, rawToolsFromAnalysis: string[]): Promise<ResultSchemaType>;
   assertToolsDocumentsAreReady(settings: Settings): Promise<void>;
+  requestAssistant(settings: Settings, sessionId: string, input: string): Promise<string>;
+  assertInitiativesDocumentsAreReady(settings: Settings): Promise<void>;
 }
 
 export const llmManagerInstance = new LangchainWithLocalVectorStoreLlmManager();

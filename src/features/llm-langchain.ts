@@ -1,18 +1,21 @@
 import { PrismaVectorStore } from '@langchain/community/vectorstores/prisma';
 import { TokenUsage } from '@langchain/core/language_models/base';
-import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { ChainValues } from '@langchain/core/utils/types';
 import { ChatMistralAI, MistralAIEmbeddings } from '@langchain/mistralai';
 import { InitiativeLlmDocument, Prisma, Settings, ToolLlmDocument } from '@prisma/client';
 import assert from 'assert';
 import fs from 'fs/promises';
 import { LLMChain } from 'langchain/chains';
+import { createStuffDocumentsChain } from 'langchain/chains/combine_documents';
+import { createRetrievalChain } from 'langchain/chains/retrieval';
+import { BufferMemory } from 'langchain/memory';
 import mistralTokenizer from 'mistral-tokenizer-js';
 import path from 'path';
 
 import { LlmManager, extractFirstJsonCodeContentFromMarkdown } from '@etabli/features/llm';
 import { gptInstances, gptSeed } from '@etabli/gpt';
-import { ResultSchema, ResultSchemaType } from '@etabli/gpt/template';
+import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/gpt/template';
 import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
 import { prisma } from '@etabli/prisma';
 import { sleep } from '@etabli/utils/sleep';
@@ -24,16 +27,23 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public readonly gptInstance = gptInstances['tiny'];
   // TODO: object of memory by sessionId, clean them at each new chat message (look for those expired)
 
+  public readonly chatPromptMemory = new BufferMemory({
+    inputKey: 'input',
+    memoryKey: 'chat_history',
+    returnMessages: true,
+  });
+
   public constructor() {
     this.mistralaiClient = new ChatMistralAI({
       apiKey: process.env.MISTRAL_API_KEY,
-      modelName: 'mistral-small',
+      modelName: 'mistral-tiny',
       temperature: 0, // Less creative answer, more deterministic
       streaming: false,
       topP: 1,
       // maxTokens: null, // Disabled by default but the typing "null" is not supported despite in the documentation
       safeMode: false,
       randomSeed: gptSeed,
+      verbose: false,
       // lc_serializable: xxx, // Cannot find what it is
     });
 
@@ -123,6 +133,23 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
     const initiativeLlmDocuments = await prisma.$transaction(
       async (tx) => {
         const initiatives = await tx.initiative.findMany({
+          where: {
+            origin: {
+              deletedAt: null,
+            },
+          },
+          include: {
+            BusinessUseCasesOnInitiatives: {
+              include: {
+                businessUseCase: true,
+              },
+            },
+            ToolsOnInitiatives: {
+              include: {
+                tool: true,
+              },
+            },
+          },
           orderBy: [
             {
               name: 'asc',
@@ -142,7 +169,21 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
                 content: true,
                 initiativeId: true,
               },
-              data: { content: initiative.name, initiativeId: initiative.id },
+              data: {
+                content: JSON.stringify(
+                  DocumentInitiativeTemplateSchema.parse({
+                    id: initiative.id,
+                    name: initiative.name,
+                    description: initiative.description,
+                    websites: initiative.websites,
+                    repositories: initiative.repositories,
+                    businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
+                    functionalUseCases: initiative.functionalUseCases,
+                    tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+                  })
+                ),
+                initiativeId: initiative.id,
+              },
             });
           })
         );
@@ -162,8 +203,6 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
     prompt: string,
     rawToolsFromAnalysis: string[]
   ): Promise<ResultSchemaType> {
-    const sessionId = 'chat_history'; // TODO: change in the future when managing real chat with multiple users
-
     const promptCanvas = ChatPromptTemplate.fromMessages([
       [
         'system',
@@ -224,7 +263,6 @@ CONTEXT:
     let finishReason: string | null = null;
     let tokenUsage: TokenUsage | null = null;
 
-    // TODO: for whatever reason it somtimes puts sentences around the JSON whereas we asked it in the prompt to not do this
     const answer = await chain.invoke(invocationInputs, {
       callbacks: [
         {
@@ -316,6 +354,98 @@ CONTEXT:
 
     if (total === 0) {
       throw new Error('the tools documents must be ingested to be used by the llm system');
+    }
+  }
+
+  public async requestAssistant(settings: Settings, sessionId: string, input: string): Promise<string> {
+    const promptCanvas = ChatPromptTemplate.fromMessages([
+      [
+        'system',
+        `
+You are a bot helping users finding the right initiative sheet from a directory. Note the directory is named Etabli and you are considered as its assistant. Use the provided sheets information from the context to answer the user questions, and in case you mention an initiative don't forget to give its link (with the format "etabli://$INITIATIVE_ID"). You should mention initiatives according to the user message, don't if it provides no information to search with. Just know that initiative represents a project or a product. Adapt your answers to the user language and remember the user is not supposed to know some documents are set in your context.
+---
+CONTEXT:
+{context}
+---
+`,
+      ],
+      new MessagesPlaceholder('chat_history'),
+      ['human', '{input}'],
+    ]);
+
+    const combineDocsChain = await createStuffDocumentsChain({
+      llm: this.mistralaiClient,
+      prompt: promptCanvas,
+      documentSeparator: '\n',
+    });
+
+    const chain = await createRetrievalChain({
+      retriever: this.initiativesVectorStore.asRetriever(5),
+      combineDocsChain: combineDocsChain,
+    });
+
+    let finishReason: string | null = null;
+    let tokenUsage: TokenUsage | null = null;
+
+    const result = await chain.invoke(
+      {
+        chat_history: await this.chatPromptMemory.chatHistory.getMessages(),
+        input: input,
+      },
+      {
+        configurable: {
+          verbose: false,
+        },
+        callbacks: [
+          {
+            handleLLMEnd: (output, runId, parentRunId?, tags?) => {
+              if (!!output.generations[0]?.[0]?.generationInfo?.finish_reason) {
+                finishReason = output.generations[0][0].generationInfo?.finish_reason;
+              }
+
+              if (!!output.llmOutput?.tokenUsage) {
+                tokenUsage = output.llmOutput.tokenUsage as unknown as TokenUsage;
+              }
+            },
+          },
+        ],
+      }
+    );
+
+    if (finishReason !== 'stop') {
+      throw new Error(`the generation has not completed fully according to the returned reason: ${finishReason}`);
+    }
+
+    // We could debug token usage
+    if (!!false && tokenUsage !== null) {
+      const usage = tokenUsage as TokenUsage; // TypeScript messes up due to the assignation being into `callbacks`, it tells it's `never` without casting
+
+      assert(usage.totalTokens);
+
+      console.log(
+        `the GPT input and output represent ${usage.totalTokens} tokens in total (for a cost of ~$${
+          (usage.totalTokens / 1000) * this.gptInstance.per1000TokensCost
+        })`
+      );
+
+      if (usage.totalTokens > this.gptInstance.modelTokenLimit) {
+        console.warn('it seemed to process more token than the limit, the content may be truncated and invalid');
+        throw tokensReachTheLimitError;
+      }
+    }
+
+    // Update history in case of a next invocation
+    await this.chatPromptMemory.chatHistory.addUserMessage(input);
+    await this.chatPromptMemory.chatHistory.addAIChatMessage(result.answer);
+
+    return result.answer;
+  }
+
+  public async assertInitiativesDocumentsAreReady(settings: Settings): Promise<void> {
+    const total = await prisma.initiativeLlmDocument.count({});
+
+    if (total === 0) {
+      throw new Error('the initiatives documents must be ingested to be used by the llm system');
     }
   }
 }

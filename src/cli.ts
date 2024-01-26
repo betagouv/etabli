@@ -2,7 +2,7 @@ import { Command } from '@commander-js/extra-typings';
 
 import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli//features/tool';
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/features/domain';
-import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/features/initiative';
+import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/features/initiative';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/features/llm';
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/features/repository';
 
@@ -164,6 +164,13 @@ initiative
   .argument('<query>', 'query to make the search')
   .action(async (options) => {
     console.log('initiative.search');
+  });
+
+initiative
+  .command('assistant')
+  .description('run the initiative assistant in the terminal')
+  .action(async (options) => {
+    await runInitiativeAssistant();
   });
 
 cache

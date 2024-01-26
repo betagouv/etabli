@@ -59,7 +59,7 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
         name: this.openaiBotAssistantName,
         model: this.gptInstance.model,
         instructions:
-          'You are a bot to help retrieving the right initiative sheet into a directory. Use the provided sheets to answer questions and provide a link each time you mention one with the format "etabli://${INITIATIVE_ID}". And please address the user as the Etabli Assistant (Etabli being the directory of sheets mentionned before). Just know that initiative represents can represent a project or a product.',
+          'You are a bot to help retrieving the right initiative sheet into a directory. Use the provided sheets to answer questions and provide a link each time you mention one with the format "etabli://${INITIATIVE_ID}". And please address the user as the Etabli Assistant (Etabli being the directory of sheets mentionned before). Just know that initiative represents a project or a product.',
         tools: [
           {
             type: 'retrieval',
@@ -548,6 +548,18 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
       throw new Error('the analyzer assistant must exist to compute initiative through the llm system');
     } else if (!settings.toolsAnalyzerAssistantFileId) {
       throw new Error('the analyzer assistant must have its knowledge base set up');
+    }
+  }
+
+  public async requestAssistant(settings: Settings, sessionId: string, input: string): Promise<string> {
+    throw new Error('not implemented yet');
+  }
+
+  public async assertInitiativesDocumentsAreReady(settings: Settings): Promise<void> {
+    if (!settings.llmBotAssistantId) {
+      throw new Error('the bot assistant must exist to feed the llm system for users searches');
+    } else if (settings.initiativesBotAssistantFileIds.length === 0) {
+      throw new Error('the bot assistant must have its knowledge base set up');
     }
   }
 

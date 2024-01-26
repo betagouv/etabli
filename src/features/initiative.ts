@@ -1,5 +1,7 @@
+import { input } from '@inquirer/prompts';
 import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@prisma/client';
 import assert from 'assert';
+import chalk from 'chalk';
 import { differenceInDays } from 'date-fns/differenceInDays';
 import { $ } from 'execa';
 import fastFolderSize from 'fast-folder-size';
@@ -460,15 +462,19 @@ export async function feedInitiativesFromDatabase() {
     for (const initiativeMap of initiativeMaps) {
       console.log(`feed initiative ${initiativeMap.id}`);
 
-      if (initiativeMap.id !== '3d6ebf8d-1208-4ce1-806f-801991d54a3c') {
-        // TODO: we want a specific one for current tests (eva.beta.gouv.fr)
-        continue;
-      } else if (initiativeMap.RawDomainsOnInitiativeMaps.length > 0 && initiativeMap.RawRepositoriesOnInitiativeMaps.length > 0) {
+      if (initiativeMap.RawDomainsOnInitiativeMaps.length > 0 && initiativeMap.RawRepositoriesOnInitiativeMaps.length > 0) {
         // TODO: for test for now we just skip those not having both types
       } else {
         // TODO: for test for now we just skip those not having both types
         continue;
       }
+
+      // issue with pathname encoding... fix it on 233d4562-2af3-4e04-9dd0-bb6307623dca
+      // set update again
+
+      // idem sur un autre, leur réactiver le "initMap" une fois fixé
+      // actuellement JE REGARDAIS pour faire marcher "context". Now c'est good mais il est sur une ligne pas dans un array
+      // je voulais tester quand y'a plusieurs documents à retourner...
 
       const projectDirectory = path.resolve(__dirname, '../../data/initiatives/', initiativeMap.id);
 
@@ -948,5 +954,48 @@ export async function feedInitiativesFromDatabase() {
         resolve();
       }),
     ]);
+  }
+}
+
+export async function runInitiativeAssistant() {
+  const settings = await prisma.settings.findUniqueOrThrow({
+    where: {
+      onlyTrueAsId: true,
+    },
+  });
+
+  await llmManagerInstance.assertInitiativesDocumentsAreReady(settings);
+
+  const sessionId = 'no_matter_since_cli';
+
+  try {
+    console.log(
+      chalk.green.bold(
+        `
+Hello, I'm here to assist you in retrieving public french initatives.
+
+Could you give me some context on what you are looking for?
+\n`.trimStart()
+      )
+    );
+
+    while (true) {
+      const userInput = await input({
+        message: chalk.green.bold('\t'),
+      });
+
+      // Request the assistant
+      const assistantAnswer = await llmManagerInstance.requestAssistant(settings, sessionId, userInput);
+
+      console.log('\n');
+      process.stdout.write(chalk.green.bold(assistantAnswer));
+      process.stdout.write('\n\n\n');
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('User force closed the prompt')) {
+      console.log(chalk.green.bold('\n\nBye bye!'));
+    } else {
+      throw error;
+    }
   }
 }

@@ -1,3 +1,4 @@
+import ts from 'typescript';
 import { z } from 'zod';
 
 export const ResultSchema = z.object({
@@ -12,16 +13,21 @@ export const ResultSchema = z.object({
 });
 export type ResultSchemaType = z.infer<typeof ResultSchema>;
 
-export const resultSample: ResultSchemaType = {
-  businessUseCases: [],
-  description: '',
-  tools: [],
+// [IMPORTANT] This must be manually updated when changing the structure above (since there is no way to stringify a typescript definition without complex preprocessing)
+// Inside `vscode` just hover `ResultSchemaType` with your cursor and copy/paste the type
+// It will serve as a result model for the LLM with types
+export const resultSchemaDefinition: string = `
+type ResultSchemaType = {
+  businessUseCases: string[];
+  description: string;
+  tools: string[];
   functionalUseCases: {
-    hasVirtualEmailInboxes: false,
-    sendsEmails: false,
-    generatesPDF: false,
-  },
-};
+    hasVirtualEmailInboxes: boolean;
+    sendsEmails: boolean;
+    generatesPDF: boolean;
+  };
+}
+`.trim();
 
 export const WebsiteTemplateSchema = z.object({
   deducedTools: z.array(z.string()).nullable(),
@@ -37,7 +43,7 @@ export const RepositoryTemplateSchema = z.object({
 export type RepositoryTemplateSchemaType = z.infer<typeof RepositoryTemplateSchema>;
 
 export const InitiativeTemplateSchema = z.object({
-  resultSample: z.string(),
+  resultSchemaDefinition: z.string(),
   websites: z.array(WebsiteTemplateSchema),
   repositories: z.array(RepositoryTemplateSchema),
 });

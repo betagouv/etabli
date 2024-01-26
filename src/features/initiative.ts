@@ -23,7 +23,7 @@ import {
   ResultSchemaType,
   WebsiteTemplateSchema,
   WebsiteTemplateSchemaType,
-  resultSample,
+  resultSchemaDefinition,
 } from '@etabli/gpt/template';
 import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/models/entities/initiative';
@@ -703,7 +703,7 @@ export async function feedInitiativesFromDatabase() {
         // Prepare the content for GPT
         const finalGptContent = initiativeGptTemplate(
           InitiativeTemplateSchema.parse({
-            resultSample: JSON.stringify(resultSample, null, 2), // Format otherwise it's `[object Object]`
+            resultSchemaDefinition: resultSchemaDefinition,
             websites: websitesTemplates,
             repositories: repositoriesTemplates.map((repositoryTemplate) => {
               // Note: we give priority to website content over repository `README` to not end with meaningless technical things into the initiative description (which should be business-oriented since there is a website)

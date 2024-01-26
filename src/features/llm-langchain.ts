@@ -249,8 +249,22 @@ CONTEXT:
     }
 
     // With MistralAI the JSON will be between ```json and ``` delimiters so extracting them
-    const jsonString = extractFirstJsonCodeContentFromMarkdown(answer.text);
-    assert(!!jsonString);
+    // We find a way for it to directly answer with JSON string by passing a TypeScript definition model
+    // Before when passing a JSON model it tried to add a code block (```json and ```) with text around
+    let jsonString: string | null = null;
+    if (answer.text.includes('```json')) {
+      jsonString = extractFirstJsonCodeContentFromMarkdown(answer.text);
+
+      if (!jsonString) {
+        console.log(answer.text);
+
+        throw new Error(`the json code block is not present in the answer or the answer has been truncated while saying it's complete`);
+      }
+    }
+
+    if (!jsonString) {
+      jsonString = answer.text;
+    }
 
     const answerObject = JSON.parse(jsonString);
 

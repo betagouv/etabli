@@ -8,11 +8,14 @@ I describe below a project composed of {{websites.length}} websites and {{reposi
    - sends emails
    - ability to build a PDF document
 
-You must answer with the following JSON format (adjust values only, and write them in french), do not include any explanation:
+You must answer in JSON format by respecting the following typescript format and while writting values in french:
 
-```json
-{{{resultSample}}}
+```ts
+{{! this Handlebars comment is needed so Prettier will not format weirdily the injection of the definition }}
+{{{resultSchemaDefinition}}}
 ```
+
+**Do not include any explanation. Below all the information to analyze:**
 
 {{#each websites as |website|}}
 

@@ -870,6 +870,15 @@ export async function feedInitiativesFromDatabase() {
                   },
                 },
               });
+
+              await prisma.initiativeMap.update({
+                where: {
+                  id: initiativeMap.id,
+                },
+                data: {
+                  update: false,
+                },
+              });
             },
             {
               timeout: 15 * 1000, // Since dealing with a lot of data, prevent closing whereas everything is alright

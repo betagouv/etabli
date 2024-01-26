@@ -247,6 +247,10 @@ CONTEXT:
 
     assert(typeof answer.text === 'string');
 
+    // For debug
+    const gptAnswerPath = path.resolve(projectDirectory, 'gpt-answer.md');
+    await fs.writeFile(gptAnswerPath, answer.text);
+
     if (tokenUsage !== null) {
       const usage = tokenUsage as TokenUsage; // TypeScript messes up due to the assignation being into `callbacks`, it tells it's `never` without casting
 

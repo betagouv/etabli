@@ -728,18 +728,18 @@ export async function feedInitiativesFromDatabase() {
             mixedInitiativeTools
           );
 
-          const gptAnswerPath = path.resolve(projectDirectory, 'gpt-answer.json');
-
-          const beautifiedAnswerData = JSON.stringify(answerData, null, 2);
-          await fs.writeFile(gptAnswerPath, beautifiedAnswerData);
-
-          console.log(`the JSON result has been written to: ${gptAnswerPath}`);
-          console.log('\n');
-          console.log('\n');
-
           // Sanitize a bit free entry fields
           answerData.businessUseCases = answerData.businessUseCases.map((businessUseCaseName) => capitalizeFirstLetter(businessUseCaseName.trim()));
           answerData.description = capitalizeFirstLetter(answerData.description.trim());
+
+          const sanitizedGptResultPath = path.resolve(projectDirectory, 'sanitized-gpt-result.json');
+
+          const beautifiedAnswerData = JSON.stringify(answerData, null, 2);
+          await fs.writeFile(sanitizedGptResultPath, beautifiedAnswerData);
+
+          console.log(`the JSON sanitized result has been written to: ${sanitizedGptResultPath}`);
+          console.log('\n');
+          console.log('\n');
 
           // Now prepare and save the results
           const websites = initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => `https://${rawDomainOnIMap.rawDomain.name}`);

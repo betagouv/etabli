@@ -33,7 +33,7 @@ export const gptInstances: Record<GptInstance, GptSettings> = {
     model: 'mistral-small', // mixtral8x7b
     countModel: 'gpt-4',
     modelTokenLimit: 16385,
-    per1000TokensCost: 0.006,
+    per1000TokensCost: 0.0006,
   },
   medium: {
     model: 'mistral-medium', // ...

@@ -597,6 +597,11 @@ export async function feedInitiativesFromDatabase() {
             '--filter': 'blob:limit=200k',
           });
 
+          // `git ls-files` was returning non-UT8 encoding so we were not able to easily delete files.
+          // A git config is needed to get UT8 encoding (ref: https://stackoverflow.com/a/22828826/3608410)
+          // (for example `vidéo_48_bicolore.svg` was returned as `vid\303\251o_48_bicolore.svg`)
+          await git.addConfig('core.quotepath', 'off');
+
           // Since Git does not allow using patterns to download only specific files, we just clean the folder after (to have a local disk cache for the next initiative compute before any erase of the data (container restart or manual delete))
           // We remove all files not used during the analysis + `git` data since not used at all
           // Note: the list of patterns must be updated each time new kinds of files to analyze are added

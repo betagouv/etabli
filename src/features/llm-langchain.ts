@@ -13,7 +13,7 @@ import { BufferMemory } from 'langchain/memory';
 import mistralTokenizer from 'mistral-tokenizer-js';
 import path from 'path';
 
-import { LlmManager, extractFirstJsonCodeContentFromMarkdown } from '@etabli/features/llm';
+import { ChunkEventEmitter, LlmManager, extractFirstJsonCodeContentFromMarkdown } from '@etabli/features/llm';
 import { gptInstances, gptSeed } from '@etabli/gpt';
 import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/gpt/template';
 import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
@@ -446,7 +446,7 @@ CONTEXT:
     }
   }
 
-  public async requestAssistant(settings: Settings, sessionId: string, input: string): Promise<string> {
+  public async requestAssistant(settings: Settings, sessionId: string, input: string, eventEmitter: ChunkEventEmitter): Promise<string> {
     const promptCanvas = ChatPromptTemplate.fromMessages([
       [
         'system',
@@ -473,10 +473,11 @@ CONTEXT:
       combineDocsChain: combineDocsChain,
     });
 
-    let finishReason: string | null = null;
-    let tokenUsage: TokenUsage | null = null;
+    // When using a stream there is no object `tokenUsage` as for the conventional way
+    // So do our own logic (it should be exactly true but maybe there is a little variation with the calculation from the remote LLM)
+    let totalTokensUsed = 0;
 
-    const result = await chain.invoke(
+    const stream = await chain.stream(
       {
         chat_history: await this.chatPromptMemory.chatHistory.getMessages(),
         input: input,
@@ -487,13 +488,18 @@ CONTEXT:
         },
         callbacks: [
           {
-            handleLLMEnd: (output, runId, parentRunId?, tags?) => {
-              if (!!output.generations[0]?.[0]?.generationInfo?.finish_reason) {
-                finishReason = output.generations[0][0].generationInfo?.finish_reason;
-              }
+            handleLLMStart: async (llm, messages) => {
+              assert(messages.length === 1);
 
-              if (!!output.llmOutput?.tokenUsage) {
-                tokenUsage = output.llmOutput.tokenUsage as unknown as TokenUsage;
+              const tokens = mistralTokenizer.encode(messages[0]);
+
+              totalTokensUsed += tokens.length;
+            },
+            handleLLMEnd: async (output) => {
+              if (!!output.generations[0]?.[0]) {
+                const tokens = mistralTokenizer.encode(output.generations[0][0].text);
+
+                totalTokensUsed += tokens.length;
               }
             },
           },
@@ -501,23 +507,28 @@ CONTEXT:
       }
     );
 
-    if (finishReason !== 'stop') {
-      throw new Error(`the generation has not completed fully according to the returned reason: ${finishReason}`);
+    let fullAnswer = '';
+    for await (const chunk of stream) {
+      fullAnswer += chunk;
+
+      // Notify the caller if it wants to use realtime display (the current function will return will the whole result once the stream is done)
+      // Note: for whatever reason the first ones are undefined despite the type (they are chunks with only `input`, then only `chat_history`, then only `content`, and after they are all answer message chunks)
+      if (chunk.answer !== undefined) {
+        eventEmitter.emit('chunk', chunk.answer);
+      }
     }
 
+    assert(totalTokensUsed > 0); // Since we do our own calculation, if it's 0 that's really weird
+
     // We could debug token usage
-    if (!!false && tokenUsage !== null) {
-      const usage = tokenUsage as TokenUsage; // TypeScript messes up due to the assignation being into `callbacks`, it tells it's `never` without casting
-
-      assert(usage.totalTokens);
-
+    if (!!false) {
       console.log(
-        `the GPT input and output represent ${usage.totalTokens} tokens in total (for a cost of ~$${
-          (usage.totalTokens / 1000) * this.gptInstance.per1000TokensCost
+        `the GPT input and output represent ${totalTokensUsed} tokens in total (for a cost of ~$${
+          (totalTokensUsed / 1000) * this.gptInstance.per1000TokensCost
         })`
       );
 
-      if (usage.totalTokens > this.gptInstance.modelTokenLimit) {
+      if (totalTokensUsed > this.gptInstance.modelTokenLimit) {
         console.warn('it seemed to process more token than the limit, the content may be truncated and invalid');
         throw tokensReachTheLimitError;
       }
@@ -525,9 +536,9 @@ CONTEXT:
 
     // Update history in case of a next invocation
     await this.chatPromptMemory.chatHistory.addUserMessage(input);
-    await this.chatPromptMemory.chatHistory.addAIChatMessage(result.answer);
+    await this.chatPromptMemory.chatHistory.addAIChatMessage(fullAnswer);
 
-    return result.answer;
+    return fullAnswer;
   }
 
   public async assertInitiativesDocumentsAreReady(settings: Settings): Promise<void> {

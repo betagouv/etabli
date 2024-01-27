@@ -3,6 +3,7 @@ import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@prisma/cli
 import assert from 'assert';
 import chalk from 'chalk';
 import { differenceInDays } from 'date-fns/differenceInDays';
+import { EventEmitter } from 'eventemitter3';
 import { $ } from 'execa';
 import fastFolderSize from 'fast-folder-size';
 import fsSync from 'fs';
@@ -17,7 +18,7 @@ import { simpleGit } from 'simple-git';
 import { promisify } from 'util';
 import Wappalyzer from 'wappalyzer';
 
-import { llmManagerInstance } from '@etabli/features/llm';
+import { ChunkEventEmitter, llmManagerInstance } from '@etabli/features/llm';
 import {
   InitiativeTemplateSchema,
   RepositoryTemplateSchema,
@@ -972,6 +973,12 @@ export async function runInitiativeAssistant() {
   await llmManagerInstance.assertInitiativesDocumentsAreReady(settings);
 
   const sessionId = 'no_matter_since_cli';
+  const streamAnswer = true;
+  const eventEmitter: ChunkEventEmitter = new EventEmitter<'chunk', number>();
+
+  eventEmitter.on('chunk', (chunk) => {
+    process.stdout.write(chalk.green.bold(chunk));
+  });
 
   try {
     console.log(
@@ -989,11 +996,16 @@ Could you give me some context on what you are looking for?
         message: chalk.green.bold('\t'),
       });
 
-      // Request the assistant
-      const assistantAnswer = await llmManagerInstance.requestAssistant(settings, sessionId, userInput);
-
       console.log('\n');
-      process.stdout.write(chalk.green.bold(assistantAnswer));
+
+      // Request the assistant
+      const assistantAnswer = await llmManagerInstance.requestAssistant(settings, sessionId, userInput, eventEmitter);
+
+      // When it's streaming that's the listening callback of the `eventEmitter` that will manage outputting the message
+      if (!streamAnswer) {
+        process.stdout.write(chalk.green.bold(assistantAnswer));
+      }
+
       process.stdout.write('\n\n\n');
     }
   } catch (error) {
@@ -1002,5 +1014,7 @@ Could you give me some context on what you are looking for?
     } else {
       throw error;
     }
+  } finally {
+    eventEmitter && eventEmitter.removeAllListeners();
   }
 }

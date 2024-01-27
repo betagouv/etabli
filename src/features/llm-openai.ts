@@ -11,7 +11,7 @@ import { Run } from 'openai/resources/beta/threads/runs/runs';
 import path from 'path';
 import { encoding_for_model } from 'tiktoken';
 
-import { LlmManager } from '@etabli/features/llm';
+import { ChunkEventEmitter, LlmManager } from '@etabli/features/llm';
 import { gptInstances } from '@etabli/gpt';
 import { DocumentInitiativeTemplateSchema, DocumentInitiativesChunkTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/gpt/template';
 import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
@@ -551,7 +551,7 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     }
   }
 
-  public async requestAssistant(settings: Settings, sessionId: string, input: string): Promise<string> {
+  public async requestAssistant(settings: Settings, sessionId: string, input: string, eventEmitter: ChunkEventEmitter): Promise<string> {
     throw new Error('not implemented yet');
   }
 

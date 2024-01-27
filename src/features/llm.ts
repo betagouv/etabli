@@ -1,4 +1,5 @@
 import { Settings } from '@prisma/client';
+import EventEmitter from 'eventemitter3';
 
 import { LangchainWithLocalVectorStoreLlmManager } from '@etabli/features/llm-langchain';
 import { OpenaiWithAssistantApiLlmManager } from '@etabli/features/llm-openai';
@@ -13,9 +14,11 @@ export interface LlmManager {
   ingestInitiatives(settings: Settings): Promise<void>;
   computeInitiative(settings: Settings, projectDirectory: string, prompt: string, rawToolsFromAnalysis: string[]): Promise<ResultSchemaType>;
   assertToolsDocumentsAreReady(settings: Settings): Promise<void>;
-  requestAssistant(settings: Settings, sessionId: string, input: string): Promise<string>;
+  requestAssistant(settings: Settings, sessionId: string, input: string, eventEmitter: ChunkEventEmitter): Promise<string>;
   assertInitiativesDocumentsAreReady(settings: Settings): Promise<void>;
 }
+
+export type ChunkEventEmitter = EventEmitter<'chunk'>;
 
 export const llmManagerInstance = new LangchainWithLocalVectorStoreLlmManager();
 // export const llmManagerInstance = new OpenaiWithAssistantApiLlmManager();

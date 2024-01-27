@@ -31,6 +31,10 @@ model InitiativeLlmDocument {
   vector       Unsupported("vector")?
 
   initiative Initiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+  calculatedAt DateTime?
 }
 
 model ToolLlmDocument {
@@ -40,6 +44,10 @@ model ToolLlmDocument {
   vector  Unsupported("vector")?
 
   tool Tool @relation(fields: [toolId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+  calculatedAt DateTime?
 }
 
 enum RawRepositoryPlatform {
@@ -184,7 +192,7 @@ model Tool {
   deletedAt DateTime?
 
   ToolsOnInitiatives ToolsOnInitiatives[]
-  ToolLlmDocument    ToolLlmDocument[]
+  ToolLlmDocument    ToolLlmDocument?
 }
 
 model BusinessUseCase {
@@ -276,5 +284,5 @@ model Initiative {
   origin                        InitiativeMap                   @relation(fields: [originId], references: [id])
   ToolsOnInitiatives            ToolsOnInitiatives[]
   BusinessUseCasesOnInitiatives BusinessUseCasesOnInitiatives[]
-  InitiativeLlmDocument         InitiativeLlmDocument[]
+  InitiativeLlmDocument         InitiativeLlmDocument?
 }

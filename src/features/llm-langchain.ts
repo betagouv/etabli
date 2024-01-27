@@ -89,11 +89,13 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   }
 
   public async ingestTools(settings: Settings): Promise<void> {
-    // Insert needed data
-    // TODO: manage updates of content... based on tool.id?
-    const toolLlmDocuments = await prisma.$transaction(
+    // Synchronizing properly for ingestion
+    const toolLlmDocumentsToCalculate = await prisma.$transaction(
       async (tx) => {
         const tools = await tx.tool.findMany({
+          include: {
+            ToolLlmDocument: true,
+          },
           orderBy: [
             {
               name: 'asc',
@@ -105,18 +107,44 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
           throw new Error('it seems you did not populate tools into the data, which is required to export them to the llm system');
         }
 
-        return Promise.all(
-          tools.map(async (tool) => {
-            return await tx.toolLlmDocument.create({
-              select: {
-                id: true,
-                content: true,
-                toolId: true,
+        await tx.toolLlmDocument.deleteMany({
+          where: {
+            toolId: {
+              notIn: tools.map((tool) => tool.id),
+            },
+          },
+        });
+
+        const toolDocumentsToCalculate: ToolLlmDocument[] = [];
+
+        for (const tool of tools) {
+          if (!!tool.ToolLlmDocument) {
+            // If the document has not been calculated since the last initive update, we make sure to update the content and mark it to be processed
+            if (!tool.ToolLlmDocument.calculatedAt || tool.ToolLlmDocument.calculatedAt < tool.updatedAt) {
+              const updatedDocument = await tx.toolLlmDocument.update({
+                where: {
+                  toolId: tool.id,
+                },
+                data: {
+                  content: tool.name,
+                },
+              });
+
+              toolDocumentsToCalculate.push(updatedDocument);
+            }
+          } else {
+            const createdDocument = await tx.toolLlmDocument.create({
+              data: {
+                toolId: tool.id,
+                content: tool.name,
               },
-              data: { content: tool.name, toolId: tool.id },
             });
-          })
-        );
+
+            toolDocumentsToCalculate.push(createdDocument);
+          }
+        }
+
+        return toolDocumentsToCalculate;
       },
       {
         timeout: 1 * 60 * 1000,
@@ -124,13 +152,31 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
       }
     );
 
-    await this.toolsVectorStore.addModels(toolLlmDocuments);
+    if (toolLlmDocumentsToCalculate.length > 0) {
+      // `addModels` recalculates the vector so we use it both for created documents and those to update
+      // Note: this is out of the transaction because it could takes time to compute
+      await this.toolsVectorStore.addModels(toolLlmDocumentsToCalculate);
+
+      await prisma.toolLlmDocument.updateMany({
+        where: {
+          id: {
+            in: toolLlmDocumentsToCalculate.map((document) => document.id),
+          },
+        },
+        data: {
+          calculatedAt: new Date(),
+        },
+      });
+
+      console.log(`${toolLlmDocumentsToCalculate.length} tool documents have been calculated`);
+    } else {
+      console.log(`there is no initiative document to calculate`);
+    }
   }
 
   public async ingestInitiatives(settings: Settings): Promise<void> {
-    // Insert needed data
-    // TODO: manage updates of content... based on initiative.id?
-    const initiativeLlmDocuments = await prisma.$transaction(
+    // Synchronizing properly for ingestion
+    const initiativeLlmDocumentsToCalculate = await prisma.$transaction(
       async (tx) => {
         const initiatives = await tx.initiative.findMany({
           where: {
@@ -149,6 +195,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
                 tool: true,
               },
             },
+            InitiativeLlmDocument: true,
           },
           orderBy: [
             {
@@ -161,32 +208,55 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
           throw new Error('it seems no initiative has been computed, which is required to export them to the llm system');
         }
 
-        return Promise.all(
-          initiatives.map(async (initiative) => {
-            return await tx.initiativeLlmDocument.create({
-              select: {
-                id: true,
-                content: true,
-                initiativeId: true,
-              },
+        await tx.initiativeLlmDocument.deleteMany({
+          where: {
+            initiativeId: {
+              notIn: initiatives.map((initiative) => initiative.id),
+            },
+          },
+        });
+
+        const initiativeDocumentsToCalculate: InitiativeLlmDocument[] = [];
+
+        for (const initiative of initiatives) {
+          const resultingDocumentContentObject = DocumentInitiativeTemplateSchema.parse({
+            id: initiative.id,
+            name: initiative.name,
+            description: initiative.description,
+            websites: initiative.websites,
+            repositories: initiative.repositories,
+            businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
+            functionalUseCases: initiative.functionalUseCases,
+            tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+          });
+
+          if (!!initiative.InitiativeLlmDocument) {
+            // If the document has not been calculated since the last initive update, we make sure to update the content and mark it to be processed
+            if (!initiative.InitiativeLlmDocument.calculatedAt || initiative.InitiativeLlmDocument.calculatedAt < initiative.updatedAt) {
+              const updatedDocument = await tx.initiativeLlmDocument.update({
+                where: {
+                  initiativeId: initiative.id,
+                },
+                data: {
+                  content: JSON.stringify(resultingDocumentContentObject),
+                },
+              });
+
+              initiativeDocumentsToCalculate.push(updatedDocument);
+            }
+          } else {
+            const createdDocument = await tx.initiativeLlmDocument.create({
               data: {
-                content: JSON.stringify(
-                  DocumentInitiativeTemplateSchema.parse({
-                    id: initiative.id,
-                    name: initiative.name,
-                    description: initiative.description,
-                    websites: initiative.websites,
-                    repositories: initiative.repositories,
-                    businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
-                    functionalUseCases: initiative.functionalUseCases,
-                    tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
-                  })
-                ),
                 initiativeId: initiative.id,
+                content: JSON.stringify(resultingDocumentContentObject),
               },
             });
-          })
-        );
+
+            initiativeDocumentsToCalculate.push(createdDocument);
+          }
+        }
+
+        return initiativeDocumentsToCalculate;
       },
       {
         timeout: 1 * 60 * 1000,
@@ -194,7 +264,26 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
       }
     );
 
-    await this.initiativesVectorStore.addModels(initiativeLlmDocuments);
+    if (initiativeLlmDocumentsToCalculate.length > 0) {
+      // `addModels` always calculates the vector so we use it both for created documents and those to update
+      // Note: this is out of the transaction because it could takes time to compute
+      await this.initiativesVectorStore.addModels(initiativeLlmDocumentsToCalculate);
+
+      await prisma.initiativeLlmDocument.updateMany({
+        where: {
+          id: {
+            in: initiativeLlmDocumentsToCalculate.map((document) => document.id),
+          },
+        },
+        data: {
+          calculatedAt: new Date(),
+        },
+      });
+
+      console.log(`${initiativeLlmDocumentsToCalculate.length} initiative documents have been calculated`);
+    } else {
+      console.log(`there is no initiative document to calculate`);
+    }
   }
 
   public async computeInitiative(

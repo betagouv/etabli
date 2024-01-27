@@ -10,7 +10,7 @@ export type TechnologyCategorySchemaType = z.infer<typeof TechnologyCategorySche
 export const TechnologySchema = z.object({
   slug: z.string(),
   name: z.string(),
-  description: z.string(),
+  description: z.string().nullable(),
   confidence: z.number(),
   version: z.string().nullable(),
   icon: z.string().nullable(),

@@ -21,7 +21,13 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
     throw new Error('semgrep rules must exist');
   }
 
-  await $`semgrep --metrics=off --config ${codeAnalysisRulesPath} ${folderPath} --json -o ${outputPath}`;
+  try {
+    await $`semgrep --metrics=off --config ${codeAnalysisRulesPath} ${folderPath} --json -o ${outputPath}`;
+  } catch (error) {
+    console.log(`the details of the semgrep error can be read into ${outputPath}`);
+
+    throw error;
+  }
 
   const codeAnalysisDataString = await fs.readFile(outputPath, 'utf-8');
   const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);

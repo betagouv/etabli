@@ -13,10 +13,6 @@ rules:
           # Most of the time components
           metavariable: $FUNC
           regex: '^(?![A-Z]).*'
-      # - metavariable-comparison:
-      #     # TODO: trying to exclude those being class constructor
-      #     metavariable: $FUNC
-      #     comparison: $FUNC != "constructor"
     message: 'Function name: $FUNC'
     languages:
       - javascript

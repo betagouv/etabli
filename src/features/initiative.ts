@@ -32,7 +32,7 @@ import {
 import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/models/entities/initiative';
 import { prisma } from '@etabli/prisma';
-import { SemgrepResultSchema } from '@etabli/semgrep';
+import { analyzeWithSemgrep } from '@etabli/semgrep/index';
 import { getListDiff } from '@etabli/utils/comparaison';
 import { capitalizeFirstLetter } from '@etabli/utils/format';
 import { sleep } from '@etabli/utils/sleep';
@@ -644,42 +644,8 @@ export async function feedInitiativesFromDatabase() {
 
         // Extract information from the source code
         const codeAnalysisPath = path.resolve(projectDirectory, 'code-analysis.json');
-        const codeAnalysisRulesPath = path.resolve(__dirname, '../../', 'semgrep-rules.yaml');
 
-        if (!useLocalFileCache || !fsSync.existsSync(codeAnalysisPath)) {
-          await $`semgrep --metrics=off --config ${codeAnalysisRulesPath} ${codeFolderPath} --json -o ${codeAnalysisPath}`;
-        }
-
-        const codeAnalysisDataString = await fs.readFile(codeAnalysisPath, 'utf-8');
-        const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);
-        const codeAnalysisData = SemgrepResultSchema.parse(codeAnalysisDataObject);
-
-        let functions: string[] = [];
-        let dependencies: string[] = [];
-
-        for (const result of codeAnalysisData.results) {
-          switch (result.check_id) {
-            case 'node-extract-functions':
-              if (result.extra.metavars.$FUNC?.abstract_content) {
-                functions.push(result.extra.metavars.$FUNC?.abstract_content);
-              }
-              break;
-            case 'node-find-dependencies':
-              if (result.extra.metavars.$1?.abstract_content) {
-                // We had to use a regex that cannot be named to escape additional quotes around the dependency name
-                dependencies.push(result.extra.metavars.$1.abstract_content);
-              } else if (result.extra.metavars.$DEPENDENCY_NAME?.abstract_content) {
-                dependencies.push(result.extra.metavars.$DEPENDENCY_NAME.abstract_content);
-              }
-              break;
-            default:
-              throw new Error('rule handler not implemented');
-          }
-        }
-
-        // Unique ones
-        functions = [...new Set(functions)];
-        dependencies = [...new Set(dependencies)];
+        const { functions, dependencies } = await analyzeWithSemgrep(codeFolderPath, codeAnalysisPath);
 
         mixedInitiativeTools.push(...dependencies);
 

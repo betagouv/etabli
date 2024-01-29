@@ -1,0 +1,20 @@
+{
+  "name": "my_package",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/my_username/my_package.git"
+  },
+  "license": "ISC",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "dependency-a": "0.0.0",
+    "dependency-b": "0.0.0"
+  },
+  "devDependencies": {
+    "dependency-c": "0.0.0",
+    "dependency-d": "0.0.0"
+  }
+}

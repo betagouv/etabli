@@ -1,3 +1,4 @@
+# The cheasheet gives lot of examples to learn specifics for each language (ref: https://semgrep.dev/embed/cheatsheet)
 rules:
   - id: node-extract-functions
     options:
@@ -16,6 +17,11 @@ rules:
           # Most of the time components
           metavariable: $FUNC
           regex: '^(?![A-Z]).*'
+      - metavariable-pattern:
+          # Exclude those being class constructor
+          metavariable: $FUNC
+          patterns:
+            - pattern-not: 'constructor'
     message: 'Function name: $FUNC'
     languages:
       - javascript
@@ -58,3 +64,62 @@ rules:
     paths:
       include:
         - 'package.json'
+  - id: php-extract-functions
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern-either:
+          # No success to remove the prefix "$" since "$$FUNC" and specific `metavariable-regex` were breaking the analysis, but we are fine the LLM should handle it
+          - pattern: |
+              $FUNC = function (...) { ... }
+          - pattern: |
+              function $FUNC(...) { ... }
+      - metavariable-regex:
+          # Most of the time meaningless callbacks
+          metavariable: $FUNC
+          regex: '^(?!\$?on[A-Z]).*'
+      - metavariable-pattern:
+          # Exclude those being class constructor
+          metavariable: $FUNC
+          patterns:
+            - pattern-not: '__construct'
+    message: 'Function name: $FUNC'
+    languages:
+      - php
+    severity: ERROR
+    paths:
+      exclude:
+        - 'tests/**/*'
+        - '*Test.php'
+  - id: php-find-dependencies
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern-either:
+          - pattern: |
+              {
+                "require": {
+                  $DEPENDENCY_NAME: "$VALUE",
+                  ...
+                },
+                ...
+              }
+          - pattern: |
+              {
+                "require-dev": {
+                  $DEPENDENCY_NAME: "$VALUE",
+                  ...
+                },
+                ...
+              }
+      - metavariable-regex:
+          # `$DEPENDENCY_NAME` has additional wrapping quotes for no reason (but not $VALUE), having this workaround to strip them and get core value into $1...
+          metavariable: $DEPENDENCY_NAME
+          regex: '^"(.*)"$'
+    message: "Dependency '$DEPENDENCY_NAME' in composer.json"
+    languages:
+      - json
+    severity: ERROR
+    paths:
+      include:
+        - 'composer.json'

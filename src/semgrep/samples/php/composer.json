@@ -1,0 +1,14 @@
+{
+  "type": "project",
+  "license": "MIT",
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "require": {
+    "dependency-a": "0.0.0",
+    "dependency-b": "0.0.0"
+  },
+  "require-dev": {
+    "dependency-c": "0.0.0",
+    "dependency-d": "0.0.0"
+  }
+}

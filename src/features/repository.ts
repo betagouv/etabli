@@ -3,6 +3,7 @@ import fsSync from 'fs';
 import fs from 'fs/promises';
 import linkifyit from 'linkify-it';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/common';
@@ -12,6 +13,7 @@ import { prisma } from '@etabli/prisma';
 import { getListDiff } from '@etabli/utils/comparaison';
 import { emptyStringtoNullPreprocessor } from '@etabli/utils/validation';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const linkify = linkifyit();
 
 // We did not used the CSV format even if less heavy to avoid extra parsing for numbers, null, string on multiple lines... (ref: https://code.gouv.fr/data/repositories/csv/all.csv)

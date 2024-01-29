@@ -10,6 +10,7 @@ import { AssistantFile } from 'openai/resources/beta/assistants/files';
 import { Run } from 'openai/resources/beta/threads/runs/runs';
 import path from 'path';
 import { encoding_for_model } from 'tiktoken';
+import { fileURLToPath } from 'url';
 
 import { ChunkEventEmitter, LlmManager } from '@etabli/features/llm';
 import { gptInstances } from '@etabli/gpt';
@@ -17,6 +18,8 @@ import { DocumentInitiativeTemplateSchema, DocumentInitiativesChunkTemplateSchem
 import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
 import { prisma } from '@etabli/prisma';
 import { sleep } from '@etabli/utils/sleep';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export class OpenaiWithAssistantApiLlmManager implements LlmManager {
   public readonly openaiItemPrefix = 'etabli_';

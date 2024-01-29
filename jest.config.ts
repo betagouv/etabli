@@ -17,16 +17,18 @@ const customJestConfig = {
       : undefined,
   testEnvironment: 'jest-environment-jsdom',
   testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/data/'],
-  // transform: {
-  //   '\\.[jt]sx?$': [
-  //     'ts-jest',
-  //     {
-  //       tsconfig: {
-  //         jsx: 'react',
-  //       },
-  //     },
-  //   ],
-  // },
+  extensionsToTreatAsEsm: ['.ts', '.tsx'],
+  transform: {
+    '\\.[jt]sx?$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          // jsx: 'react',
+        },
+        useESM: true,
+      },
+    ],
+  },
 };
 
 export default customJestConfig;

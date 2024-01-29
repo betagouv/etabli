@@ -15,6 +15,7 @@ import OpenAI from 'openai';
 import path from 'path';
 import prettyBytes from 'pretty-bytes';
 import { simpleGit } from 'simple-git';
+import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import Wappalyzer from 'wappalyzer';
 
@@ -36,6 +37,8 @@ import { getListDiff } from '@etabli/utils/comparaison';
 import { capitalizeFirstLetter } from '@etabli/utils/format';
 import { sleep } from '@etabli/utils/sleep';
 import { WappalyzerResultSchema } from '@etabli/wappalyzer';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const fastFolderSizeAsync = promisify(fastFolderSize);
 const useLocalFileCache = true; // Switch it when testing locally to prevent multiplying network request whereas the remote content has probably no change since then

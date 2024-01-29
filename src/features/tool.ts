@@ -3,6 +3,7 @@ import { parse } from 'csv-parse';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/common';
@@ -11,6 +12,8 @@ import { toolTypeCsvToModel } from '@etabli/models/mappers/tool';
 import { prisma } from '@etabli/prisma';
 import { getListDiff } from '@etabli/utils/comparaison';
 import { emptyStringtoNullPreprocessor } from '@etabli/utils/validation';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const latestRemoteCsvUrl = 'https://raw.githubusercontent.com/captn3m0/stackshare-dataset/main/tools.csv';
 export const localCsvPath = path.resolve(__dirname, '../../data/tools.csv');

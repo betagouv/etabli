@@ -32,7 +32,7 @@
     "db:migration:deploy:unsecure": "prisma migrate deploy",
     "db:studio": "dotenv-run-script .env.test -- db:studio:unsecure",
     "db:studio:unsecure": "prisma studio",
-    "jest": "jest"
+    "jest": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "prisma": {
     "schema": "src/prisma/schema.prisma",

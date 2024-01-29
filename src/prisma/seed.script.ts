@@ -1,8 +1,11 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 import { prisma } from '@etabli/prisma';
 import { seedDatabase } from '@etabli/prisma/seed';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // This script always targets the local test database
 dotenv.config({ path: path.resolve(__dirname, '../../.env.test') });

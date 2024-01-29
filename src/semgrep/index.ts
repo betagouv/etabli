@@ -46,6 +46,8 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
         dependencies.push(result.extra.metavars.$1.abstract_content);
       } else if (result.extra.metavars.$DEPENDENCY_NAME?.abstract_content) {
         dependencies.push(result.extra.metavars.$DEPENDENCY_NAME.abstract_content);
+      } else if (result.extra.metavars['$...DEPENDENCY_NAME']?.abstract_content) {
+        dependencies.push(result.extra.metavars['$...DEPENDENCY_NAME'].abstract_content);
       }
     } else {
       throw new Error('rule handler not implemented');

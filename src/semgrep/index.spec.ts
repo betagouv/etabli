@@ -32,4 +32,16 @@ describe('analyzeWithSemgrep()', () => {
       functions: ['sendWelcomeMessage', 'sendEmail', '$globalCallback', 'run', '$notificationCallback'],
     });
   });
+
+  it('should analyze correctly a ruby project', async () => {
+    const codeFolder = path.resolve(__dirname, 'samples/ruby');
+    const resultsPath = path.resolve(__dirname, 'results/code-analysis-ruby.json');
+
+    const results = await analyzeWithSemgrep(codeFolder, resultsPath);
+
+    expect(results).toStrictEqual({
+      dependencies: ['dependency-a', 'dependency-b', 'dependency-c', 'dependency-d'],
+      functions: ['send_welcome_message', 'send_email', '$global_callback', 'run', 'notification_callback'],
+    });
+  });
 });

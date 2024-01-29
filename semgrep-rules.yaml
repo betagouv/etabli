@@ -123,3 +123,50 @@ rules:
     paths:
       include:
         - 'composer.json'
+  - id: ruby-extract-functions
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern-either:
+          # No success to remove the prefix "$" since "$$FUNC" and specific `metavariable-regex` were breaking the analysis, but we are fine the LLM should handle it
+          - pattern: |
+              def $FUNC(...)
+                ...
+              end
+          - pattern: |
+              $FUNC = -> (...) { ... }
+          - pattern: |
+              $FUNC = proc { ... }
+      - metavariable-regex:
+          # Most of the time meaningless callbacks
+          metavariable: $FUNC
+          regex: '^(?!\$?on_[a-z]).*'
+      - metavariable-pattern:
+          # Exclude those being class constructor
+          metavariable: $FUNC
+          patterns:
+            - pattern-not: 'initialize'
+    message: 'Function name: $FUNC'
+    languages:
+      - ruby
+    severity: ERROR
+    paths:
+      exclude:
+        - 'tests/**/*'
+        - 'spec/**/*'
+        - '*_spec.rb'
+  - id: ruby-find-dependencies
+    options:
+      symbolic_propagation: true
+      generic_ellipsis_max_span: 0
+    patterns:
+      # Since "generic" language using basic matching of content is more complicated (the real variable name is `$...DEPENDENCY_NAME`, not `$DEPENDENCY_NAME`...)
+      - pattern: gem "$...DEPENDENCY_NAME"
+    message: "Dependency '$DEPENDENCY_NAME' in Gemfile"
+    languages:
+      # - ruby # Ideally we could easily parse the `Gemfile` as ruby file but semgrep makes it no easy at all so giving up (refs: https://github.com/semgrep/semgrep/issues/3090 and https://github.com/semgrep/semgrep/issues/1099)
+      - generic
+    severity: ERROR
+    paths:
+      include:
+        - 'Gemfile'

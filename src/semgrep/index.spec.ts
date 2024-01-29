@@ -17,7 +17,7 @@ describe('analyzeWithSemgrep()', () => {
 
     expect(results).toStrictEqual({
       dependencies: ['dependency-a', 'dependency-b', 'dependency-c', 'dependency-d'],
-      functions: ['sendWelcomeMessage', 'sendEmail', 'run'],
+      functions: ['sendWelcomeMessage', 'sendEmail', 'globalCallback', 'asyncGlobalCallback', 'run', 'notificationCallback'],
     });
   });
 });

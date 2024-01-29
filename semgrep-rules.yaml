@@ -3,8 +3,11 @@ rules:
     options:
       symbolic_propagation: true
     patterns:
-      - pattern: |
-          function $FUNC(...)
+      - pattern-either:
+          - pattern: |
+              $FUNC = (...) => { ... }
+          - pattern: |
+              function $FUNC(...)
       - metavariable-regex:
           # Most of the time meaningless callbacks
           metavariable: $FUNC

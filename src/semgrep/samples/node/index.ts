@@ -8,6 +8,12 @@ class Mailer {
   protected sendEmail() {}
 }
 
+const globalCallback = () => {};
+const asyncGlobalCallback = async () => {};
+
+const onSentShouldBeIgnored = () => {};
+const MessageFormComponentShouldBeIgnored = () => {};
+
 function run() {
   const contextualVariable = 'it has been a success';
   const notificationCallback = () => {
@@ -18,6 +24,7 @@ function run() {
   mailer.sendWelcomeMessage();
 
   notificationCallback();
+  globalCallback();
 }
 
 run();

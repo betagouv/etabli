@@ -19,6 +19,7 @@ import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import Wappalyzer from 'wappalyzer';
 
+import manifestsEndingPatterns from '@etabli/bibliothecary/manifests-patterns.json';
 import { ChunkEventEmitter, llmManagerInstance } from '@etabli/features/llm';
 import {
   InitiativeTemplateSchema,
@@ -35,6 +36,7 @@ import { prisma } from '@etabli/prisma';
 import { analyzeWithSemgrep } from '@etabli/semgrep/index';
 import { getListDiff } from '@etabli/utils/comparaison';
 import { capitalizeFirstLetter } from '@etabli/utils/format';
+import { languagesExtensions } from '@etabli/utils/languages';
 import { sleep } from '@etabli/utils/sleep';
 import { WappalyzerResultSchema } from '@etabli/wappalyzer';
 
@@ -46,17 +48,14 @@ const useLocalFileCache = true; // Switch it when testing locally to prevent mul
 const git = simpleGit();
 const filesToKeepGitEndingPatterns: string[] = [
   // This is used to reduce size of the repository once downloaded
-  // Note: with the current patterns we cannot rely on using leading `/` for the root, we should convert them to regexp otherwise
+  // Notes:
+  // - only keep programming files and manifests since that what we only use for now (in addition to README files)
+  // - with the current patterns we cannot rely on using leading `/` for the root, we should convert them to regexp otherwise
   'README',
   'README.md',
-  'package.json',
-  '.js',
-  '.jsx',
-  '.ts',
-  '.tsx',
-  // TODO: ...
+  ...manifestsEndingPatterns,
+  ...languagesExtensions,
 ];
-const filesToKeepRegex = /\/README$|/i;
 
 const noImgAndSvgFilterPath = path.resolve(__dirname, '../../src/pandoc/no-img-and-svg.lua');
 const extractMetaDescriptionFilterPath = path.resolve(__dirname, '../../src/pandoc/extract-meta-description.lua');

@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "my-package"
+version = "1.0.0"
+authors = []
+description = "My package project"
+
+[tool.poetry.dependencies]
+python = "0.0.0"
+dependency-pyproject-a = "0.0.0"
+dependency-pyproject-b = "0.0.0"
+
+[tool.poetry.dev-dependencies]
+dependency-pyproject-c = "0.0.0"
+dependency-pyproject-d = "0.0.0"

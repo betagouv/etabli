@@ -44,4 +44,32 @@ describe('analyzeWithSemgrep()', () => {
       functions: ['send_welcome_message', 'send_email', '$global_callback', 'run', 'notification_callback'],
     });
   });
+
+  it('should analyze correctly a python project', async () => {
+    const codeFolder = path.resolve(__dirname, 'samples/python');
+    const resultsPath = path.resolve(__dirname, 'results/code-analysis-python.json');
+
+    const results = await analyzeWithSemgrep(codeFolder, resultsPath);
+
+    expect(results).toStrictEqual({
+      dependencies: [
+        'python_version',
+        'dependency-pipfile-a',
+        'dependency-pipfile-b',
+        'dependency-pipfile-c',
+        'dependency-pipfile-d',
+        'version',
+        'python',
+        'dependency-pyproject-a',
+        'dependency-pyproject-b',
+        'dependency-pyproject-c',
+        'dependency-pyproject-d',
+        'dependency-requirementstxt-a',
+        'dependency-requirementstxt-b',
+        'dependency-requirementstxt-c',
+        'dependency-requirementstxt-d',
+      ],
+      functions: ['send_welcome_message', 'send_email', 'global_callback', 'async_global_callback', 'run', 'notification_callback'],
+    });
+  });
 });

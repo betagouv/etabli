@@ -128,7 +128,6 @@ rules:
       symbolic_propagation: true
     patterns:
       - pattern-either:
-          # No success to remove the prefix "$" since "$$FUNC" and specific `metavariable-regex` were breaking the analysis, but we are fine the LLM should handle it
           - pattern: |
               def $FUNC(...)
                 ...
@@ -170,3 +169,69 @@ rules:
     paths:
       include:
         - 'Gemfile'
+  - id: python-extract-functions
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern-either:
+          - pattern: |
+              def $FUNC(...):
+                ...
+      - metavariable-regex:
+          # Most of the time meaningless callbacks
+          metavariable: $FUNC
+          regex: '^(?!\$?on_[a-z]).*'
+      - metavariable-pattern:
+          # Exclude those being class constructor
+          metavariable: $FUNC
+          patterns:
+            - pattern-not: '__init__'
+    message: 'Function name: $FUNC'
+    languages:
+      - python
+    severity: ERROR
+    paths:
+      exclude:
+        - 'tests/**/*'
+        - 'test_*.py'
+  - id: python-requirementstxt-find-dependencies
+    options:
+      symbolic_propagation: true
+      generic_ellipsis_max_span: 0
+    patterns:
+      - pattern-regex: '^(.*?)(?==|\s|$)'
+    message: "Dependency '$DEPENDENCY_NAME' in requirements.txt"
+    languages:
+      - generic
+    severity: ERROR
+    paths:
+      include:
+        - 'requirements.txt'
+  - id: python-pipefile-find-dependencies
+    options:
+      symbolic_propagation: true
+    patterns:
+      # It was impossible to rely on `[packages] ... [` delimiters due to semgrep considering only a block with `pattern`
+      # and not taking all occurences with `regex-pattern` and a delimiter. So we ended relying on precise format at the end of the line
+      # even if it may match those under `[requires]` or so, but we are fine with it since they should correspond to librairies in all cases
+      - pattern-regex: '^(.*?)(?=(\s+)?=(\s+)?\"(\*|.*\d.*)\")'
+    message: "Dependency '$DEPENDENCY_NAME' in Pipfile"
+    languages:
+      - generic
+    severity: ERROR
+    paths:
+      include:
+        - 'Pipfile'
+  - id: python-pyproject-find-dependencies
+    options:
+      symbolic_propagation: true
+    patterns:
+      # See explanation from the rule `python-pipefile-find-dependencies`
+      - pattern-regex: '^(.*?)(?=(\s+)?=(\s+)?\"(\*|.*\d.*)\")'
+    message: "Dependency '$DEPENDENCY_NAME' in pyproject.toml"
+    languages:
+      - generic
+    severity: ERROR
+    paths:
+      include:
+        - 'pyproject.toml'

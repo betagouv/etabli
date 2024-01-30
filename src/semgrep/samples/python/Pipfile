@@ -1,0 +1,15 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[requires]
+python_version = "0.0.0"
+
+[packages]
+dependency-pipfile-a = "0.0.0"
+dependency-pipfile-b = "*"
+
+[dev-packages]
+dependency-pipfile-c = "~=0.0"
+dependency-pipfile-d = "==0.0"

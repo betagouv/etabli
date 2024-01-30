@@ -1,0 +1,4 @@
+dependency-requirementstxt-a==0.0.0
+dependency-requirementstxt-b
+dependency-requirementstxt-c == 0.0.0
+dependency-requirementstxt-d ~= 0.0.0

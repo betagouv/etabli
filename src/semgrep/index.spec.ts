@@ -90,3 +90,15 @@ it('should analyze correctly a java project', async () => {
     functions: ['globalCallback', 'run', 'notificationCallback', 'Mailer', 'sendWelcomeMessage', 'sendEmail'],
   });
 });
+
+it('should analyze correctly a golang project', async () => {
+  const codeFolder = path.resolve(__dirname, 'samples/golang');
+  const resultsPath = path.resolve(__dirname, 'results/code-analysis-golang.json');
+
+  const results = await analyzeWithSemgrep(codeFolder, resultsPath);
+
+  expect(results).toStrictEqual({
+    dependencies: ['bitbucket.org/account-a/dependency-a', 'bitbucket.org/account-a/dependency-b', 'github.com/account-b/dependency-c'],
+    functions: ['sendWelcomeMessage', 'sendEmail', 'globalCallback', 'run'],
+  });
+});

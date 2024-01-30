@@ -143,3 +143,30 @@ rules:
         - 'test/**/*'
         - '*Test.java'
         - 'Test*.java'
+  - id: golang-extract-functions
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern: |
+          func $FUNC(...) { ... }
+      - metavariable-regex:
+          # Most of the time meaningless callbacks
+          metavariable: $FUNC
+          regex: '^(?!on[A-Z]).*'
+      - metavariable-regex:
+          # In Golang "constructors" are functions named with an uppercase
+          metavariable: $FUNC
+          regex: '^(?![A-Z]).*'
+      - metavariable-pattern:
+          # Exclude the main program function
+          metavariable: $FUNC
+          patterns:
+            - pattern-not: 'main'
+    message: 'Function name: $FUNC'
+    languages:
+      - go
+    severity: ERROR
+    paths:
+      exclude:
+        - 'tests/**/*'
+        - '*_test.go'

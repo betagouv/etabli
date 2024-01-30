@@ -235,3 +235,71 @@ rules:
     paths:
       include:
         - 'pyproject.toml'
+  - id: java-extract-functions
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $FUNC = () -> { ... }
+          - pattern: |
+              $FUNC(...) { ... }
+      - metavariable-regex:
+          # Most of the time meaningless callbacks
+          metavariable: $FUNC
+          regex: '^(?!on[A-Z]).*'
+      - metavariable-pattern:
+          # Exclude the main program function
+          # Note: we wanted to exclude the class constructor but since it equals the class name we have no possible pattern... should be fine having it in the final analysis
+          metavariable: $FUNC
+          patterns:
+            - pattern-not: 'main'
+    message: 'Function name: $FUNC'
+    languages:
+      - java
+    severity: ERROR
+    paths:
+      exclude:
+        - 'test/**/*'
+        - '*Test.java'
+        - 'Test*.java'
+  - id: java-maven-find-dependencies
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern-inside: |
+          <dependencies>
+            ...
+          </dependencies>
+      - pattern: |
+          <dependency>
+            ...
+            <artifactId>$...DEPENDENCY_NAME</artifactId>
+            ...
+          </dependency>
+    message: "Dependency '$DEPENDENCY_NAME' in pom.xml"
+    languages:
+      - xml
+    severity: ERROR
+    paths:
+      include:
+        - 'pom.xml'
+  - id: java-gradle-find-dependencies
+    options:
+      symbolic_propagation: true
+      generic_ellipsis_max_span: 0
+    patterns:
+      - pattern-inside: |
+          dependencies {
+            ...
+          }
+      - pattern-either:
+          - pattern-regex: (?:(?:classpath|api|implementation)\s+')(.*?)(?=:(\d.*)\')
+          - pattern-regex: (?:classpath|api|implementation)\s*\('(.*?)(?='\))
+    message: "Dependency '$DEPENDENCY_NAME' in build.gradle"
+    languages:
+      - generic
+    severity: ERROR
+    paths:
+      include:
+        - 'build.gradle'

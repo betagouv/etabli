@@ -1,0 +1,20 @@
+buildscript {
+  repositories {
+    google()
+    mavenCentral()
+  }
+
+  dependencies {
+    classpath 'dependency-gradle-a:0.0.0'
+    implementation 'com.thirdcompany.tool:dependency-gradle-b:0.0.0'
+    api 'dependency-gradle-c:0.0.0'
+    api 'com.thirdcompany.tool:dependency-gradle-d:0.+'
+
+    implementation('com.thirdcompany.tool:dependency-gradle-e') {
+      version {
+        require '0.0.0'
+        reject '0.0.1'
+      }
+    }
+  }
+}

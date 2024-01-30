@@ -73,3 +73,23 @@ describe('analyzeWithSemgrep()', () => {
     });
   });
 });
+
+it('should analyze correctly a java project', async () => {
+  const codeFolder = path.resolve(__dirname, 'samples/java');
+  const resultsPath = path.resolve(__dirname, 'results/code-analysis-java.json');
+
+  const results = await analyzeWithSemgrep(codeFolder, resultsPath);
+
+  expect(results).toStrictEqual({
+    dependencies: [
+      'dependency-gradle-a',
+      'com.thirdcompany.tool:dependency-gradle-b',
+      'dependency-gradle-c',
+      'com.thirdcompany.tool:dependency-gradle-d',
+      'com.thirdcompany.tool:dependency-gradle-e',
+      'dependency-maven-a',
+      'dependency-maven-b',
+    ],
+    functions: ['globalCallback', 'run', 'notificationCallback', 'Mailer', 'sendWelcomeMessage', 'sendEmail'],
+  });
+});

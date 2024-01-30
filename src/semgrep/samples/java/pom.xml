@@ -1,0 +1,19 @@
+<project>
+  <groupId>com.mycompany.app</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1</version>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <artifactId>dependency-maven-a</artifactId>
+      <version>0.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.maven</groupId>
+      <version>0.0.0</version>
+      <scope>development</scope>
+      <artifactId>dependency-maven-b</artifactId>
+    </dependency>
+  </dependencies>
+</project>

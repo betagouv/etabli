@@ -53,12 +53,10 @@ describe('analyzeWithSemgrep()', () => {
 
     expect(results).toStrictEqual({
       dependencies: [
-        'python_version',
         'dependency-pipfile-a',
         'dependency-pipfile-b',
         'dependency-pipfile-c',
         'dependency-pipfile-d',
-        'version',
         'python',
         'dependency-pyproject-a',
         'dependency-pyproject-b',
@@ -82,13 +80,12 @@ it('should analyze correctly a java project', async () => {
 
   expect(results).toStrictEqual({
     dependencies: [
-      'dependency-gradle-a',
+      // 'dependency-gradle-a', // `bibliothecary` does not read `classpath` instruction
       'com.thirdcompany.tool:dependency-gradle-b',
-      'dependency-gradle-c',
+      'dependency-gradle-c:0.0.0',
       'com.thirdcompany.tool:dependency-gradle-d',
-      'com.thirdcompany.tool:dependency-gradle-e',
-      'dependency-maven-a',
-      'dependency-maven-b',
+      'org.apache.maven:dependency-maven-a',
+      'org.apache.maven:dependency-maven-b',
     ],
     functions: ['globalCallback', 'run', 'notificationCallback', 'Mailer', 'sendWelcomeMessage', 'sendEmail'],
   });

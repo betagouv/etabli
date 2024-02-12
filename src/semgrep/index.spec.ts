@@ -138,3 +138,22 @@ it('should analyze correctly a cpp project', async () => {
     ],
   });
 });
+
+it('should analyze correctly a scala project', async () => {
+  const codeFolder = path.resolve(__dirname, 'samples/scala');
+  const resultsPath = path.resolve(__dirname, 'results/code-analysis-scala.json');
+
+  const results = await analyzeWithSemgrep(codeFolder, resultsPath);
+
+  expect(results).toStrictEqual({
+    dependencies: [
+      // // Scala default package manager is `sbt` but its dependency file `build.sbt` has no structured format
+      // // so it's impossible to parse it... just giving up. Note that Scala projects may use Java package managers since Scale is based on Java.
+      // 'dependency-a',
+      // 'dependency-b',
+      // 'dependency-c',
+      // 'dependency-d',
+    ],
+    functions: ['sendWelcomeMessage', 'sendEmail', 'globalCallback', 'asyncGlobalCallback', 'run', 'notificationCallback'],
+  });
+});

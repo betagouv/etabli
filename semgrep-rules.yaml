@@ -242,3 +242,35 @@ rules:
         - 'tests/**/*'
         - '*Test.cpp'
         - '*_test.cpp'
+  - id: scala-extract-functions
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern-either:
+          - pattern: |
+              def $FUNC(...): $RETURN_TYPE = ...
+          - pattern: |
+              val $FUNC = ... {
+                ...
+              }
+          - pattern: |
+              val $FUNC = () => {
+                ...
+              }
+      - metavariable-regex:
+          # Most of the time meaningless callbacks
+          metavariable: $FUNC
+          regex: '^(?!on[A-Z]).*'
+      - metavariable-pattern:
+          # Note: we wanted to exclude the class constructor but since it equals the class name we have no possible pattern... should be fine having it in the final analysis
+          metavariable: $FUNC
+          patterns: []
+    message: 'Function name: $FUNC'
+    languages:
+      - scala
+    severity: ERROR
+    paths:
+      exclude:
+        - 'test/**/*'
+        - '*Test.scala'
+        - '*.test.scala'

@@ -114,3 +114,27 @@ it('should analyze correctly a rust project', async () => {
     functions: ['send_welcome_message', 'send_email', 'global_callback', 'async_global_callback', 'run', 'notification_callback'],
   });
 });
+
+it('should analyze correctly a cpp project', async () => {
+  const codeFolder = path.resolve(__dirname, 'samples/cpp');
+  const resultsPath = path.resolve(__dirname, 'results/code-analysis-cpp.json');
+
+  const results = await analyzeWithSemgrep(codeFolder, resultsPath);
+
+  expect(results).toStrictEqual({
+    dependencies: [
+      // TODO: `bibliothecary` does not support any c++ package mangers (neither Conan, nor Hunter, nor Vcpkg)
+      // 'dependency-a',
+      // 'dependency-b',
+    ],
+    functions: [
+      'Mailer', // This class constructor cannot be skipped for now
+      'sendWelcomeMessage',
+      'sendEmail',
+      'globalCallback',
+      'asyncGlobalCallback',
+      'run',
+      // 'notificationCallback' // Cannot parse it for now, it's a bit too complicated
+    ],
+  });
+});

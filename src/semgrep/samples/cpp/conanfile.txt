@@ -1,0 +1,10 @@
+[requires]
+dependency-conan-a/0.0.0
+dependency-conan-b/0.0.0
+
+[test_requires]
+dependency-conan-c/0.0.0
+dependency-conan-d/0.0.0
+
+[generators]
+cmake

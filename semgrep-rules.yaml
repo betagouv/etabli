@@ -209,3 +209,36 @@ rules:
       exclude:
         - 'tests/**/*'
         - '*_test.rs'
+  - id: cpp-extract-functions
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $POTENTIAL_RETURN_TYPE $FUNC(...) {
+                ...
+              }
+          # # TODO: not yet working easily so skipping since having basic functions should be fine for now
+          # - pattern: |
+          #     auto $FUNC = [...](...) {
+          #       ...
+          #     }
+      - metavariable-regex:
+          # Most of the time meaningless callbacks
+          metavariable: $FUNC
+          regex: '^(?!on[A-Z]).*'
+      - metavariable-pattern:
+          # Exclude the main program function
+          # Note: we wanted to exclude the class constructor but since it equals the class name we have no possible pattern... should be fine having it in the final analysis
+          metavariable: $FUNC
+          patterns:
+            - pattern-not: 'main'
+    message: 'Function name: $FUNC'
+    languages:
+      - c++
+    severity: ERROR
+    paths:
+      exclude:
+        - 'tests/**/*'
+        - '*Test.cpp'
+        - '*_test.cpp'

@@ -170,3 +170,42 @@ rules:
       exclude:
         - 'tests/**/*'
         - '*_test.go'
+  - id: rust-extract-functions
+    options:
+      symbolic_propagation: true
+    patterns:
+      - pattern-either:
+          - pattern: |
+              fn $FUNC(...) {
+                ...
+              }
+          - pattern: |
+              let $FUNC = || {
+                ...
+              };
+          # # TODO: not yet working due to Rust being in alpha inside Semgrep, but we are fine since it's a little part of projects
+          # # It has to work with both:
+          # # - let notification_callback = |a: i32, b: i32| -> i32 {
+          # # - let notification_callback = |a: i32, b: i32| {
+          # - pattern: |
+          #     let $FUNC = |...| ... {
+          #       ...
+          #     };
+      - metavariable-regex:
+          # Most of the time meaningless callbacks
+          metavariable: $FUNC
+          regex: '^(?!\$?on_[a-z]).*'
+      - metavariable-pattern:
+          # Exclude those being class constructor or main program function
+          metavariable: $FUNC
+          patterns:
+            - pattern-not: 'new'
+            - pattern-not: 'main'
+    message: 'Function name: $FUNC'
+    languages:
+      - rust
+    severity: ERROR
+    paths:
+      exclude:
+        - 'tests/**/*'
+        - '*_test.rs'

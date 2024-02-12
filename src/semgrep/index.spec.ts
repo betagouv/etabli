@@ -102,3 +102,15 @@ it('should analyze correctly a golang project', async () => {
     functions: ['sendWelcomeMessage', 'sendEmail', 'globalCallback', 'run'],
   });
 });
+
+it('should analyze correctly a rust project', async () => {
+  const codeFolder = path.resolve(__dirname, 'samples/rust');
+  const resultsPath = path.resolve(__dirname, 'results/code-analysis-rust.json');
+
+  const results = await analyzeWithSemgrep(codeFolder, resultsPath);
+
+  expect(results).toStrictEqual({
+    dependencies: ['dependency-a', 'dependency-b', 'dependency-c', 'dependency-d'],
+    functions: ['send_welcome_message', 'send_email', 'global_callback', 'async_global_callback', 'run', 'notification_callback'],
+  });
+});

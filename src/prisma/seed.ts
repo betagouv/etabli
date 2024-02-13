@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-import { seedProductionDataIntoDatabase } from '@etabli/prisma/production-seed';
+import { seedProductionDataIntoDatabase } from '@etabli/src/prisma/production-seed';
 
 export async function truncateDatabase(prismaClient: PrismaClient) {
   const tablenames = await prismaClient.$queryRaw<Array<{ tablename: string }>>`SELECT tablename FROM pg_tables WHERE schemaname='public'`;

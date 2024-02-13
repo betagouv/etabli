@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { extractFirstJsonCodeContentFromMarkdown } from '@etabli/features/llm';
+import { extractFirstJsonCodeContentFromMarkdown } from '@etabli/src/features/llm';
 
 describe('extractFirstJsonCodeContentFromMarkdown()', () => {
   const markdown = `Hello, I just generated this:

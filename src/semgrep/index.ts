@@ -4,7 +4,7 @@ import fs from 'fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'path';
 
-import { SemgrepResultSchema } from '@etabli/semgrep';
+import { SemgrepResultSchema } from '@etabli/src/semgrep';
 
 export interface AnalysisResult {
   functions: string[];

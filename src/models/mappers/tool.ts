@@ -1,5 +1,5 @@
-import { CsvToolCategorySchema, CsvToolCategorySchemaType } from '@etabli/features/tool';
-import { ToolCategorySchema, ToolCategorySchemaType } from '@etabli/models/entities/tool';
+import { CsvToolCategorySchema, CsvToolCategorySchemaType } from '@etabli/src/features/tool';
+import { ToolCategorySchema, ToolCategorySchemaType } from '@etabli/src/models/entities/tool';
 
 export function toolTypeCsvToModel(csvType: CsvToolCategorySchemaType): ToolCategorySchemaType {
   switch (csvType) {

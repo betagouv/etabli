@@ -4,7 +4,7 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { analyzeWithSemgrep } from '@etabli/semgrep/index';
+import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

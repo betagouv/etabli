@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { Browser, Page, Response, chromium } from 'playwright';
 
-import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/models/entities/errors';
+import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/src/models/entities/errors';
 
 export interface getWebsiteDataResponse {
   status: number;

@@ -1,0 +1,18 @@
+@import '@etabli/src/app/workarounds.scss';
+
+.protectedFromStyleSwitchWorkaround {
+  /* This file will not see its style definition received a `media="not all"` (that was needed due to DSFR style leakage in Storybook) */
+  display: none;
+}
+
+html,
+body,
+#storybook-root {
+  width: 100%;
+  height: 100%;
+}
+
+#storybook-root {
+  display: flex;
+  flex-direction: column;
+}

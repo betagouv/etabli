@@ -13,12 +13,12 @@ import { BufferMemory } from 'langchain/memory';
 import mistralTokenizer from 'mistral-tokenizer-js';
 import path from 'path';
 
-import { ChunkEventEmitter, LlmManager, extractFirstJsonCodeContentFromMarkdown } from '@etabli/features/llm';
-import { gptInstances, gptSeed } from '@etabli/gpt';
-import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/gpt/template';
-import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
-import { prisma } from '@etabli/prisma';
-import { sleep } from '@etabli/utils/sleep';
+import { ChunkEventEmitter, LlmManager, extractFirstJsonCodeContentFromMarkdown } from '@etabli/src/features/llm';
+import { gptInstances, gptSeed } from '@etabli/src/gpt';
+import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
+import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
+import { prisma } from '@etabli/src/prisma';
+import { sleep } from '@etabli/src/utils/sleep';
 
 export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public readonly mistralaiClient;

@@ -1,11 +1,11 @@
 import { Settings } from '@prisma/client';
 import EventEmitter from 'eventemitter3';
 
-import { LangchainWithLocalVectorStoreLlmManager } from '@etabli/features/llm-langchain';
-import { OpenaiWithAssistantApiLlmManager } from '@etabli/features/llm-openai';
-import { initSettingsIfNeeded } from '@etabli/features/settings';
-import { ResultSchemaType } from '@etabli/gpt/template';
-import { prisma } from '@etabli/prisma';
+import { LangchainWithLocalVectorStoreLlmManager } from '@etabli/src/features/llm-langchain';
+import { OpenaiWithAssistantApiLlmManager } from '@etabli/src/features/llm-openai';
+import { initSettingsIfNeeded } from '@etabli/src/features/settings';
+import { ResultSchemaType } from '@etabli/src/gpt/template';
+import { prisma } from '@etabli/src/prisma';
 
 export interface LlmManager {
   init(): Promise<void>;

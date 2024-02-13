@@ -1,0 +1,3 @@
+bitbucket.org/account-a/dependency-a v0.0.0-20210518135415-aaa374b9a1b3/go.mod h1:sN1Gi5mPkOFfVbKNb5KEPjCdrQLM6RoQDcsHGOqzO98=
+bitbucket.org/account-a/dependency-b v0.0.0-20220210111730-aaaefa1df51a/go.mod h1:sN1Gi5mPkOFfVbKNb5KEPjCdrQLM6RoQDcsHGOqzO98=
+github.com/account-b/dependency-c v1.2.1 h1:PBIGdzcO1teYoufTKMcGibdKaYZv4avS+O6LNIp8bq0=

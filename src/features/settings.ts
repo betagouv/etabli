@@ -1,4 +1,4 @@
-import { prisma } from '@etabli/prisma';
+import { prisma } from '@etabli/src/prisma';
 
 export async function initSettingsIfNeeded() {
   const settings = await prisma.settings.findUnique({

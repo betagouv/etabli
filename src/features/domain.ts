@@ -12,16 +12,16 @@ import { PeerCertificate, TLSSocket } from 'tls';
 import { fileURLToPath } from 'url';
 import z from 'zod';
 
-import { downloadFile } from '@etabli/common';
-import { getWebsiteData, guessWebsiteNameFromPageTitles } from '@etabli/features/website';
-import { LitePeerCertificateSchema } from '@etabli/models/entities/certificate';
-import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/models/entities/errors';
-import { LiteRawDomainSchema, LiteRawDomainSchemaType } from '@etabli/models/entities/raw-domain';
-import { rawDomainTypeCsvToModel } from '@etabli/models/mappers/raw-domain';
-import { prisma } from '@etabli/prisma';
-import { getListDiff } from '@etabli/utils/comparaison';
-import { containsHtml } from '@etabli/utils/html';
-import { sleep } from '@etabli/utils/sleep';
+import { downloadFile } from '@etabli/src/common';
+import { getWebsiteData, guessWebsiteNameFromPageTitles } from '@etabli/src/features/website';
+import { LitePeerCertificateSchema } from '@etabli/src/models/entities/certificate';
+import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/src/models/entities/errors';
+import { LiteRawDomainSchema, LiteRawDomainSchemaType } from '@etabli/src/models/entities/raw-domain';
+import { rawDomainTypeCsvToModel } from '@etabli/src/models/mappers/raw-domain';
+import { prisma } from '@etabli/src/prisma';
+import { getListDiff } from '@etabli/src/utils/comparaison';
+import { containsHtml } from '@etabli/src/utils/html';
+import { sleep } from '@etabli/src/utils/sleep';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

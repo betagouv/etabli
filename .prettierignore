@@ -1,1 +1,14 @@
+/.cache/
+/.lighthouseci/
+/.next/
+/.storybook/.cache/
+/.storybook/coverage/
+/.storybook/storybook-static/
+/.vscode/i18n-ally-reviews.yml
 /data/
+/dist/
+/public/mockServiceWorker.js
+/src/**/*.docx
+/src/**/*.transformed.html
+**/.dockerignore
+/package-lock.json

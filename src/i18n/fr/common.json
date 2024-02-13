@@ -1,0 +1,29 @@
+{
+  "boolean": {
+    "false": "Non",
+    "true": "Oui"
+  },
+  "components": {
+    "BaseForm": {
+      "form_contains_errors_one": "Le formulaire soumis contient une erreur. Le champ invalide a été marqué en rouge.",
+      "form_contains_errors_other": "Le formulaire soumis contient plusieurs erreurs. Les champs invalides ont été marqués en rouge."
+    }
+  },
+  "errors": {
+    "custom": {
+      "internalServerError": "une erreur interne est survenue, veuillez retenter",
+      "unauthorizedError": "vous devez être connecté pour effectuer cette action",
+      "unexpectedError": "une erreur inattendue est survenue, veuillez retenter"
+    },
+    "validation": {}
+  },
+  "date": {
+    "ago": "{{ date, ago }}",
+    "default": "{{ date }}",
+    "long": "{{ date, long }}",
+    "longWithTime": "{{ date, longWithTime }}",
+    "relative": "{{ date, relative }}",
+    "short": "{{ date, short }}"
+  },
+  "model": {}
+}

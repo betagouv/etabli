@@ -1,5 +1,5 @@
-import { JsonRepositoryPlatformSchema, JsonRepositoryPlatformSchemaType } from '@etabli/features/repository';
-import { RawRepositoryPlatformSchema, RawRepositoryPlatformSchemaType } from '@etabli/models/entities/raw-repository';
+import { JsonRepositoryPlatformSchema, JsonRepositoryPlatformSchemaType } from '@etabli/src/features/repository';
+import { RawRepositoryPlatformSchema, RawRepositoryPlatformSchemaType } from '@etabli/src/models/entities/raw-repository';
 
 export function rawRepositoryPlatformJsonToModel(csvType: JsonRepositoryPlatformSchemaType): RawRepositoryPlatformSchemaType | null {
   switch (csvType) {

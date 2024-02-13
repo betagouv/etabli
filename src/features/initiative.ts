@@ -19,8 +19,8 @@ import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import Wappalyzer from 'wappalyzer';
 
-import manifestsEndingPatterns from '@etabli/bibliothecary/manifests-patterns.json';
-import { ChunkEventEmitter, llmManagerInstance } from '@etabli/features/llm';
+import manifestsEndingPatterns from '@etabli/src/bibliothecary/manifests-patterns.json';
+import { ChunkEventEmitter, llmManagerInstance } from '@etabli/src/features/llm';
 import {
   InitiativeTemplateSchema,
   RepositoryTemplateSchema,
@@ -29,16 +29,16 @@ import {
   WebsiteTemplateSchema,
   WebsiteTemplateSchemaType,
   resultSchemaDefinition,
-} from '@etabli/gpt/template';
-import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
-import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/models/entities/initiative';
-import { prisma } from '@etabli/prisma';
-import { analyzeWithSemgrep } from '@etabli/semgrep/index';
-import { getListDiff } from '@etabli/utils/comparaison';
-import { capitalizeFirstLetter } from '@etabli/utils/format';
-import { languagesExtensions } from '@etabli/utils/languages';
-import { sleep } from '@etabli/utils/sleep';
-import { WappalyzerResultSchema } from '@etabli/wappalyzer';
+} from '@etabli/src/gpt/template';
+import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
+import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/src/models/entities/initiative';
+import { prisma } from '@etabli/src/prisma';
+import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
+import { getListDiff } from '@etabli/src/utils/comparaison';
+import { capitalizeFirstLetter } from '@etabli/src/utils/format';
+import { languagesExtensions } from '@etabli/src/utils/languages';
+import { sleep } from '@etabli/src/utils/sleep';
+import { WappalyzerResultSchema } from '@etabli/src/wappalyzer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

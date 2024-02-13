@@ -3,7 +3,7 @@
  */
 import { getListDiff as libraryGetListDiff } from '@donedeal0/superdiff';
 
-import { getListDiff } from '@etabli/utils/comparaison';
+import { getListDiff } from '@etabli/src/utils/comparaison';
 
 describe('getListDiff()', () => {
   it('should recognize same objects based on id in the list', async () => {

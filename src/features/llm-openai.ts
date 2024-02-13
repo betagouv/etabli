@@ -12,12 +12,12 @@ import path from 'path';
 import { encoding_for_model } from 'tiktoken';
 import { fileURLToPath } from 'url';
 
-import { ChunkEventEmitter, LlmManager } from '@etabli/features/llm';
-import { gptInstances } from '@etabli/gpt';
-import { DocumentInitiativeTemplateSchema, DocumentInitiativesChunkTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/gpt/template';
-import { tokensReachTheLimitError } from '@etabli/models/entities/errors';
-import { prisma } from '@etabli/prisma';
-import { sleep } from '@etabli/utils/sleep';
+import { ChunkEventEmitter, LlmManager } from '@etabli/src/features/llm';
+import { gptInstances } from '@etabli/src/gpt';
+import { DocumentInitiativeTemplateSchema, DocumentInitiativesChunkTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
+import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
+import { prisma } from '@etabli/src/prisma';
+import { sleep } from '@etabli/src/utils/sleep';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

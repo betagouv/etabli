@@ -1,0 +1,26 @@
+<script type="text/javascript">
+  // The following is a workaround, I explained with in https://github.com/hipstersmoothie/storybook-dark-mode/issues/174#issuecomment-1369229511
+
+  function updateTheme() {
+    const themeString = localStorage.getItem('sb-addon-themes-3');
+
+    if (themeString) {
+      const theme = JSON.parse(themeString);
+      const themeValue = theme['current'] === 'light' ? 'light' : 'dark';
+
+      document.documentElement.dataset.theme = themeValue;
+      document.documentElement.dataset.frTheme = themeValue;
+      document.documentElement.dataset.frScheme = themeValue;
+
+      // [WORKAROUND] At the same time update the "lang" for the iframe so native speech recognition expects french
+      document.documentElement.lang = 'fr';
+    }
+  }
+
+  window.addEventListener('storage', (e) => {
+    updateTheme();
+  });
+
+  // Call it at start to init correctly
+  updateTheme();
+</script>

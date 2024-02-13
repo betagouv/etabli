@@ -1,15 +1,17 @@
 {
   "recommendations": [
-    "benspaulding.procfile",
     "bradgashler.htmltagwrap",
     "christian-kohler.npm-intellisense",
     "dbaeumer.vscode-eslint",
+    "deerawan.vscode-faker",
     "deque-systems.vscode-axe-linter",
     "dsznajder.es7-react-js-snippets",
     "EditorConfig.EditorConfig",
     "esbenp.prettier-vscode",
     "formulahendry.auto-rename-tag",
     "lacroixdavid1.vscode-format-context-menu",
+    "lokalise.i18n-ally",
+    "ms-vscode.makefile-tools",
     "ms-vsliveshare.vsliveshare",
     "Orta.vscode-jest",
     "Prisma.prisma",

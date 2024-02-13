@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { stripMultirepositoriesPatterns } from '@etabli/features/repository';
+import { stripMultirepositoriesPatterns } from '@etabli/src/features/repository';
 
 describe('stripMultirepositoriesPatterns()', () => {
   it('should confirm it can be indexed', async () => {

@@ -3,8 +3,8 @@
  */
 import { JSDOM } from 'jsdom';
 
-import { guessWebsiteNameFromPageTitles } from '@etabli/features/website';
-import { containsHtml } from '@etabli/utils/html';
+import { guessWebsiteNameFromPageTitles } from '@etabli/src/features/website';
+import { containsHtml } from '@etabli/src/utils/html';
 
 describe('guessWebsiteNameFromPageTitles()', () => {
   it('should extract interesting part', async () => {

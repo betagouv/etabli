@@ -1,0 +1,35 @@
+// ---
+// The following is needed because links contained (NextLink) have weird parameters (in the opposite of a button with "onClick") that breaks the wanted UI
+// Adding here some workarounds but more may be needed depending on the color needed (I was not able to override or disable the style making a mess... tried a lot)
+//
+// For example, those are responsible:
+// * --hover-tint: var(--idle);
+// * --active-tint: var(--active);
+.MuiButton-containedPrimary {
+  background-image: none !important;
+
+  &:hover {
+    background-color: var(--background-active-blue-france-hover) !important;
+  }
+
+  &:active {
+    background-color: var(--background-active-blue-france-active) !important;
+  }
+}
+
+a.MuiMenuItem-root {
+  background-image: none !important;
+
+  &:hover {
+    background-color: var(--background-default-grey-hover) !important;
+  }
+
+  &:active {
+    background-color: var(--background-default-grey-active) !important;
+  }
+}
+
+// The page numbers indicator sticks to the top whereas it should be vertically centered, probably due to leaking DSFR style
+.MuiDataGrid-footerContainer .MuiTablePagination-displayedRows {
+  margin: 0 !important;
+}

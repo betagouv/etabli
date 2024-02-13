@@ -1,5 +1,5 @@
-import { CsvDomainTypeSchema, CsvDomainTypeSchemaType } from '@etabli/features/domain';
-import { RawDomainTypeSchema, RawDomainTypeSchemaType } from '@etabli/models/entities/raw-domain';
+import { CsvDomainTypeSchema, CsvDomainTypeSchemaType } from '@etabli/src/features/domain';
+import { RawDomainTypeSchema, RawDomainTypeSchemaType } from '@etabli/src/models/entities/raw-domain';
 
 export function rawDomainTypeCsvToModel(csvType: CsvDomainTypeSchemaType): RawDomainTypeSchemaType | null {
   switch (csvType) {

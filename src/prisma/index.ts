@@ -1,1 +1,1 @@
-export * from '@etabli/prisma/client';
+export * from '@etabli/src/prisma/client';

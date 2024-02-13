@@ -2,8 +2,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { prisma } from '@etabli/prisma';
-import { seedDatabase } from '@etabli/prisma/seed';
+import { prisma } from '@etabli/src/prisma';
+import { seedDatabase } from '@etabli/src/prisma/seed';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

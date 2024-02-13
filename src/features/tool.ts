@@ -6,12 +6,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import z from 'zod';
 
-import { downloadFile } from '@etabli/common';
-import { LiteToolSchema, LiteToolSchemaType, ToolCategorySchema } from '@etabli/models/entities/tool';
-import { toolTypeCsvToModel } from '@etabli/models/mappers/tool';
-import { prisma } from '@etabli/prisma';
-import { getListDiff } from '@etabli/utils/comparaison';
-import { emptyStringtoNullPreprocessor } from '@etabli/utils/validation';
+import { downloadFile } from '@etabli/src/common';
+import { LiteToolSchema, LiteToolSchemaType, ToolCategorySchema } from '@etabli/src/models/entities/tool';
+import { toolTypeCsvToModel } from '@etabli/src/models/mappers/tool';
+import { prisma } from '@etabli/src/prisma';
+import { getListDiff } from '@etabli/src/utils/comparaison';
+import { emptyStringtoNullPreprocessor } from '@etabli/src/utils/validation';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

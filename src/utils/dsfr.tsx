@@ -21,7 +21,7 @@ export const commonHeaderAttributes = {
   brandTop: brandTop,
   homeLinkProps: homeLinkProps,
   serviceTitle: 'Établi',
-  serviceTagline: 'Initiatives numériques publiques',
+  serviceTagline: 'Initiatives publiques numériques',
 };
 
 export const commonFooterAttributes = {

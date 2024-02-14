@@ -1,6 +1,7 @@
 import { Notice } from '@codegouvfr/react-dsfr/Notice';
-import Link from '@mui/material/Link';
-import NextLink from 'next/link';
+import Button from '@mui/lab/LoadingButton';
+
+import { useLiveChat } from '@etabli/src/components/live-chat/useLiveChat';
 
 export interface FlashMessageProps {
   appMode?: string;
@@ -8,18 +9,25 @@ export interface FlashMessageProps {
 }
 
 export function FlashMessage(props: FlashMessageProps) {
-  if (props.appMode === 'dev' && props.nodeEnv === 'production') {
+  const { showLiveChat, isLiveChatLoading } = useLiveChat();
+
+  if (props.nodeEnv === 'production') {
     return (
       <Notice
         title={
           <>
-            Vous êtes actuellement sur la version de test interne. La version grand public est accessible sur{' '}
-            <Link component={NextLink} href="https://www.mediateur-public.fr" color="inherit">
-              www.mediateur-public.fr
-            </Link>
+            Ce service vient tout juste d&apos;être lancé, merci de nous faire vos retours dans la section{' '}
+            <Button onClick={showLiveChat} loading={isLiveChatLoading} size="small" variant="contained" sx={{ ml: 1 }}>
+              Support
+            </Button>
           </>
         }
         isClosable
+        style={{
+          fontSize: '0.9rem',
+          paddingTop: '0.5rem',
+          paddingBottom: '0.5rem',
+        }}
       />
     );
   }

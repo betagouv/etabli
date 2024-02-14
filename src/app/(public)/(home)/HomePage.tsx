@@ -2,6 +2,8 @@
 
 import Grid from '@mui/material/Grid';
 
+import { Introduction } from '@etabli/src/app/(public)/(home)/Introduction';
+
 export function HomePage() {
   return (
     <Grid
@@ -11,7 +13,7 @@ export function HomePage() {
         mx: 'auto',
       }}
     >
-      Coucou
+      <Introduction />
     </Grid>
   );
 }

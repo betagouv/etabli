@@ -2,38 +2,34 @@
 
 import { Footer } from '@codegouvfr/react-dsfr/Footer';
 import { Header, HeaderProps } from '@codegouvfr/react-dsfr/Header';
-import { usePathname } from 'next/navigation';
 import { PropsWithChildren } from 'react';
 
+import '@etabli/src/app/(public)/layout.scss';
 import { ContentWrapper } from '@etabli/src/components/ContentWrapper';
 import { FlashMessage } from '@etabli/src/components/FlashMessage';
 import { commonFooterAttributes, commonHeaderAttributes } from '@etabli/src/utils/dsfr';
-import { linkRegistry } from '@etabli/src/utils/routes/registry';
-import { hasPathnameThisMatch } from '@etabli/src/utils/url';
 
 export function PublicLayout(props: PropsWithChildren) {
-  const pathname = usePathname();
-
-  let quickAccessItems: HeaderProps.QuickAccessItem[] = [];
-
-  const homeLink = linkRegistry.get('home', undefined);
+  let quickAccessItems: HeaderProps.QuickAccessItem[] = [
+    {
+      iconId: 'fr-icon-home-4-line',
+      linkProps: {
+        href: '#',
+      },
+      text: 'Accueil',
+    },
+    {
+      iconId: 'fr-icon-search-line',
+      linkProps: {
+        href: '#',
+      },
+      text: 'Explorer...',
+    },
+  ];
 
   return (
     <>
-      <Header
-        {...commonHeaderAttributes}
-        quickAccessItems={quickAccessItems}
-        navigation={[
-          {
-            isActive: hasPathnameThisMatch(pathname, homeLink),
-            linkProps: {
-              href: homeLink,
-              target: '_self',
-            },
-            text: 'Accueil',
-          },
-        ]}
-      />
+      <Header {...commonHeaderAttributes} quickAccessItems={quickAccessItems} navigation={[]} />
       <FlashMessage appMode={process.env.NEXT_PUBLIC_APP_MODE} nodeEnv={process.env.NODE_ENV} />
       <ContentWrapper>{props.children}</ContentWrapper>
       <Footer {...commonFooterAttributes} />

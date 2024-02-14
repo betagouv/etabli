@@ -6,9 +6,9 @@ export const defaultColorScheme: DefaultColorScheme = 'system';
 
 export const brandTop = (
   <>
-    COLLECTIVITÉS
+    République
     <br />
-    FRANÇAISES
+    Française
   </>
 );
 
@@ -21,7 +21,7 @@ export const commonHeaderAttributes = {
   brandTop: brandTop,
   homeLinkProps: homeLinkProps,
   serviceTitle: 'Établi',
-  serviceTagline: 'Service public de médiation',
+  serviceTagline: 'Initiatives numériques publiques',
 };
 
 export const commonFooterAttributes = {
@@ -32,7 +32,6 @@ export const commonFooterAttributes = {
     href: '/accessibilite',
   },
   brandTop: brandTop,
-  contentDescription: 'Ce site est géré par les collectivités.',
   homeLinkProps: homeLinkProps,
   termsLinkProps: {
     // href: linkRegistry.get('legalNotice', undefined),

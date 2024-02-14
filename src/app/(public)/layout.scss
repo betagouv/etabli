@@ -1,0 +1,25 @@
+// Reduce DSFR elements to focus on content
+
+@media (min-width: 62em) {
+  .fr-header__logo {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}
+
+.fr-footer {
+  padding-top: 0 !important;
+
+  .fr-footer__body {
+    margin-bottom: 0 !important;
+  }
+
+  .fr-footer__brand {
+    display: none !important;
+  }
+
+  .fr-footer__content {
+    flex-basis: unset !important;
+    margin-top: 0 !important;
+  }
+}

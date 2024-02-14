@@ -41,6 +41,6 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true
   },
-  "include": ["**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "data", "dist", ".storybook/node_modules", ".storybook/storybook-static"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "data", "dist", ".next", ".storybook/node_modules", ".storybook/storybook-static"]
 }

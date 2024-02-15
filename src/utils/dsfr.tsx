@@ -14,7 +14,7 @@ export const brandTop = (
 
 export const homeLinkProps = {
   href: '/',
-  title: 'Accueil - Établi',
+  title: 'Présentation - Établi',
 };
 
 export const commonHeaderAttributes = {

@@ -2,6 +2,7 @@
 
 import Grid from '@mui/material/Grid';
 
+import { FrequentlyAskedQuestions } from '@etabli/src/app/(public)/(home)/FrequentlyAskedQuestions';
 import { Introduction } from '@etabli/src/app/(public)/(home)/Introduction';
 import { KeyReasons } from '@etabli/src/app/(public)/(home)/KeyReasons';
 
@@ -16,6 +17,7 @@ export function HomePage() {
     >
       <Introduction />
       <KeyReasons />
+      <FrequentlyAskedQuestions />
     </Grid>
   );
 }

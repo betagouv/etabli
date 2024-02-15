@@ -16,7 +16,7 @@ export function PublicLayout(props: PropsWithChildren) {
       linkProps: {
         href: '#',
       },
-      text: 'Accueil',
+      text: 'Présentation',
     },
     {
       iconId: 'fr-icon-search-line',

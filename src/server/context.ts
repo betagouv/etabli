@@ -1,5 +1,6 @@
 import * as trpc from '@trpc/server';
-import * as trpcNext from '@trpc/server/adapters/next';
+import type { CreateNextContextOptions } from '@trpc/server/adapters/next';
+import type { CreateWSSContextFnOptions } from '@trpc/server/adapters/ws';
 
 interface CreateContextOptions {
   rsc: boolean;
@@ -16,7 +17,8 @@ export async function createContext(
     | {
         type: 'rsc';
       }
-    | (trpcNext.CreateNextContextOptions & { type: 'api' })
+    | (CreateNextContextOptions & { type: 'api' })
+    | (CreateWSSContextFnOptions & { type: 'api' })
 ) {
   if (opts.type === 'rsc') {
     // RSC

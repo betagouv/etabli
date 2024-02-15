@@ -1,0 +1,148 @@
+'use client';
+
+import Box from '@mui/material/Box';
+import Container from '@mui/material/Container';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+
+import { RequestAssistantForm } from '@etabli/src/app/(public)/assistant/RequestAssistantForm';
+import assistantAvatar from '@etabli/src/assets/images/assistant_avatar.png';
+import { trpc } from '@etabli/src/client/trpcClient';
+import { Avatar } from '@etabli/src/components/Avatar';
+import { Message } from '@etabli/src/components/Message';
+import { MessageAuthorSchema, MessageSchema, MessageSchemaType, SessionAnswerChunkSchemaType } from '@etabli/src/models/entities/assistant';
+
+export const AssistantPageContext = createContext({
+  ContextualRequestAssistantForm: RequestAssistantForm,
+});
+
+export interface AssistantPageProps {
+  prefilledMessages?: MessageSchemaType[];
+}
+
+export function AssistantPage(props: AssistantPageProps) {
+  const { ContextualRequestAssistantForm } = useContext(AssistantPageContext);
+
+  const [sessionId, setSessionId] = useState<string>(() => uuidv4());
+  const [messages, setMessages] = useState<MessageSchemaType[]>(() => props.prefilledMessages || []);
+
+  const handleNewMessage = (data: SessionAnswerChunkSchemaType) => {
+    // If not for the current session (for any reason, ignore)
+    if (data.sessionId !== sessionId) {
+      return;
+    }
+
+    // Modify existing message if any
+    let message = messages.find((message) => message.id === data.messageId);
+    if (!message) {
+      message = {
+        id: data.messageId,
+        author: MessageAuthorSchema.Values.ASSISTANT,
+        content: '',
+        complete: false,
+      };
+
+      messages.push(message);
+    }
+
+    // If the message has been completed by the mutation in the meantime, skip this chunk
+    if (!message.complete) {
+      message.content += data.chunk;
+    }
+
+    // Needed to re-render
+    setMessages([...messages]);
+  };
+
+  trpc.subscribeAssistantAnswerChunk.useSubscription(
+    {
+      sessionId: sessionId,
+    },
+    {
+      onStarted() {},
+      onError(error) {
+        console.log(error);
+      },
+      onData(data) {
+        handleNewMessage(data);
+      },
+    }
+  );
+
+  const restartSession = () => {
+    // The subscription of tRPC would will automatically due to state change
+    setSessionId(uuidv4());
+    setMessages([]);
+  };
+
+  return (
+    <Container
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        py: 3,
+      }}
+    >
+      <Box sx={{ flex: 1, minHeight: 400, pb: 2 }}>
+        {messages.length > 0 ? (
+          <Box sx={{ pb: 2 }}>
+            {messages.map((message) => (
+              <Box key={message.id} sx={{ py: '0.75rem' }}>
+                <Message message={message} />
+              </Box>
+            ))}
+          </Box>
+        ) : (
+          <Grid container spacing={2} justifyContent="center" sx={{ height: '100%' }}>
+            <Grid item xs={12} sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+              <Box sx={{ flex: 1 }} />
+              <Box sx={{ textAlign: 'center', mt: 1, mb: { xs: 2, sm: 4 } }}>
+                <Avatar fullName="Assistant" src={assistantAvatar.src} size={48} sx={{ margin: 'auto' }} />
+                <Typography component="div" variant="h5" sx={{ mt: { xs: 1, sm: 2 } }}>
+                  Je vais vous aider à explorer les initiatives publiques numériques.
+                  <br />
+                  Que recherchez-vous ?
+                </Typography>
+              </Box>
+              <Box sx={{ flex: 1 }} />
+              <Typography component="span" variant="body2" sx={{ textAlign: 'center', mt: 1 }}>
+                L&apos;assistant virtuel peut être inexact voire se tromper, faites-nous vos retours pour que l&apos;équipe Établi puisse
+                l&apos;améliorer.
+              </Typography>
+            </Grid>
+          </Grid>
+        )}
+      </Box>
+      <Box sx={{ bgcolor: 'var(--background-default-grey)', position: 'sticky', bottom: '1.5rem', pt: 1 }}>
+        <Grid container spacing={2} sx={{ bgcolor: 'var(--background-default-grey)' }}>
+          <Grid item xs={12}>
+            <ContextualRequestAssistantForm
+              prefill={{ sessionId: sessionId }}
+              onNewMessage={(newMessage) => {
+                // todo: force replace all ...messages?
+                let existingMessage = messages.find((message) => message.id === newMessage.id);
+                if (!existingMessage) {
+                  // It's possible the message does not already exist if it's a user message or if the chunks through subscription didn't worked
+                  messages.push(newMessage);
+                } else {
+                  existingMessage.complete = newMessage.complete;
+                  existingMessage.content = newMessage.content;
+                }
+
+                // Needed to re-render
+                setMessages([...messages]);
+              }}
+              // TODO: for now subscriptions have no reactivity on parameters and cannot be stopped/restarted, so disabling the feature for now (ref: https://github.com/trpc/trpc/issues/4122#issuecomment-1952008170)
+              // canBeReset={messages.length > 0}
+              canBeReset={false}
+              onResetSession={restartSession}
+            />
+          </Grid>
+        </Grid>
+      </Box>
+    </Container>
+  );
+}

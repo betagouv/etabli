@@ -38,7 +38,9 @@ function stringToColor(string: string) {
 
 export interface AvatarProps {
   fullName: string;
+  src?: string | undefined;
   size?: number;
+  sx?: React.ComponentProps<typeof MuiAvatar>['sx'];
 }
 
 export const Avatar = (props: AvatarProps) => {
@@ -47,8 +49,8 @@ export const Avatar = (props: AvatarProps) => {
   }, [props.size]);
 
   return (
-    <MuiAvatar className="UserAvatar" sx={{ width: size, height: size, fontSize: size / 2, bgcolor: stringToColor(props.fullName) }}>
-      {extractInitials(props.fullName)}
+    <MuiAvatar sx={{ width: size, height: size, fontSize: size / 2, bgcolor: stringToColor(props.fullName), ...(props.sx || {}) }} src={props.src}>
+      {props.src ? null : extractInitials(props.fullName)}
     </MuiAvatar>
   );
 };

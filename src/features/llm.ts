@@ -2,6 +2,7 @@ import { Settings } from '@prisma/client';
 import EventEmitter from 'eventemitter3';
 
 import { LangchainWithLocalVectorStoreLlmManager } from '@etabli/src/features/llm-langchain';
+import { MockVectorStoreLlmManager } from '@etabli/src/features/llm-mock';
 import { OpenaiWithAssistantApiLlmManager } from '@etabli/src/features/llm-openai';
 import { initSettingsIfNeeded } from '@etabli/src/features/settings';
 import { ResultSchemaType } from '@etabli/src/gpt/template';
@@ -20,7 +21,8 @@ export interface LlmManager {
 
 export type ChunkEventEmitter = EventEmitter<'chunk'>;
 
-export const llmManagerInstance = new LangchainWithLocalVectorStoreLlmManager();
+export const llmManagerInstance =
+  process.env.LLM_MANAGER_MOCK === 'true' ? new MockVectorStoreLlmManager() : new LangchainWithLocalVectorStoreLlmManager();
 // export const llmManagerInstance = new OpenaiWithAssistantApiLlmManager();
 
 export function extractFirstJsonCodeContentFromMarkdown(markdown: string): string | null {

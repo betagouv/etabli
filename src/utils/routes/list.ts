@@ -5,6 +5,12 @@ import { createRouter, defineRoute, param } from 'type-route';
 import { Lang, defineLocalizedRoute } from './common';
 
 export const localizedRoutes = {
+  assistant: defineLocalizedRoute(
+    {},
+    {
+      en: (p) => `/assistant`,
+    }
+  ),
   explore: defineLocalizedRoute(
     {},
     {
@@ -21,6 +27,12 @@ export const localizedRoutes = {
     { initiativeId: param.path.string },
     {
       en: (p) => `/initiative/${p.initiativeId}`,
+    }
+  ),
+  initiatives: defineLocalizedRoute(
+    {},
+    {
+      en: (p) => `/initiatives`,
     }
   ),
 };
@@ -58,8 +70,10 @@ function createLocalizedRouter<RouteDefs extends { [routeName in keyof typeof lo
 
 export const routes = {
   en: createLocalizedRouter({
+    assistant: defineRoute(localizedRoutes.assistant.params, localizedRoutes.assistant.paths.en),
     explore: defineRoute(localizedRoutes.explore.params, localizedRoutes.explore.paths.en),
     home: defineRoute(localizedRoutes.home.params, localizedRoutes.home.paths.en),
     initiative: defineRoute(localizedRoutes.initiative.params, localizedRoutes.initiative.paths.en),
+    initiatives: defineRoute(localizedRoutes.initiatives.params, localizedRoutes.initiatives.paths.en),
   }).routes,
 };

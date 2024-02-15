@@ -26,6 +26,13 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
   connectSrcValues.push(inferedSentryUrl);
 }
 
+// WebSocket server
+if (process.env.NODE_ENV === 'production') {
+  connectSrcValues.push(process.env.NEXT_PUBLIC_WEBSOCKET_BASE_URL);
+} else {
+  connectSrcValues.push(`ws://localhost:${process.env.WEBSOCKET_PORT}/`);
+}
+
 // Due to Next.js hot reload in development we need to allow `eval()`
 // Ref: https://github.com/vercel/next.js/issues/14221
 if (process.env.NODE_ENV !== 'production') {

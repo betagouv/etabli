@@ -24,11 +24,19 @@ import { gracefulExit } from '@etabli/src/server/system';
 let databaseUrl = process.env.DATABASE_URL || '';
 databaseUrl = databaseUrl.replace('sslmode=prefer', 'sslmode=no-verify');
 
-const bossClient = new PgBoss({
-  connectionString: databaseUrl,
-  newJobCheckIntervalSeconds: 30, // No need to check every 2 seconds as set by default to look at new jobs
-  deleteAfterDays: 45, // Give some time before cleaning archives so an issue can be investigated without dealing with database backups
-});
+declare global {
+  var bossClient: PgBoss | undefined;
+}
+
+// Make it unique singleton across Next.js module compilations
+export let bossClient =
+  global.bossClient ||
+  new PgBoss({
+    connectionString: databaseUrl,
+    newJobCheckIntervalSeconds: 30, // No need to check every 2 seconds as set by default to look at new jobs
+    deleteAfterDays: 45, // Give some time before cleaning archives so an issue can be investigated without dealing with database backups
+  });
+if (process.env.NODE_ENV !== 'production') global.bossClient = bossClient;
 
 bossClient.on('error', (error) => {
   // This error catcher is just for internal operations on pb-boss (fetching, maintenance...)

@@ -509,11 +509,11 @@ CONTEXT:
 
     let fullAnswer = '';
     for await (const chunk of stream) {
-      fullAnswer += chunk;
-
-      // Notify the caller if it wants to use realtime display (the current function will return will the whole result once the stream is done)
       // Note: for whatever reason the first ones are undefined despite the type (they are chunks with only `input`, then only `chat_history`, then only `content`, and after they are all answer message chunks)
       if (chunk.answer !== undefined) {
+        fullAnswer += chunk.answer;
+
+        // Notify the caller if it wants to use realtime display (the current function will return will the whole result once the stream is done)
         eventEmitter.emit('chunk', chunk.answer);
       }
     }

@@ -3,6 +3,7 @@
   "eslint.packageManager": "npm",
   "files.eol": "\n",
   "files.trimTrailingWhitespace": true,
+  "i18n-ally.localesPaths": ["src/i18n"],
   "jest.jestCommandLine": "npm run test:unit --",
   "jest.autoRun": {
     "watch": true,

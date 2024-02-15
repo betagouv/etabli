@@ -2,9 +2,16 @@ import { NextApiRequest, NextApiResponse } from 'next';
 
 import { scheduleCronTasks } from '@etabli/src/server/queueing/schedule';
 import { gracefulExit } from '@etabli/src/server/system';
+import { createWebsocketServer } from '@etabli/src/server/websocket';
 import { apiHandlerWrapper } from '@etabli/src/utils/api';
 
-let init = false;
+declare global {
+  var init: boolean | undefined;
+}
+
+// Make it unique singleton across Next.js module compilations
+export let init = global.init || false;
+if (process.env.NODE_ENV !== 'production') global.init = init;
 
 export async function handler(req: NextApiRequest, res: NextApiResponse) {
   // As of 2023 Next.js provides no way to launch a callback after startup (which is a shame)
@@ -23,7 +30,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       process.on('SIGINT', gracefulExit);
       process.on('SIGTERM', gracefulExit);
 
-      await scheduleCronTasks();
+      await createWebsocketServer();
+      // await scheduleCronTasks();
 
       console.log('All services have been initialized');
     } catch (error) {

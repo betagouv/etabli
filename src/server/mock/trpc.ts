@@ -36,11 +36,11 @@ export const getTRPCMock = <
   O extends RouterOutputs[K1], // all its keys
 >(endpoint: {
   path: [K1];
-  response: O & object & Error;
-  type?: 'query' | 'mutation';
+  response: O | object | Error;
+  type?: 'query' | 'mutation' | 'subscription';
   delayHook?: (req: RestRequest<DefaultBodyType, PathParams<string>>, params: RouterInputs[K1]) => number | DelayMode | null;
 }) => {
-  const fn = endpoint.type === 'mutation' ? rest.post : rest.get;
+  const fn = endpoint.type === 'mutation' || endpoint.type === 'subscription' ? rest.post : rest.get;
 
   const route = `${mockBaseUrl}/api/trpc/${endpoint.path[0]}`;
 
@@ -49,7 +49,7 @@ export const getTRPCMock = <
 
     let rpcResponse: DefaultBodyType;
     if (isResponseAnError) {
-      rpcResponse = jsonRpcErrorResponse(endpoint.response);
+      rpcResponse = jsonRpcErrorResponse(endpoint.response as Error);
     } else {
       // In the real app we use the `superjson` transformer to encode/decode complex response objects, so we have to mimic the server behavior
       const transformedResponse = superjson.serialize(endpoint.response);

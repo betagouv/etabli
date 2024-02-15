@@ -16,7 +16,7 @@ client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
 # Call the API
 response = client.images.generate(
   model="dall-e-3",
-  prompt="une représentation vectorielle d'un établi avec des outils et des services publiques numériques représentés dessus, et un drapeau français estampillé sur un coin de l'établi, avec un effet de perspective (les outils doivent avoir un peu de couleurs). Tout ce qui est autour de l'établi doit être totalement transparent (format .png), on doit pouvoir distinguer le contenu aussi bien sur fond blanc que sur fond noir.",
+  prompt="simple minimal vector logo design of an virtual assistant with a tool of a workbench in its hand, black vector in a circle on white background",
   size="1024x1024",
   quality="standard",
   n=1,

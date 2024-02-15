@@ -26,7 +26,7 @@ export function FrequentlyAskedQuestions() {
         </Typography>
         <Grid container spacing={2}>
           <Grid item xs={12}>
-            <Accordion>
+            <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 600 }}>Qu&apos;est-ce qu&apos;une &quot;initiative&quot; ?</Typography>
               </AccordionSummary>
@@ -35,7 +35,7 @@ export function FrequentlyAskedQuestions() {
                 par une collectivité territoriale.
               </AccordionDetails>
             </Accordion>
-            <Accordion>
+            <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 600 }}>Comment une initiative est-elle référencée ?</Typography>
               </AccordionSummary>
@@ -48,7 +48,7 @@ export function FrequentlyAskedQuestions() {
                 dépôts. Car les initiatives peuvent être composées de plusieurs sites internet et/ou de plusieurs dépôts.
               </AccordionDetails>
             </Accordion>
-            <Accordion>
+            <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 600 }}>Ma propre initiative n&apos;est pas répertoriée, comment faire ?</Typography>
               </AccordionSummary>
@@ -94,7 +94,7 @@ export function FrequentlyAskedQuestions() {
                 Une fois fait, il convient d&apos;attendre quelques jours le temps que nos processus synchronisent les nouvelles données.
               </AccordionDetails>
             </Accordion>
-            <Accordion>
+            <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 600 }}>Comment mettre à jour la fiche initiative d&apos;un produit que je gère ?</Typography>
               </AccordionSummary>
@@ -123,7 +123,7 @@ export function FrequentlyAskedQuestions() {
                 automatisé soit encore à optimiser. Si tel est le cas, merci de nous part de vos difficultés.
               </AccordionDetails>
             </Accordion>
-            <Accordion>
+            <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 600 }}>
                   Les modifications d&apos;une initiative n&apos;ont pas eu d&apos;effet sur Établi, pourquoi ?
@@ -137,7 +137,7 @@ export function FrequentlyAskedQuestions() {
                 Si jamais cela vous paraît anormalement long, n&apos;hésitez pas à nous contacter.
               </AccordionDetails>
             </Accordion>
-            <Accordion>
+            <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 600 }}>Comment fusionner une initiative répartie sur plusieurs fiches ?</Typography>
               </AccordionSummary>
@@ -155,7 +155,7 @@ export function FrequentlyAskedQuestions() {
                 situation.
               </AccordionDetails>
             </Accordion>
-            <Accordion>
+            <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 600 }}>Est-ce que mes recherches sont sauvegardées ?</Typography>
               </AccordionSummary>
@@ -166,7 +166,7 @@ export function FrequentlyAskedQuestions() {
                 Pour autant, nous vous demandons de ne pas y saisir d&apos;informations sensibles.
               </AccordionDetails>
             </Accordion>
-            <Accordion>
+            <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 600 }}>Quels sont les prochaines améliorations dans Établi ?</Typography>
               </AccordionSummary>

@@ -8,20 +8,21 @@ import '@etabli/src/app/(public)/layout.scss';
 import { ContentWrapper } from '@etabli/src/components/ContentWrapper';
 import { FlashMessage } from '@etabli/src/components/FlashMessage';
 import { commonFooterAttributes, commonHeaderAttributes } from '@etabli/src/utils/dsfr';
+import { linkRegistry } from '@etabli/src/utils/routes/registry';
 
 export function PublicLayout(props: PropsWithChildren) {
   let quickAccessItems: HeaderProps.QuickAccessItem[] = [
     {
       iconId: 'fr-icon-home-4-line',
       linkProps: {
-        href: '#',
+        href: linkRegistry.get('home', undefined),
       },
       text: 'Présentation',
     },
     {
       iconId: 'fr-icon-search-line',
       linkProps: {
-        href: '#',
+        href: linkRegistry.get('explore', undefined),
       },
       text: 'Explorer...',
     },

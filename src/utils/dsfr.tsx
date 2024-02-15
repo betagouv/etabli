@@ -29,13 +29,13 @@ export const commonFooterAttributes = {
   accessibilityLinkProps: {
     // TODO: waiting for the following to be solved https://github.com/zilch/type-route/issues/125
     // href: linkRegistry.get('accessibility', undefined),
-    href: '/accessibilite',
+    href: '/accessibility',
   },
   brandTop: brandTop,
   homeLinkProps: homeLinkProps,
   termsLinkProps: {
     // href: linkRegistry.get('legalNotice', undefined),
-    href: '/mentions-legales',
+    href: '/legal-notice',
   },
   // websiteMapLinkProps: {{
   //   href: '#',
@@ -45,7 +45,7 @@ export const commonFooterAttributes = {
       iconId: undefined as any,
       linkProps: {
         // href: linkRegistry.get('privacyPolicy', undefined),
-        href: '/politique-de-confidentialite',
+        href: '/privacy-policy',
       },
       text: 'Politique de confidentialité',
     },
@@ -53,7 +53,7 @@ export const commonFooterAttributes = {
       iconId: undefined as any,
       linkProps: {
         // href: linkRegistry.get('termsOfUse', undefined),
-        href: '/conditions-generales-d-utilisation',
+        href: '/terms-of-use',
       },
       text: `Conditions générales d'utilisation`,
     },

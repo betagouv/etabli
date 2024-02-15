@@ -3,6 +3,7 @@
 import Grid from '@mui/material/Grid';
 
 import { Introduction } from '@etabli/src/app/(public)/(home)/Introduction';
+import { KeyReasons } from '@etabli/src/app/(public)/(home)/KeyReasons';
 
 export function HomePage() {
   return (
@@ -14,6 +15,7 @@ export function HomePage() {
       }}
     >
       <Introduction />
+      <KeyReasons />
     </Grid>
   );
 }

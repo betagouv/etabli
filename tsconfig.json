@@ -6,10 +6,18 @@
     "strict": true,
     "moduleResolution": "node",
     "paths": {
-      "@etabli/*": ["./*"]
+      "@etabli/*": [
+        "./*"
+      ]
     },
-    "typeRoots": ["node_modules/@types", "./src/@types"],
-    "types": ["jest", "node"],
+    "typeRoots": [
+      "node_modules/@types",
+      "./src/@types"
+    ],
+    "types": [
+      "jest",
+      "node"
+    ],
     "allowJs": true,
     "sourceMap": true,
     "declaration": false,
@@ -22,7 +30,12 @@
     "importHelpers": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "lib": ["esnext", "dom", "dom.iterable", "scripthost"],
+    "lib": [
+      "esnext",
+      "dom",
+      "dom.iterable",
+      "scripthost"
+    ],
     "plugins": [
       {
         "name": "typescript-plugin-css-modules"
@@ -41,6 +54,17 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true
   },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "data", "dist", ".next", ".storybook/node_modules", ".storybook/storybook-static"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "data",
+    "dist",
+    ".next",
+    ".storybook/node_modules",
+    ".storybook/storybook-static"
+  ]
 }

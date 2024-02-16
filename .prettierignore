@@ -12,3 +12,4 @@
 /src/**/*.transformed.html
 **/.dockerignore
 /package-lock.json
+/tsconfig.json

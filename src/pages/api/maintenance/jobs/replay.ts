@@ -1,4 +1,3 @@
-import createHttpError from 'http-errors';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { JobWithMetadata } from 'pg-boss';
 import { z } from 'zod';
@@ -7,15 +6,9 @@ import { BusinessError } from '@etabli/src/models/entities/errors';
 import { MaintenanceDataSchemaType, MaintenanceWrapperDataSchema } from '@etabli/src/models/jobs/maintenance';
 import { getBossClientInstance } from '@etabli/src/server/queueing/client';
 import { apiHandlerWrapper } from '@etabli/src/utils/api';
-
-const maintenanceApiKey = process.env.MAINTENANCE_API_KEY;
+import { assertMaintenanceOperationAuthenticated } from '@etabli/src/utils/maintenance';
 
 export const replayableJobStates: JobWithMetadata['state'][] = ['completed', 'expired', 'cancelled', 'failed'];
-
-export function isAuthenticated(apiKeyHeader?: string): boolean {
-  // If the maintenance api key is not defined on the server we prevent executing operations
-  return !!maintenanceApiKey && maintenanceApiKey === apiKeyHeader;
-}
 
 export const HandlerBodySchema = z
   .object({
@@ -25,12 +18,7 @@ export const HandlerBodySchema = z
 export type HandlerBodySchemaType = z.infer<typeof HandlerBodySchema>;
 
 export async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Check the originator has the maintenance secret
-  if (!isAuthenticated((req.headers as any)['x-api-key'])) {
-    console.log('someone is trying to trigger a job replay without being authenticated');
-
-    throw new createHttpError.Unauthorized(`invalid api key`);
-  }
+  assertMaintenanceOperationAuthenticated(req);
 
   const body = HandlerBodySchema.parse(req.body);
 
@@ -85,4 +73,6 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.send(`The job has been replayed with the id "${newJobId}"`);
 }
 
-export default apiHandlerWrapper(handler);
+export default apiHandlerWrapper(handler, {
+  restrictMethods: ['POST'],
+});

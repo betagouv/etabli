@@ -6,7 +6,7 @@ import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSys
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/src/features/repository';
 import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli/src/features/tool';
 
-const program = new Command();
+export const program = new Command();
 
 program.name('etabli').description('CLI to some deal with Établi project').version('0.0.0');
 
@@ -179,5 +179,3 @@ cache
   .action(async () => {
     console.log('cache.clear');
   });
-
-program.parse();

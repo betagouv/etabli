@@ -4,7 +4,7 @@ import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { RequestAssistantForm } from '@etabli/src/app/(public)/assistant/RequestAssistantForm';
@@ -27,6 +27,7 @@ export function AssistantPage(props: AssistantPageProps) {
 
   const [sessionId, setSessionId] = useState<string>(() => uuidv4());
   const [messages, setMessages] = useState<MessageSchemaType[]>(() => props.prefilledMessages || []);
+  const inputContainerRef = useRef<HTMLDivElement | null>(null); // This is used to scroll to ease the reading
 
   const handleNewMessageChunk = (data: SessionAnswerChunkSchemaType) => {
     // If not for the current session (for any reason, ignore)
@@ -54,6 +55,9 @@ export function AssistantPage(props: AssistantPageProps) {
 
     // Needed to re-render
     setMessages([...messages]);
+
+    // Scroll in case the user was at the top while typing, or in case the new chunk is producing a new line
+    inputContainerRef.current?.scrollIntoView({ behavior: 'instant' });
   };
 
   const restartSession = () => {
@@ -101,7 +105,7 @@ export function AssistantPage(props: AssistantPageProps) {
           </Grid>
         )}
       </Box>
-      <Box sx={{ bgcolor: 'var(--background-default-grey)', position: 'sticky', bottom: '1.5rem', pt: 1 }}>
+      <Box sx={{ bgcolor: 'var(--background-default-grey)', position: 'sticky', bottom: '1.5rem', pt: 1 }} ref={inputContainerRef}>
         <Grid container spacing={2} sx={{ bgcolor: 'var(--background-default-grey)' }}>
           <Grid item xs={12}>
             <ContextualRequestAssistantForm
@@ -120,6 +124,9 @@ export function AssistantPage(props: AssistantPageProps) {
 
                 // Needed to re-render
                 setMessages([...messages]);
+
+                // Scroll in case the user was at the top while typing
+                inputContainerRef.current?.scrollIntoView({ behavior: 'instant' });
               }}
               canBeReset={messages.length > 0}
               onResetSession={restartSession}

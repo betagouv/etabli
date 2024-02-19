@@ -9,7 +9,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import TextField from '@mui/material/TextField';
 import assert from 'assert';
 import { Mutex } from 'locks';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -45,11 +45,18 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
     handleSubmit,
     formState: { errors },
     control,
+    setValue,
     reset,
   } = useForm<RequestAssistantSchemaType>({
     resolver: zodResolver(RequestAssistantSchema),
     defaultValues: props.prefill,
   });
+
+  useEffect(() => {
+    if (props.prefill?.sessionId) {
+      setValue('sessionId', props.prefill.sessionId);
+    }
+  }, [props.prefill?.sessionId]);
 
   const onSubmit = async (input: RequestAssistantSchemaType) => {
     // If it's already running, quit
@@ -88,7 +95,10 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
 
       // Since the answer should be streamed we don't want to keep the input until the end of the generation
       // (it may force the user to copy/paste in case of incomplete answer, but for now it's acceptable)
-      reset();
+      reset({
+        sessionId: props.prefill?.sessionId, // Needed to not get back to the `sessionId` from default values
+        message: '',
+      });
 
       const answerMessageId = uuidv4();
 
@@ -147,7 +157,7 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
                 {mutex.isLocked ? <CircularProgress size={20} aria-label="la réponse est en train d'être générée" /> : <SendIcon />}
               </IconButton>
               {!!props.canBeReset && (
-                <IconButton onClick={props.onResetSession} color="error" disabled={mutex.isLocked} aria-label="redémarrer une session">
+                <IconButton onClick={props.onResetSession} color="error" disabled={mutex.isLocked} aria-label="redémarrer une session" sx={{ mt: 1 }}>
                   <RestartAltIcon />
                 </IconButton>
               )}

@@ -121,9 +121,7 @@ export function AssistantPage(props: AssistantPageProps) {
                 // Needed to re-render
                 setMessages([...messages]);
               }}
-              // TODO: for now subscriptions have no reactivity on parameters and cannot be stopped/restarted, so disabling the feature for now (ref: https://github.com/trpc/trpc/issues/4122#issuecomment-1952008170)
-              // canBeReset={messages.length > 0}
-              canBeReset={false}
+              canBeReset={messages.length > 0}
               onResetSession={restartSession}
             />
           </Grid>

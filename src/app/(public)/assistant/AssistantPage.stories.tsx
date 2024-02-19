@@ -5,8 +5,7 @@ import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { AsVisitor as PublicLayoutAsVisitorStory } from '@etabli/src/app/(public)/PublicLayout.stories';
 import { AssistantPage, AssistantPageContext } from '@etabli/src/app/(public)/assistant/AssistantPage';
 import { Empty as RequestAssistantFormEmptyStory } from '@etabli/src/app/(public)/assistant/RequestAssistantForm.stories';
-import { chunks, messages } from '@etabli/src/fixtures/assistant';
-import { getTRPCMock } from '@etabli/src/server/mock/trpc';
+import { messages } from '@etabli/src/fixtures/assistant';
 
 type ComponentType = typeof AssistantPage;
 const { generateMetaDefault, prepareStory } = StoryHelperFactory<ComponentType>();
@@ -27,38 +26,30 @@ async function playFindFirstMessageElement(canvasElement: HTMLElement): Promise<
   return await within(canvasElement).findByText(/voluptatem/i);
 }
 
-const defaultMswParameters = {
-  msw: {
-    handlers: [
-      getTRPCMock({
-        type: 'subscription',
-        path: ['subscribeAssistantAnswerChunk'],
-        response: chunks[0],
-      }),
-    ],
-  },
-};
-
 const Template: StoryFn<ComponentType> = (args) => {
   return <AssistantPage {...args} />;
 };
 
 const NormalStory = Template.bind({});
 NormalStory.args = {};
-NormalStory.parameters = {
-  ...defaultMswParameters,
-};
+NormalStory.parameters = {};
 NormalStory.play = async ({ canvasElement }) => {
   await playFindPlaceholerElement(canvasElement);
 };
 
-export const Normal = prepareStory(NormalStory, {});
+export const Normal = prepareStory(NormalStory, {
+  childrenContext: {
+    context: AssistantPageContext,
+    value: {
+      ContextualRequestAssistantForm: RequestAssistantFormEmptyStory,
+    },
+  },
+});
 
 const WithLayoutStory = Template.bind({});
 WithLayoutStory.args = {};
 WithLayoutStory.parameters = {
   layout: 'fullscreen',
-  ...defaultMswParameters,
 };
 WithLayoutStory.play = async ({ canvasElement }) => {
   await playFindPlaceholerElement(canvasElement);
@@ -78,14 +69,19 @@ const HistoryStory = Template.bind({});
 HistoryStory.args = {
   prefilledMessages: messages,
 };
-HistoryStory.parameters = {
-  ...defaultMswParameters,
-};
+HistoryStory.parameters = {};
 HistoryStory.play = async ({ canvasElement }) => {
   await playFindFirstMessageElement(canvasElement);
 };
 
-export const History = prepareStory(HistoryStory, {});
+export const History = prepareStory(HistoryStory, {
+  childrenContext: {
+    context: AssistantPageContext,
+    value: {
+      ContextualRequestAssistantForm: RequestAssistantFormEmptyStory,
+    },
+  },
+});
 
 const HistoryWithLayoutStory = Template.bind({});
 HistoryWithLayoutStory.args = {
@@ -93,7 +89,6 @@ HistoryWithLayoutStory.args = {
 };
 HistoryWithLayoutStory.parameters = {
   layout: 'fullscreen',
-  ...defaultMswParameters,
 };
 HistoryWithLayoutStory.play = async ({ canvasElement }) => {
   await playFindFirstMessageElement(canvasElement);

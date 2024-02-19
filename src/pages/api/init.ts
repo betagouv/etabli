@@ -1,8 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
-import { scheduleCronTasks } from '@etabli/src/server/queueing/schedule';
 import { gracefulExit } from '@etabli/src/server/system';
-import { createWebsocketServer } from '@etabli/src/server/websocket';
 import { apiHandlerWrapper } from '@etabli/src/utils/api';
 
 declare global {
@@ -30,7 +28,6 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       process.on('SIGINT', gracefulExit);
       process.on('SIGTERM', gracefulExit);
 
-      await createWebsocketServer();
       // await scheduleCronTasks();
 
       console.log('All services have been initialized');

@@ -14,7 +14,7 @@ export function apiHandlerWrapper(handler: NextApiHandler, options?: ApiHandlerW
   return async (req: NextApiRequest, res: NextApiResponse) => {
     try {
       // Check method is allowed
-      if (options?.restrictMethods && options.restrictMethods.includes(req.method?.toUpperCase() as Method)) {
+      if (options?.restrictMethods && !options.restrictMethods.includes(req.method?.toUpperCase() as Method)) {
         throw new createHttpError.MethodNotAllowed();
       }
 

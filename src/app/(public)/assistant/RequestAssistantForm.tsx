@@ -7,17 +7,30 @@ import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import TextField from '@mui/material/TextField';
-import { useRef } from 'react';
+import assert from 'assert';
+import { Mutex } from 'locks';
+import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { v4 as uuidv4 } from 'uuid';
 
-import { trpc } from '@etabli/src/client/trpcClient';
 import { BaseForm } from '@etabli/src/components/BaseForm';
 import { RequestAssistantPrefillSchemaType, RequestAssistantSchema, RequestAssistantSchemaType } from '@etabli/src/models/actions/assistant';
-import { MessageAuthorSchema, MessageSchema, MessageSchemaType } from '@etabli/src/models/entities/assistant';
+import {
+  MessageAuthorSchema,
+  MessageSchema,
+  MessageSchemaType,
+  SessionAnswerChunkSchema,
+  SessionAnswerChunkSchemaType,
+} from '@etabli/src/models/entities/assistant';
+import { internalServerErrorError } from '@etabli/src/models/entities/errors';
+import { mockBaseUrl, shouldTargetMock } from '@etabli/src/server/mock/environment';
+import { getBaseUrl } from '@etabli/src/utils/url';
+
+const textDecoder = new TextDecoder();
 
 export interface RequestAssistantFormProps {
   prefill?: RequestAssistantPrefillSchemaType;
+  onNewMessageChunk?: (data: SessionAnswerChunkSchemaType) => void;
   onNewMessage?: (message: MessageSchemaType) => void;
   onResetSession?: () => void;
   canBeReset?: boolean;
@@ -25,8 +38,7 @@ export interface RequestAssistantFormProps {
 
 export function RequestAssistantForm(props: RequestAssistantFormProps) {
   const formRef = useRef<HTMLFormElement | null>(null);
-
-  const requestAssistant = trpc.requestAssistant.useMutation();
+  const [mutex] = useState<Mutex>(() => new Mutex());
 
   const {
     register,
@@ -40,27 +52,65 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
   });
 
   const onSubmit = async (input: RequestAssistantSchemaType) => {
-    // Send the written message to the parent so it can display it
-    if (props.onNewMessage) {
-      props.onNewMessage(
-        MessageSchema.parse({
-          id: uuidv4(),
-          author: MessageAuthorSchema.Values.USER,
-          content: input.message,
-          complete: true,
-        })
-      );
+    // If it's already running, quit
+    if (!mutex.tryLock()) {
+      return;
     }
 
-    // Since the answer should be streamed we don't want to keep the input until the end of the generation
-    // (it may force the user to copy/paste in case of error to retry, but for now it's acceptable)
-    reset();
+    try {
+      // Send the written message to the parent so it can display it
+      if (props.onNewMessage) {
+        props.onNewMessage(
+          MessageSchema.parse({
+            id: uuidv4(),
+            author: MessageAuthorSchema.Values.USER,
+            content: input.message,
+            complete: true,
+          })
+        );
+      }
 
-    // Note: we keep it simple, in case of error the parent component will still display what has been sent even if no answer and the possibility to resend (appending again the same message potentially)
-    const result = await requestAssistant.mutateAsync(input);
+      // Note: we keep it simple, in case of error the parent component will still display what has been sent
+      const response = await fetch(`${shouldTargetMock ? mockBaseUrl : getBaseUrl()}/api/request-assistant`, {
+        method: 'post',
+        headers: {
+          'Content-Type': 'application/json', // Assurez-vous de spécifier le type de contenu correct
+        },
+        body: JSON.stringify(input),
+      });
 
-    if (props.onNewMessage) {
-      props.onNewMessage(result.answer);
+      if (response.status !== 200) {
+        throw internalServerErrorError;
+      }
+
+      assert(response.body);
+      const reader = response.body.getReader();
+
+      // Since the answer should be streamed we don't want to keep the input until the end of the generation
+      // (it may force the user to copy/paste in case of incomplete answer, but for now it's acceptable)
+      reset();
+
+      const answerMessageId = uuidv4();
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        props.onNewMessageChunk &&
+          props.onNewMessageChunk(
+            SessionAnswerChunkSchema.parse({
+              sessionId: input.sessionId,
+              messageId: answerMessageId,
+              chunk: textDecoder.decode(value),
+            })
+          );
+      }
+    } finally {
+      // Unlock to allow a new submit
+      mutex.unlock();
     }
   };
 
@@ -94,10 +144,10 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
               }}
             >
               <IconButton type="submit" aria-label="envoyer le message">
-                {requestAssistant.isLoading ? <CircularProgress size={20} aria-label="la réponse est en train d'être générée" /> : <SendIcon />}
+                {mutex.isLocked ? <CircularProgress size={20} aria-label="la réponse est en train d'être générée" /> : <SendIcon />}
               </IconButton>
               {!!props.canBeReset && (
-                <IconButton onClick={props.onResetSession} color="error" disabled={requestAssistant.isLoading} aria-label="redémarrer une session">
+                <IconButton onClick={props.onResetSession} color="error" disabled={mutex.isLocked} aria-label="redémarrer une session">
                   <RestartAltIcon />
                 </IconButton>
               )}

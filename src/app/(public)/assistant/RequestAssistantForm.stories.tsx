@@ -1,10 +1,11 @@
 import { Meta, StoryFn } from '@storybook/react';
+import { rest } from 'msw';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { RequestAssistantForm } from '@etabli/src/app/(public)/assistant/RequestAssistantForm';
 import { messages } from '@etabli/src/fixtures/assistant';
-import { RequestAssistantPrefillSchema } from '@etabli/src/models/actions/assistant';
-import { getTRPCMock } from '@etabli/src/server/mock/trpc';
+import { RequestAssistantPrefillSchema, RequestAssistantSchemaType } from '@etabli/src/models/actions/assistant';
+import { mockBaseUrl } from '@etabli/src/server/mock/environment';
 
 type ComponentType = typeof RequestAssistantForm;
 const { generateMetaDefault, prepareStory } = StoryHelperFactory<ComponentType>();
@@ -20,12 +21,11 @@ export default {
 const defaultMswParameters = {
   msw: {
     handlers: [
-      getTRPCMock({
-        type: 'subscription',
-        path: ['requestAssistant'],
-        response: {
-          answer: messages[1],
-        },
+      rest.post<RequestAssistantSchemaType>(`${mockBaseUrl}/api/request-assistant`, (req, res, ctx) => {
+        return res(
+          ctx.status(200), // Set the response status
+          ctx.text(messages[1].content)
+        );
       }),
     ],
   },

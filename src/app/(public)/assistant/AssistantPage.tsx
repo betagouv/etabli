@@ -28,7 +28,7 @@ export function AssistantPage(props: AssistantPageProps) {
   const [sessionId, setSessionId] = useState<string>(() => uuidv4());
   const [messages, setMessages] = useState<MessageSchemaType[]>(() => props.prefilledMessages || []);
 
-  const handleNewMessage = (data: SessionAnswerChunkSchemaType) => {
+  const handleNewMessageChunk = (data: SessionAnswerChunkSchemaType) => {
     // If not for the current session (for any reason, ignore)
     if (data.sessionId !== sessionId) {
       return;
@@ -55,21 +55,6 @@ export function AssistantPage(props: AssistantPageProps) {
     // Needed to re-render
     setMessages([...messages]);
   };
-
-  trpc.subscribeAssistantAnswerChunk.useSubscription(
-    {
-      sessionId: sessionId,
-    },
-    {
-      onStarted() {},
-      onError(error) {
-        console.log(error);
-      },
-      onData(data) {
-        handleNewMessage(data);
-      },
-    }
-  );
 
   const restartSession = () => {
     // The subscription of tRPC would will automatically due to state change
@@ -121,6 +106,7 @@ export function AssistantPage(props: AssistantPageProps) {
           <Grid item xs={12}>
             <ContextualRequestAssistantForm
               prefill={{ sessionId: sessionId }}
+              onNewMessageChunk={handleNewMessageChunk}
               onNewMessage={(newMessage) => {
                 // todo: force replace all ...messages?
                 let existingMessage = messages.find((message) => message.id === newMessage.id);

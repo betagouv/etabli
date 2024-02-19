@@ -1,3 +1,6 @@
+/**
+ * @jest-environment node
+ */
 // Note: the Prisma schema must be compiled when importing, that's why we added the `test:prepare` and `lint:prepare` steps
 import { PrismaClient } from '@prisma/client';
 import concurrently from 'concurrently';
@@ -14,6 +17,11 @@ describe('database', () => {
 
     process.env.DATABASE_URL = postgres.url;
     prisma = new PrismaClient();
+
+    // Enable required extensions since not doing a proper "db:migration:deploy" below
+    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS "vector";`;
+    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`;
+    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`;
   }, 30 * 1000);
 
   afterAll(async () => {
@@ -25,12 +33,6 @@ describe('database', () => {
       await postgres.container.stop();
     }
   }, 30 * 1000);
-
-  describe('testcontainers', () => {
-    it('should be working', () => {
-      jest.setTimeout(5 * 1000);
-    });
-  });
 
   describe('prisma', () => {
     it('check schema', async () => {
@@ -54,7 +56,8 @@ describe('database', () => {
 
       const initiativesCount = await prisma.initiative.count();
 
-      expect(initiativesCount).toBe(1);
+      // TODO: for now no seed data
+      expect(initiativesCount).toBe(0);
     });
   });
 });

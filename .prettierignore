@@ -8,6 +8,8 @@
 /data/
 /dist/
 /public/mockServiceWorker.js
+/src/server/trpc-next-layout/**/*.ts
+/src/server/trpc-next-layout/**/*.tsx
 /src/**/*.docx
 /src/**/*.transformed.html
 **/.dockerignore

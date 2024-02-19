@@ -1,0 +1,21 @@
+name: Clean old Docker images
+on:
+  schedule:
+    - cron: '0 7 * * 1' # Every monday at 7am
+  workflow_dispatch: # Allow triggering this pipeline manually
+jobs:
+  clean:
+    name: Docker images clean
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old images
+        uses: snok/container-retention-policy@v2
+        with:
+          image-names: etabli/etabli-*
+          cut-off: A week ago UTC
+          account-type: org
+          org-name: betagouv
+          keep-at-least: 5
+          skip-tags: latest
+          token-type: github-token
+          token: ${{ secrets.GITHUB_TOKEN }}

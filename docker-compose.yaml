@@ -8,7 +8,7 @@ services:
   postgres:
     container_name: etabli_postgres_container_${DOCKER_COMPOSE_CONTAINER_NAME_SUFFIX:-default}
     # image: postgres:15.5
-    image: ankane/pgvector:v0.5.1 # It uses `postgres:15` including the `pgvector` extension, using it for local purpose but needs to see if the extension can be deployed on a provider easily (otherwise fallback to a third-party for vectors)
+    image: ankane/pgvector:v0.5.1 # It uses `postgres:15` including the `vector` extension, using it for local purpose (the provider Clever Cloud we chose also has this extension by default into their Postgres instances)
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
@@ -17,7 +17,7 @@ services:
     volumes:
       - postgres:/data/postgres
     ports:
-      - '127.0.0.1:${DOCKER_COMPOSE_HOST_PORTS:-5432:}5432'
+      - '${DOCKER_COMPOSE_POSTGRES_PORT_BINDING:-5432:5432}'
     networks:
       - postgres
     restart: unless-stopped
@@ -28,22 +28,6 @@ services:
       interval: 1s
       timeout: 3s
       retries: 5
-
-  pgadmin:
-    container_name: etabli_pgadmin_container_${DOCKER_COMPOSE_CONTAINER_NAME_SUFFIX:-default}
-    image: dpage/pgadmin4
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-    volumes:
-      - pgadmin:/var/lib/pgadmin
-
-    ports:
-      - '127.0.0.1:${DOCKER_COMPOSE_HOST_PORTS:-5050:}80'
-    networks:
-      - postgres
-    restart: unless-stopped
 
 networks:
   postgres:

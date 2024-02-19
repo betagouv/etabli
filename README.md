@@ -41,8 +41,8 @@ If you want to only launch one of the two:
 
 - the database
 - [Pandoc](https://pandoc.org/) (to format legal documents, can be installed through a manager like `brew`)
-- [Semgrep](https://semgrep.dev/) (to analyze code files, can be installed through a manager like `brew`)
-- [Bibliothecary](https://github.com/librariesio/bibliothecary) (to analyze code dependencies, can be installed through the Ruby package manager `bundle` by running `bundle` command inside `./src/bibliothecary/`)
+- [Semgrep](https://semgrep.dev/) (to analyze code files, can be installed through the Python package manager `pip` by running ``)
+- [Bibliothecary](https://github.com/librariesio/bibliothecary) (to analyze code dependencies, can be installed through the Ruby package manager `bundle` by running `bundle --gemfile src/bibliothecary/Gemfile`)
 
 Note for long-running tools the easiest way to use them is to use `docker-compose`. In another terminal just set up all tools:
 
@@ -182,11 +182,11 @@ Clever Cloud is used as a PaaS to host our builds.
 
 For each build and runtime (since they are shared), you should have set some environment variables.
 
+- `CC_DOCKERFILE`: [TO_DEFINE] _(should be `Dockerfile.prod.clevercloud` for the production environment and `Dockerfile.dev.clevercloud` for the development one. It's used during the build stage on the Clever Cloud side)_
+- `CC_DOCKER_EXPOSED_HTTP_PORT`: `3000` _(it tells to Clever Cloud the port we are listening on)_
 - `APP_MODE`: `prod` _(can be `dev` in case you would like to deploy a development environment)_
-- `GITHUB_TOKEN`: [SECRET] \_(limited GitHub fine-grained personal access tokens scoped to this repository, see the `Clever Cloud` section)
 - `DATABASE_URL`: `$POSTGRESQL_ADDON_URI` _(you must copy/paste the value provided by Clever Cloud into `$POSTGRESQL_ADDON_URI`, and note you must add as query parameter `sslmode=prefer`)_
 - `MAINTENANCE_API_KEY`: [SECRET] _(random string that can be generated with `openssl rand -base64 32`. Note this is needed to perform maintenance through dedicated API endpoints)_
-- `NEXT_AUTH_SECRET`: [SECRET] _(random string that can be generated with `openssl rand -base64 32`. Note that if this secret is lost, all users will have to log in again)_
 - `NEXT_PUBLIC_APP_BASE_URL`: [TO_DEFINE] _(must be the root URL to access the application, format `https://xxx.yyy.zzz`)_
 - `NEXT_PUBLIC_CRISP_WEBSITE_ID`: [TO_DEFINE] _(this ID is defined in your Crisp account and depends on the development or production environment)_
 - `NEXT_PUBLIC_SENTRY_DSN`: [SECRET] _(format `https://xxx.yyy.zzz/nn`)_
@@ -195,15 +195,6 @@ For each build and runtime (since they are shared), you should have set some env
 - `MISTRAL_API_KEY`: [SECRET] _(you can create an API key from your MistralAI "La plateforme" account)_
 
 _Note: `OPENAI_API_KEY` variable can be found in the code even if not used in production. It remains for comparing purposes, but also as a legacy since the proof of concept of Établi was based on GPT models._
-
-### GitHub access
-
-During the build we get some repository information from GitHub to enhance Sentry metadata. It went well for some time but randomly we got the error:
-`API rate limit exceeded for ${IP} (...) But here's the good news: Authenticated requests get a higher rate limit.`
-
-By default the `@octokit/rest` client will fetch data while not being authenticated so we share the quota with others, which may fail. We decided to create a fine-grained personal access token scoped to the current repository with only the scope `Read-Only` on `Contents` to be used as `GITHUB_TOKEN` in Clever Cloud. The only drawback is we need to specify an expiration with 1 year as maximum (we hope they will change it in the future to allow "no expiration" as for classic tokens).
-
-_Note that the other way is to create a GitHub App, connect it to the repository, manage the token... which is way more complicated! Even with the current 1 year expiration we are fine since builds are done only if people is working on the project :)_
 
 #### Monitoring
 

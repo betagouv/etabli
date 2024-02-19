@@ -1,4 +1,4 @@
-import { StartedGenericContainer } from 'testcontainers/dist/src/generic-container/started-generic-container';
+import type { StartedGenericContainer } from 'testcontainers/dist/src/generic-container/started-generic-container';
 
 export interface ContainerLogsOptions {
   enabled: boolean;
@@ -20,7 +20,6 @@ export function getContainerNameSuffix(): string {
 
 export const defaultEnvironment = {
   DOCKER_COMPOSE_CONTAINER_NAME_SUFFIX: getContainerNameSuffix(),
-  DOCKER_COMPOSE_HOST_PORTS: ':', // Using `:` tells to use any port available (we wanted to specify an empty string but when doing so `docker-compose` considers the environment variable as null and takes the default value instead)
 };
 
 export function formatContainerNameWithSuffix(containerNameBase: string) {

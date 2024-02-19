@@ -1,0 +1,190 @@
+name: Continuous Integration
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - wip-ci
+  pull_request:
+env:
+  APP_NAME: etabli
+  CONTAINER_REGISTRY: ghcr.io
+  CONTAINER_IMAGE_FOLDER: ghcr.io/${{ github.repository }}
+  NODE_OPTIONS: --max_old_space_size=4096
+  NODE_VERSION: 18.19.0
+  RUBY_VERSION: 3.2.2
+  PYTHON_VERSION: 3.10.4
+  PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX: .cache/ms-playwright
+concurrency:
+  # Prevent parallel builds of the same branch
+  group: cicd-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  requirements:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set environment for branch
+        run: |
+          if [[ $GITHUB_REF_NAME == 'main' ]]; then
+              echo "APP_MODE=prod" >> $GITHUB_ENV
+              echo "CLEVER_APP_ID=${{ secrets.CLEVER_APP_ID_PRODUCTION }}" >> $GITHUB_ENV
+          elif [[ $GITHUB_REF_NAME == 'dev' ]]; then
+              echo "APP_MODE=dev" >> $GITHUB_ENV
+              echo "CLEVER_APP_ID=${{ secrets.CLEVER_APP_ID_DEVELOPMENT }}" >> $GITHUB_ENV
+          else
+              echo "APP_MODE=test" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'src/semgrep/requirements.txt'
+
+      - name: Export npm store directory as an environment variable
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(npm config get cache)" >> $GITHUB_ENV
+
+      - uses: actions/cache@v3
+        name: Setup npm cache
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-npm-store-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-store-
+
+      - uses: actions/cache@v3
+        name: Setup Next.js build cache
+        with:
+          path: ${{ github.workspace }}/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+
+      - name: Install tools
+        run: bundle --gemfile src/bibliothecary/Gemfile && pip install -r src/semgrep/requirements.txt
+
+      - name: hey docker
+        run: docker -v
+      - name: hey dc
+        run: docker-compose -v
+      - name: hey ubuntu
+        run: lsb_release -a
+      # - name: hey
+      #   run: lol failing
+
+      - name: Install dependencies
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ env.STORE_PATH }}/${{ env.PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX }}
+        run: make deps
+
+      - name: Prepare linting
+        run: make lint-prepare
+
+      - name: Lint
+        run: make lint
+
+      - name: Format check
+        run: make format-check
+
+      - name: Prepare tests
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ env.STORE_PATH }}/${{ env.PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX }}
+        run: make test-prepare
+
+      - name: Install `docker-compose` for local CI/CD simulations (https://github.com/nektos/act/issues/112#issuecomment-1387307297)
+        if: ${{ env.ACT }}
+        uses: KengoTODA/actions-setup-docker-compose@v1
+        with:
+          version: '2.14.2'
+      - name: Install `Xvfb` and others to run browsers for end-to-end testing in local CI/CD simulations (https://github.com/nektos/act/issues/1300#issuecomment-1387344639)
+        if: ${{ env.ACT }}
+        run: sudo apt-get update && sudo apt-get install -y xvfb && npx playwright install-deps
+
+      - name: Test unit
+        run: make test-unit
+
+      - name: Build
+        env:
+          SENTRY_URL: ${{ secrets.SENTRY_URL }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_RELEASE_UPLOAD: true
+        run: make build
+
+      - name: Test end-to-end
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ env.STORE_PATH }}/${{ env.PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX }}
+        run: make test-e2e
+
+      # # Disabled since too long, need to consider if our Storybook e2e tests are sufficient
+      # - name: Accessibility with Lighthouse
+      #   run: make accessibility
+      #   env:
+      #     NEXTJS_BUILD_OUTPUT_MODE: export
+      #     LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Publish to Chromatic
+        if: ${{ !github.event.act }}
+        uses: chromaui/action@v1
+        env:
+          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+        with:
+          # Note: since we use `buildScriptName` we have to specify some of those parameters into the underlying `package.json` script named `chromatic`
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          buildScriptName: build
+          autoAcceptChanges: true
+          onlyChanged: true
+          externals: public/**
+          exitZeroOnChanges: true
+
+      - name: Log in to the Container registry
+        if: ${{ !github.event.act && (github.ref_name == 'dev' || github.ref_name == 'main') }}
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.CONTAINER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the application Docker image
+        if: ${{ !github.event.act && (github.ref_name == 'dev' || github.ref_name == 'main') }}
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: ${{ env.CONTAINER_IMAGE_FOLDER }}/${{ env.APP_NAME }}-${{ github.ref_name }}:${{ github.sha }},${{ env.CONTAINER_IMAGE_FOLDER }}/${{ env.APP_NAME }}-${{ github.ref_name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to Clever Cloud
+        if: ${{ !github.event.act && (github.ref_name == 'dev' || github.ref_name == 'main') }}
+        uses: 47ng/actions-clever-cloud@v1.3.1
+        with:
+          appID: ${{ env.CLEVER_APP_ID }}
+          force: true
+          quiet: true # disable copying into GitHub Actions all logs from Clever Cloud
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}

@@ -3,6 +3,7 @@ const gitRevision = require('git-rev-sync');
 const parseGithubUrl = require('parse-github-url');
 
 const octokit = new Octokit({
+  // Octokit was used when the local Git repository is not present, but for Établi we managed all build stages into GitHub Actions so it should work with no workaround
   auth: process.env.GITHUB_TOKEN || undefined, // If not specified it uses public shared quota based on IP
 });
 
@@ -11,12 +12,11 @@ function getRepositoryInformation() {
 }
 
 function getFallbackCommitSha() {
-  // Heroku/Scalingo remove the `.git` folder so during the build time we are unable to use `git-rev-sync`
-  // we work around this by doing GET requests since they at least provide `$SOURCE_VERSION` that equals the commit SHA
-  // during the build phase, and `$CONTAINER_VERSION` during the runtime phase (that should be most of the time the commit SHA).
-  let commitSha = process.env.SOURCE_VERSION || process.env.CONTAINER_VERSION;
+  // This should not be used since all our Next.js build stages are done in GitHub Actions where
+  // we can use `git-rev-sync`. Just in case leaving the fallback for Clever Cloud (originally it was for Scalingo that doesn't support Docker and forces the whole build in their custom pipeline)
+  let commitSha = process.env.CC_COMMIT_ID;
   if (commitSha === undefined) {
-    throw new Error('`$SOURCE_VERSION` or `$CONTAINER_VERSION` environment variable must be provided to use the fallback');
+    throw new Error('`$CC_COMMIT_ID` environment variable must be provided to use the fallback');
   }
 
   return commitSha;

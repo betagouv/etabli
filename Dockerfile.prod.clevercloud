@@ -1,0 +1,3 @@
+# We didn't want to rebuild everything in the Clever Cloud pipeline so we pushed an image from GitHub to be retrieved here without much processing
+
+FROM ghcr.io/betagouv/etabli/etabli-main:latest

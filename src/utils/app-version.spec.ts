@@ -20,15 +20,15 @@ describe('app-version', () => {
     });
   });
 
-  describe.skip('as in Scalingo environment', () => {
-    // Simulate the commit SHA Scalingo provides
-    process.env.SOURCE_VERSION = 'bedf63af57c32f3750e2d0f466066fcf549960f8';
+  describe.skip('as in Clever Cloud environment', () => {
+    // Simulate the commit SHA Clever Cloud provides
+    process.env.CC_COMMIT_ID = 'bedf63af57c32f3750e2d0f466066fcf549960f8';
 
     describe('getFallbackCommitSha()', () => {
       it('should return the environment variable value', async () => {
         const commitSha = await getFallbackCommitSha();
 
-        expect(commitSha).toStrictEqual(process.env.SOURCE_VERSION);
+        expect(commitSha).toStrictEqual(process.env.CC_COMMIT_ID);
       });
     });
 

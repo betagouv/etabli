@@ -30,18 +30,10 @@ const customJestConfig: Parameters<typeof createJestConfig>[0] = {
       : {}),
   },
   testEnvironment: 'jest-environment-jsdom',
-  testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/'],
+  modulePathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/data/'],
+  testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/data/', '<rootDir>/node_modules/'],
   transformIgnorePatterns: [],
-  transform: {
-    '\\.[jt]sx?$': [
-      'ts-jest',
-      {
-        tsconfig: {
-          jsx: 'react',
-        },
-      },
-    ],
-  },
+  extensionsToTreatAsEsm: ['.ts', '.tsx'],
 };
 
 // [WORKAROUND] To transpile additional dependencies we hack a bit as specified into https://github.com/vercel/next.js/discussions/31152#discussioncomment-1697047

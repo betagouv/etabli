@@ -56,7 +56,7 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
     if (props.prefill?.sessionId) {
       setValue('sessionId', props.prefill.sessionId);
     }
-  }, [props.prefill?.sessionId]);
+  }, [props.prefill?.sessionId, setValue]);
 
   const onSubmit = async (input: RequestAssistantSchemaType) => {
     // If it's already running, quit

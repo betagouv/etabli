@@ -1,6 +1,6 @@
 module.exports = {
-  commonPackages: [],
-  additionalJestPackages: ['@codegouvfr/react-dsfr'],
+  commonPackages: ['@codegouvfr/react-dsfr', '@mui/x-data-grid', '@mui/x-date-pickers', 'tss-react'],
+  additionalJestPackages: [],
   formatTransformIgnorePatterns(packagesToTranspile, previousPatterns) {
     // Inspired from `next.js/packages/next/src/build/jest/jest.ts`
 

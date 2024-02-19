@@ -38,7 +38,7 @@ const moduleExports = async () => {
   let standardModuleExports = {
     reactStrictMode: true,
     swcMinify: true,
-    output: 'standalone', // To debug locally the `next start` comment this line (it will avoid trying to mess with the assembling folders logic of standalone mode)
+    output: process.env.NEXTJS_BUILD_OUTPUT_MODE || 'standalone', // To debug locally the `next start` comment this line (it will avoid trying to mess with the assembling folders logic of standalone mode)
     env: {
       // Those will replace `process.env.*` with hardcoded values (useful when the value is calculated during the build time)
       SENTRY_RELEASE_TAG: appHumanVersion,
@@ -57,6 +57,9 @@ const moduleExports = async () => {
     },
     transpilePackages: commonPackages,
     experimental: {
+      outputFileTracingExcludes: {
+        '*': ['data/**/*', 'scripts/**/*'], // Note folders starting with a dot are already ignored after verification
+      },
       swcPlugins: [['next-superjson-plugin', { excluded: [] }]],
     },
     async rewrites() {

@@ -19,6 +19,7 @@ import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/s
 import { LiteRawDomainSchema, LiteRawDomainSchemaType } from '@etabli/src/models/entities/raw-domain';
 import { rawDomainTypeCsvToModel } from '@etabli/src/models/mappers/raw-domain';
 import { prisma } from '@etabli/src/prisma';
+import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
 import { containsHtml } from '@etabli/src/utils/html';
 import { sleep } from '@etabli/src/utils/sleep';
@@ -191,6 +192,8 @@ export async function formatDomainsIntoDatabase() {
           });
 
           for (const diffItem of diffResult.diff) {
+            watchGracefulExitInLoop();
+
             if (diffItem.status === 'added') {
               const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
 
@@ -310,6 +313,8 @@ export async function updateRobotsTxtOnDomains() {
   });
 
   for (const rawDomain of rawDomains) {
+    watchGracefulExitInLoop();
+
     console.log(`try to process robots.txt for domain ${rawDomain.name} (${rawDomain.id})`);
 
     try {
@@ -425,6 +430,8 @@ export async function updateWildcardCertificateOnDomains() {
   });
 
   for (const rawDomain of rawDomains) {
+    watchGracefulExitInLoop();
+
     console.log(`try to process SSL certificate for domain ${rawDomain.name} (${rawDomain.id})`);
 
     const certificate = await new Promise<PeerCertificate | null>((resolve, reject) => {
@@ -487,6 +494,8 @@ export async function updateWebsiteDataOnDomains() {
   });
 
   for (const rawDomain of rawDomains) {
+    watchGracefulExitInLoop();
+
     console.log(`try to process website content for domain ${rawDomain.name} (${rawDomain.id})`);
 
     try {
@@ -728,6 +737,8 @@ export async function matchDomains() {
   });
 
   for (const rawDomainToUpdate of rawDomainsToUpdate) {
+    watchGracefulExitInLoop();
+
     console.log(`try to bind similar domains to domain ${rawDomainToUpdate.name} (${rawDomainToUpdate.id})`);
 
     const rootRawDomain = sortedRootRawDomains.find((d) => {

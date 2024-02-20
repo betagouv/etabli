@@ -86,15 +86,6 @@ jobs:
       - name: Install tools
         run: bundle --gemfile src/bibliothecary/Gemfile && pip install -r src/semgrep/requirements.txt
 
-      - name: hey docker
-        run: docker -v
-      - name: hey dc
-        run: docker-compose -v
-      - name: hey ubuntu
-        run: lsb_release -a
-      # - name: hey
-      #   run: lol failing
-
       - name: Install dependencies
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ env.STORE_PATH }}/${{ env.PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX }}

@@ -10,6 +10,7 @@ import { downloadFile } from '@etabli/src/common';
 import { LiteRawRepositorySchema, LiteRawRepositorySchemaType } from '@etabli/src/models/entities/raw-repository';
 import { rawRepositoryPlatformJsonToModel } from '@etabli/src/models/mappers/raw-repository';
 import { prisma } from '@etabli/src/prisma';
+import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
 import { emptyStringtoNullPreprocessor } from '@etabli/src/utils/validation';
 
@@ -155,6 +156,8 @@ export async function formatRepositoriesIntoDatabase() {
       });
 
       for (const diffItem of diffResult.diff) {
+        watchGracefulExitInLoop();
+
         if (diffItem.status === 'added') {
           const liteRawRepository = diffItem.value as LiteRawRepositorySchemaType;
 
@@ -323,6 +326,8 @@ export async function updateInferredMetadataOnRepositories() {
   });
 
   for (const rawRepository of rawRepositories) {
+    watchGracefulExitInLoop();
+
     console.log(
       `try to locally infer metadata for repository {${rawRepository.platform}} ${rawRepository.organizationName}/${rawRepository.name} (${rawRepository.id})`
     );
@@ -432,6 +437,8 @@ export async function matchRepositories() {
   });
 
   for (const rawRepositoryToUpdate of rawRepositoriesToUpdate) {
+    watchGracefulExitInLoop();
+
     console.log(
       `try to bind similar repositories to repository {${rawRepositoryToUpdate.platform}} ${rawRepositoryToUpdate.organizationName}/${rawRepositoryToUpdate.name} (${rawRepositoryToUpdate.id})`
     );

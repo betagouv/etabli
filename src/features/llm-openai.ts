@@ -17,6 +17,7 @@ import { gptInstances } from '@etabli/src/gpt';
 import { DocumentInitiativeTemplateSchema, DocumentInitiativesChunkTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
 import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { prisma } from '@etabli/src/prisma';
+import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { sleep } from '@etabli/src/utils/sleep';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -48,6 +49,8 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     });
 
     for await (const page of initialPage.iterPages()) {
+      watchGracefulExitInLoop();
+
       for (const assistant of page.getPaginatedItems()) {
         if (assistant.name === this.openaiBotAssistantName) {
           botAssistantId = assistant.id;
@@ -112,6 +115,8 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     });
 
     for await (const page of initialAssistantPage.iterPages()) {
+      watchGracefulExitInLoop();
+
       for (const assistant of page.getPaginatedItems()) {
         // In case the GPT account is used by multiple projects we only target those for this project
         if (assistant.name?.startsWith(this.openaiItemPrefix)) {
@@ -126,6 +131,8 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     const initialFilePage = await this.openaiClient.files.list({});
 
     for await (const page of initialFilePage.iterPages()) {
+      watchGracefulExitInLoop();
+
       for (const file of page.getPaginatedItems()) {
         // In case the GPT account is used by multiple projects we only target those for this project
         if (file.filename.startsWith(this.openaiItemPrefix)) {
@@ -307,6 +314,8 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     let currentChunk = 1;
     let currentChunkTokensLength = approximativeHeaderTokensLength;
     for (const initiative of initiatives) {
+      watchGracefulExitInLoop();
+
       const formattedInitiativeContent = initiativeGptTemplate(
         DocumentInitiativeTemplateSchema.parse({
           id: initiative.id,

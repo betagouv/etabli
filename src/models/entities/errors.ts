@@ -52,6 +52,7 @@ export class BusinessDomainError extends BusinessError {
 // General
 export const internalServerErrorError = new UnexpectedError('internalServerError', 'internal server error');
 export const unexpectedErrorError = new UnexpectedError('unexpectedError', 'unexpected error');
+export const programRequestedToShutDownError = new UnexpectedError('programRequestedToShutDown', 'the program has been requested to shut down error');
 
 // Validations
 export const unexpectedDomainRedirectionError = new BusinessError('unexpectedDomainRedirection', 'unexpected domain redirection');

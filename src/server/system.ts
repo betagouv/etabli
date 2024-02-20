@@ -1,8 +1,22 @@
 import * as Sentry from '@sentry/nextjs';
 
+import { programRequestedToShutDownError } from '@etabli/src/models/entities/errors';
 import { stopBossClientInstance } from '@etabli/src/server/queueing/client';
 
+export let gracefulExitRequested: boolean = false;
+
+export function watchGracefulExitInLoop() {
+  // When the program has to exit this loop helper will make sure long-running is stopped directly
+  // So if it has been triggered by an incoming request, so originator is notified
+  // Note: it makes sense to only use it into loops having at least an `await` inside, because otherwise since mono-threaded the `gracefulExitRequested` would no be updated before the next `await` in the program
+  if (gracefulExitRequested) {
+    throw programRequestedToShutDownError;
+  }
+}
+
 export async function gracefulExit(error?: Error) {
+  gracefulExitRequested = true;
+
   if (error) {
     console.error(error);
 

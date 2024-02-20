@@ -34,6 +34,7 @@ import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
+import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter } from '@etabli/src/utils/format';
 import { languagesExtensions } from '@etabli/src/utils/languages';
@@ -264,6 +265,8 @@ export async function inferInitiativesFromDatabase() {
 
       let anyChange = false;
       for (const diffItem of diffResult.diff) {
+        watchGracefulExitInLoop();
+
         if (diffItem.status === 'added') {
           const liteInitiativeMap = diffItem.value as LiteInitiativeMapSchemaType;
           anyChange = true;
@@ -463,6 +466,8 @@ export async function feedInitiativesFromDatabase() {
 
     // To debug easily we write each result on disk (also, since using lot of CLIs we have no other choice :D)
     for (const initiativeMap of initiativeMaps) {
+      watchGracefulExitInLoop();
+
       console.log(`feed initiative ${initiativeMap.id}`);
 
       if (initiativeMap.RawDomainsOnInitiativeMaps.length > 0 && initiativeMap.RawRepositoriesOnInitiativeMaps.length > 0) {
@@ -498,6 +503,8 @@ export async function feedInitiativesFromDatabase() {
 
       let mixedInitiativeTools: string[] = [];
       for (const rawDomainOnIMap of initiativeMap.RawDomainsOnInitiativeMaps) {
+        watchGracefulExitInLoop();
+
         console.log(`domain ${rawDomainOnIMap.rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomainOnIMap.rawDomain.id})`);
 
         const rawDomain = rawDomainOnIMap.rawDomain;
@@ -561,6 +568,8 @@ export async function feedInitiativesFromDatabase() {
       }
 
       for (const rawRepositoryOnIMap of initiativeMap.RawRepositoriesOnInitiativeMaps) {
+        watchGracefulExitInLoop();
+
         console.log(
           `repository ${rawRepositoryOnIMap.rawRepository.repositoryUrl} ${rawRepositoryOnIMap.main ? '(main)' : ''} (${
             rawRepositoryOnIMap.rawRepository.id

@@ -18,6 +18,7 @@ import { gptInstances, gptSeed } from '@etabli/src/gpt';
 import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
 import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { prisma } from '@etabli/src/prisma';
+import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { sleep } from '@etabli/src/utils/sleep';
 
 export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
@@ -118,6 +119,8 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
         const toolDocumentsToCalculate: ToolLlmDocument[] = [];
 
         for (const tool of tools) {
+          watchGracefulExitInLoop();
+
           if (!!tool.ToolLlmDocument) {
             // If the document has not been calculated since the last initive update, we make sure to update the content and mark it to be processed
             if (!tool.ToolLlmDocument.calculatedAt || tool.ToolLlmDocument.calculatedAt < tool.updatedAt) {
@@ -219,6 +222,8 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
         const initiativeDocumentsToCalculate: InitiativeLlmDocument[] = [];
 
         for (const initiative of initiatives) {
+          watchGracefulExitInLoop();
+
           const resultingDocumentContentObject = DocumentInitiativeTemplateSchema.parse({
             id: initiative.id,
             name: initiative.name,
@@ -319,6 +324,8 @@ CONTEXT:
 
     const contextTools: string[] = [];
     for (let i = 0; i < rawToolsVectors.length; i++) {
+      watchGracefulExitInLoop();
+
       const similaries = await this.toolsVectorStore.similaritySearchVectorWithScore(rawToolsVectors[i], 1);
       assert(similaries.length > 0);
 
@@ -422,6 +429,8 @@ CONTEXT:
     const resultVectors = await this.toolsVectorStore.embeddings.embedDocuments(result.tools);
 
     for (let i = 0; i < result.tools.length; i++) {
+      watchGracefulExitInLoop();
+
       let valueToKeep = result.tools[i];
 
       const similaries = await this.toolsVectorStore.similaritySearchVectorWithScore(resultVectors[i], 1);

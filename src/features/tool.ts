@@ -10,6 +10,7 @@ import { downloadFile } from '@etabli/src/common';
 import { LiteToolSchema, LiteToolSchemaType, ToolCategorySchema } from '@etabli/src/models/entities/tool';
 import { toolTypeCsvToModel } from '@etabli/src/models/mappers/tool';
 import { prisma } from '@etabli/src/prisma';
+import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
 import { emptyStringtoNullPreprocessor } from '@etabli/src/utils/validation';
 
@@ -136,6 +137,8 @@ export async function formatToolsIntoDatabase() {
 
           let anyChange = false;
           for (const diffItem of diffResult.diff) {
+            watchGracefulExitInLoop();
+
             if (diffItem.status === 'added') {
               const liteTool = diffItem.value as LiteToolSchemaType;
               anyChange = true;

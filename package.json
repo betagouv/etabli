@@ -261,9 +261,6 @@
     "msw": {
       "typescript": "$typescript"
     },
-    "testcontainers": {
-      "docker-compose": "0.23.19"
-    },
     "ts-import": {
       "typescript": "$typescript"
     }

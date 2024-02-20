@@ -23,7 +23,7 @@ async function playFindPlaceholerElement(canvasElement: HTMLElement): Promise<HT
 }
 
 async function playFindFirstMessageElement(canvasElement: HTMLElement): Promise<HTMLElement> {
-  return await within(canvasElement).findByText(/voluptatem/i);
+  return await within(canvasElement).findByText(/numquam/i);
 }
 
 const Template: StoryFn<ComponentType> = (args) => {

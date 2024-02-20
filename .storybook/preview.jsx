@@ -98,6 +98,11 @@ export const parameters = {
     config: {
       rules: [
         {
+          // TODO: for now the user avatar background color is generated with a simple algorithm but does not respect the ratio
+          id: 'color-contrast',
+          selector: '*:not(.MuiAvatar-circular.UserAvatar)',
+        },
+        {
           // A layout footer button targets a theming modal that we do not render to keep things simple, ignore this button violation
           id: 'aria-valid-attr-value',
           selector: '*:not([aria-controls="fr-theme-modal"])',

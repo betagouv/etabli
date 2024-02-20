@@ -49,7 +49,12 @@ export const Avatar = (props: AvatarProps) => {
   }, [props.size]);
 
   return (
-    <MuiAvatar sx={{ width: size, height: size, fontSize: size / 2, bgcolor: stringToColor(props.fullName), ...(props.sx || {}) }} src={props.src}>
+    <MuiAvatar
+      className="UserAvatar"
+      sx={{ width: size, height: size, fontSize: size / 2, bgcolor: stringToColor(props.fullName), ...(props.sx || {}) }}
+      src={props.src}
+      alt={props.src ? '' : undefined}
+    >
       {props.src ? null : extractInitials(props.fullName)}
     </MuiAvatar>
   );

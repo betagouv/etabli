@@ -25,7 +25,7 @@ DevelopmentEnvStory.args = {
   nodeEnv: 'production',
 };
 DevelopmentEnvStory.play = async ({ canvasElement }) => {
-  await within(canvasElement).findByText(/version/i);
+  await within(canvasElement).findByText(/merci/i);
 };
 
 export const DevelopmentEnv = prepareStory(DevelopmentEnvStory);
@@ -34,6 +34,9 @@ const ProductionEnvStory = Template.bind({});
 ProductionEnvStory.args = {
   appMode: 'prod',
   nodeEnv: 'production',
+};
+ProductionEnvStory.play = async ({ canvasElement }) => {
+  await within(canvasElement).findByText(/merci/i);
 };
 
 export const ProductionEnv = prepareStory(ProductionEnvStory);

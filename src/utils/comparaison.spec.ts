@@ -78,7 +78,9 @@ describe('getListDiff()', () => {
       type: 'list',
     });
 
-    const diffResult = getListDiff(before, after);
+    const diffResult = getListDiff(before, after, {
+      referenceProperty: 'id',
+    });
 
     // Our own wrapper around the library function should fix those
     expect(diffResult).toStrictEqual({

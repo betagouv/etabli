@@ -76,8 +76,8 @@ export async function formatRepositoriesIntoDatabase() {
       return JsonRepositorySchema.parse(record);
     })
     .filter((jsonRepository: JsonRepositorySchemaType) => {
-      // TODO: to remove due to tests on a small subset
-      if (!jsonRepository.repository_url.includes('https://github.com/betagouv/')) {
+      // In development environment we reduce the dataset to analyze
+      if (process.env.APP_MODE === 'dev' && !jsonRepository.repository_url.includes('https://github.com/betagouv/')) {
         return false;
       }
 

@@ -94,8 +94,8 @@ export async function formatDomainsIntoDatabase() {
           return CsvDomainSchema.parse(record);
         })
         .filter((csvDomain: CsvDomainSchemaType) => {
-          // TODO: to remove due to tests on a small subset
-          if (!csvDomain.name.includes('.beta.gouv.fr')) {
+          // In development environment we reduce the dataset to analyze
+          if (process.env.APP_MODE === 'dev' && !csvDomain.name.includes('.beta.gouv.fr')) {
             return false;
           }
 

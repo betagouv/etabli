@@ -56,10 +56,7 @@ And when calling it a day you can stop those containers with:
 docker-compose down
 ```
 
-Since the database uses the extension `pgvector` you have to make sure the first time it's enabled by running the SQL command:
-`CREATE EXTENSION IF NOT EXISTS vector;`
-
-Also the database schema and client need to be initialized:
+Now the database schema and client need to be initialized:
 `npm run db:migration:deploy && npm run db:schema:compile`
 
 Note since the application has a logic of jobs to be run regularly to fetch, analyze, and compute data. Those are not available in the UI, but you can trigger them through our custom CLI by running:
@@ -174,13 +171,6 @@ But if a root domain you have to use fixed IPs (reapeat this record X times if X
 Once done, go to your Clever Cloud domains settings and add your domain.
 
 #### Postgres
-
-##### Extensions
-
-Just enable with the SQL query `CREATE extension ${EXTENSION};` the following extensions needed by some of our libraries (on all environments):
-
-- `uuid-ossp`
-- `pgcrypto`
 
 ##### Tooling
 

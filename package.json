@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "only-include-used-icons && concurrently --kill-others -c \"auto\" \"npm:dev:app:command\" \"npm:dev:storybook:command\"",
     "dev:app": "only-include-used-icons && npm run dev:app:command",
-    "dev:app:command": "dotenv-run-script .env.test -- dev:app:unsecure",
+    "dev:app:command": "dotenv-run-script .env.test -- dev:app:command:unsecure",
     "dev:app:command:unsecure": "next dev",
     "dev:storybook": "only-include-used-icons && npm run dev:storybook:command",
     "dev:storybook:command": "storybook dev -p 6006 --no-open",

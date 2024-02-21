@@ -14,6 +14,7 @@ ARG PORT
 RUN apk add --no-cache \
   "build-base" \
   "libffi-dev" \
+  "libcurl" \
   "ruby-dev=${RUBY_VERSION}" \
   "py3-pip=${PIP_VERSION}"
 RUN apk update
@@ -48,6 +49,8 @@ RUN bundle --gemfile Gemfile
 RUN python3 -m venv ./venv \
   && source ./venv/bin/activate \
   && pip install -r requirements.txt
+
+ENV PATH="/app/venv/bin:$PATH"
 
 # Manage the final server build
 

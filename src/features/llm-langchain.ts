@@ -321,7 +321,6 @@ CONTEXT:
     // To help the LLM we give inside the context tools we are looking for
     // Since we cannot give the 8k+ tools from our database, we try to provide a subset meaningful according to extracted tech references we retrieved
     const rawToolsVectors = await this.toolsVectorStore.embeddings.embedDocuments(rawToolsFromAnalysis.filter((item) => item.trim() !== ''));
-    await sleep(500);
 
     const contextTools: string[] = [];
     for (let i = 0; i < rawToolsVectors.length; i++) {
@@ -426,7 +425,6 @@ CONTEXT:
 
     // We add correction to tools in case the LLM processed them poorly and to adjust to our own internal naming
     // Since embeddings are calculated by MistralAI we batch all at once to avoid API rate limiting
-    await sleep(500);
     const resultVectors = await this.toolsVectorStore.embeddings.embedDocuments(result.tools);
 
     for (let i = 0; i < result.tools.length; i++) {

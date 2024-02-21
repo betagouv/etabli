@@ -547,6 +547,9 @@ export async function feedInitiativesFromDatabase() {
           const results = await site.analyze();
 
           await fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
+
+          // Wait a bit in case websites from this initiative are on the same servers (tiny delay in this loop because)
+          await sleep(50);
         }
 
         const wappalyzerAnalysisDataString = await fs.readFile(wappalyzerAnalysisPath, 'utf-8');
@@ -614,6 +617,10 @@ export async function feedInitiativesFromDatabase() {
             '--depth': 1,
             '--filter': 'blob:limit=200k',
           });
+
+          // Do not flood network (tiny delay since it seems GitHub has only limitations on the API requests, no the Git operations)
+          // Ref: https://github.com/orgs/community/discussions/44515#discussioncomment-4795475
+          await sleep(50);
 
           // `git ls-files` was returning non-UT8 encoding so we were not able to easily delete files.
           // A git config is needed to get UT8 encoding (ref: https://stackoverflow.com/a/22828826/3608410)
@@ -907,8 +914,9 @@ export async function feedInitiativesFromDatabase() {
         break; // When successful break the infinite loop
       }
 
-      // Do not flood network
-      await sleep(1000);
+      // Do not flood network (tiny since MistralAI limits us to 5req/s but since the generation usually takes more than a second we are fine)
+      // (if needed in the future we could look at their rate limit information in headers to wait the appropriate amount of time to retry)
+      await sleep(50);
     }
   } catch (error) {
     if (error instanceof OpenAI.APIError) {

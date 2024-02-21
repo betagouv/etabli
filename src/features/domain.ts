@@ -414,8 +414,8 @@ export async function updateRobotsTxtOnDomains() {
       }
     }
 
-    // Do not flood network
-    await sleep(1000);
+    // Do not flood network (tiny delay since it's unlikely a lot consecutive domains would be managed by the same provider)
+    await sleep(50);
   }
 }
 
@@ -483,8 +483,8 @@ export async function updateWildcardCertificateOnDomains() {
       },
     });
 
-    // Do not flood network
-    await sleep(1000);
+    // Do not flood network (tiny delay since it's unlikely a lot consecutive domains would be managed by the same provider)
+    await sleep(50);
   }
 }
 
@@ -565,8 +565,8 @@ export async function updateWebsiteDataOnDomains() {
                 ) {
                   const anotherPageUrl = cleanLink;
 
-                  // Wait a bit to not flood this website
-                  await sleep(1000);
+                  // Wait a bit to not flood this website (tiny delay in this loop because it's just the second request to this domain in this iteration)
+                  await sleep(50);
 
                   const anotherPageData = await getWebsiteData(anotherPageUrl);
                   anotherPageTitle = anotherPageData.title;
@@ -712,8 +712,8 @@ export async function updateWebsiteDataOnDomains() {
       }
     }
 
-    // Do not flood network
-    await sleep(1000);
+    // Do not flood network (tiny delay since it's unlikely a lot consecutive domains would be managed by the same provider)
+    await sleep(50);
   }
 }
 

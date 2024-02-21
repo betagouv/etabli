@@ -4,7 +4,7 @@ A french national platform allowing agents and citizens to search for public dig
 
 - The project is available onto: https://etabli.incubateur.net _(#production)_
 
-All the states of the application are described visually on a Storybook. It renders fake data but allows you to discover the project without dealing with real flows: https://dev--TODO.chromatic.com
+All the states of the application are described visually on a Storybook. It renders fake data but allows you to discover the project without dealing with real flows: https://main--65cba764ca6d6f49d5b40e50.chromatic.com/
 
 ## Datasets
 

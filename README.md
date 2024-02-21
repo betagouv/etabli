@@ -84,6 +84,9 @@ You must configure 1 environment in the CI/CD settings:
 The following ones must be repository secrets (not environment ones):
 
 - `CHROMATIC_PROJECT_TOKEN`: [SECRET]
+- `CLEVER_APP_ID_PRODUCTION`: [GENERATED] _(format `app_{uuid}`, can be retrieved into the Clever Cloud interface)\_
+- `CLEVER_TOKEN`: [GENERATED] _(can be retrieved from `clever login`, but be warned it gives wide access)_
+- `CLEVER_SECRET`: [GENERATED] _(can be retrieved from `clever login`, but be warned it gives wide access)_
 - `LHCI_GITHUB_APP_TOKEN`: [SECRET]
 - `SENTRY_URL`: [SECRET] _(format `https://xxx.yyy.zzz/`)_
 - `SENTRY_AUTH_TOKEN`: [SECRET]

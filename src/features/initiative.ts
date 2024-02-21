@@ -546,6 +546,7 @@ export async function feedInitiativesFromDatabase() {
 
           const results = await site.analyze();
 
+          await fs.mkdir(path.dirname(wappalyzerAnalysisPath), { recursive: true });
           await fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
 
           // Wait a bit in case websites from this initiative are on the same servers (tiny delay in this loop because)
@@ -737,6 +738,7 @@ export async function feedInitiativesFromDatabase() {
           const sanitizedGptResultPath = path.resolve(projectDirectory, 'sanitized-gpt-result.json');
 
           const beautifiedAnswerData = JSON.stringify(answerData, null, 2);
+          await fs.mkdir(path.dirname(sanitizedGptResultPath), { recursive: true });
           await fs.writeFile(sanitizedGptResultPath, beautifiedAnswerData);
 
           console.log(`the JSON sanitized result has been written to: ${sanitizedGptResultPath}`);

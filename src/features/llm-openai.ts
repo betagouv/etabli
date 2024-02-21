@@ -197,6 +197,7 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
 
     // Store the document for debug
     const gptToolsDocumentPath = path.resolve(__dirname, '../../data/gpt-document-tools.md');
+    await fs.mkdir(path.dirname(gptToolsDocumentPath), { recursive: true });
     await fs.writeFile(gptToolsDocumentPath, toolsGptContent);
 
     // Upload the document to GPT

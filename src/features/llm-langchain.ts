@@ -344,6 +344,7 @@ CONTEXT:
     // Store the prompt for debug
     const contentToSend = await chain.prompt.format(invocationInputs);
     const gptPromptPath = path.resolve(projectDirectory, 'langchain-prompt.md');
+    await fs.mkdir(path.dirname(gptPromptPath), { recursive: true });
     await fs.writeFile(gptPromptPath, contentToSend);
 
     const tokens = mistralTokenizer.encode(contentToSend);

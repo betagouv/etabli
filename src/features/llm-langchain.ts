@@ -19,6 +19,7 @@ import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from
 import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
+import { linkRegistry } from '@etabli/src/utils/routes/registry';
 import { sleep } from '@etabli/src/utils/sleep';
 
 export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
@@ -460,7 +461,11 @@ CONTEXT:
       [
         'system',
         `
-You are a bot helping users finding the right initiative sheet from a directory. Note the directory is named Etabli and you are considered as its assistant. Use the provided sheets information from the context to answer the user questions, and in case you mention an initiative don't forget to give its link (with the format "etabli://$INITIATIVE_ID"). You should mention initiatives according to the user message, don't if it provides no information to search with. Just know that initiative represents a project or a product. You should answer in french except if the user speaks another language, and remember the user is not supposed to know some documents are set in your context.
+You are a bot helping users finding the right initiative sheet from a directory. Note the directory is named Etabli and you are considered as its assistant. Use the provided sheets information from the context to answer the user questions, and in case you mention an initiative don't forget to give its link (with the format "${linkRegistry.get(
+          'initiative',
+          { initiativeId: '$INITIATIVE_ID' },
+          { absolute: true }
+        )}"). You should mention initiatives according to the user message, don't if it provides no information to search with. Just know that initiative represents a project or a product. You should answer in french except if the user speaks another language, and remember the user is not supposed to know some documents are set in your context.
 ---
 CONTEXT:
 {context}

@@ -7,27 +7,49 @@ ARG PORT=3000
 
 FROM node:${NODE_VERSION}-alpine
 
-RUN apk add --no-cache 'ruby=${RUBY_VERSION}' 'py3-pip=${PIP_VERSION}'
+ARG RUBY_VERSION
+ARG PIP_VERSION
+ARG PORT
+
+RUN apk add --no-cache \
+  "build-base" \
+  "libffi-dev" \
+  "ruby-dev=${RUBY_VERSION}" \
+  "py3-pip=${PIP_VERSION}"
 RUN apk update
 
-# Copy manifest files
-
-COPY "src/bibliothecary/Gemfile" "src/bibliothecary/Gemfile.lock" ./
-COPY "src/semgrep/requirements.txt" ./
-
-# Install tools
-
-RUN gem install bundler
-RUN bundle --gemfile Gemfile
-
-RUN pip install -r requirements.txt
-
-# Manage the final server build
+# Restrict the permissions
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 USER nextjs
+
+WORKDIR /app
+
+# Copy manifest files
+
+COPY --chown=nextjs:nodejs "src/bibliothecary/Gemfile" "src/bibliothecary/Gemfile.lock" ./
+COPY --chown=nextjs:nodejs "src/semgrep/requirements.txt" ./
+
+# Install tools
+# Note: we did not specify the `bundler` version from the `Gemfile.lock` so it may adjust it accordingly
+# We could have frozen it but it would require to fix the `bundle` version for local development too, which seems overkilled
+
+RUN gem install --user-install bundler
+
+# Docker does not allow injecting command result into an variable environment so doing it manually (ref: https://github.com/moby/moby/issues/29110)
+# ENV GEM_HOME="$(ruby -e 'puts Gem.user_dir')"
+ENV GEM_HOME="/home/nextjs/.local/share/gem/ruby/3.2.0"
+ENV PATH="$GEM_HOME/bin:$PATH"
+
+RUN bundle --gemfile Gemfile
+
+RUN python3 -m venv ./venv \
+  && source ./venv/bin/activate \
+  && pip install -r requirements.txt
+
+# Manage the final server build
 
 COPY --chown=nextjs:nodejs ".next/standalone" ./
 COPY --chown=nextjs:nodejs ".next/static" "./.next/static"

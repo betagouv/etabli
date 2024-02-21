@@ -5,6 +5,7 @@
 /.storybook/coverage/
 /.storybook/storybook-static/
 /.vscode/i18n-ally-reviews.yml
+/build/
 /data/
 /dist/
 /public/mockServiceWorker.js

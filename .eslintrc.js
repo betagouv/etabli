@@ -2,7 +2,7 @@ module.exports = {
   root: true,
   extends: ['next', 'prettier', 'plugin:storybook/recommended', 'plugin:jsx-a11y/strict'],
   plugins: ['@typescript-eslint', 'import', 'jsx-a11y', 'testing-library'],
-  ignorePatterns: ['dist', 'data', 'storybook-static'],
+  ignorePatterns: ['build', 'data', 'dist', 'storybook-static'],
   rules: {
     '@next/next/no-html-link-for-pages': 'off',
     'interface-name': 'off',

@@ -17,6 +17,7 @@ RUN apk add --no-cache \
   "build-base" \
   "libffi-dev" \
   "libcurl" \
+  "curl" \
   "ruby-dev=${RUBY_VERSION}" \
   "py3-pip=${PIP_VERSION}"
 RUN apk update
@@ -59,7 +60,6 @@ ENV PATH="/app/venv/bin:$PATH"
 COPY --chown=nextjs:nodejs ".next/standalone" ./
 COPY --chown=nextjs:nodejs ".next/static" "./.next/static"
 COPY --chown=nextjs:nodejs "public" "./public"
-COPY --chown=nextjs:nodejs "start-and-wait-to-init.sh" ./
 
 ENV PRISMA_VERSION $PRISMA_VERSION
 
@@ -67,4 +67,4 @@ ENV PORT $PORT
 EXPOSE $PORT
 
 # We use `npx` to avoid using `npm run db:migration:deploy:unsecure` since we build as standalone the entire application and we no longer want to rely application `node_modules` folder
-CMD npx --yes prisma@${PRISMA_VERSION} migrate deploy && start-and-wait-to-init.sh
+CMD npx --yes prisma@${PRISMA_VERSION} migrate deploy && ./start-and-wait-to-init.sh

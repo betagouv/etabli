@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 #
 # We trigger an init endpoint to set up all async processes like cron scheduling
@@ -37,6 +37,8 @@ check_server_and_init() {
       kill $next_pid
       exit 1
     fi
+
+    echo "the Next.js server is not yet ready"
 
     sleep 1
     counter=$((counter+1))

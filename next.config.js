@@ -58,10 +58,20 @@ const moduleExports = async () => {
     transpilePackages: commonPackages,
     experimental: {
       outputFileTracingIncludes: {
-        '*': ['src/prisma/migrations/**/*', 'src/prisma/schema.prisma', 'start-and-wait-to-init.sh'], // Migration and start files are required when doing automatic migration before starting the application
+        '*': ['./src/prisma/migrations/**/*', './src/prisma/schema.prisma', './start-and-wait-to-init.sh'], // Migration and start files are required when doing automatic migration before starting the application
       },
+      // It should have been the new `outputFileTracingExcludes` property but it's messing with the Next.js core (ref: https://github.com/vercel/next.js/issues/62331)
       outputFileTracingExcludes: {
-        '*': ['data/**/*', 'scripts/**/*'], // Note folders starting with a dot are already ignored after verification
+        '*': [
+          // // The global exclusion of `data` should have worked but it's not so listing one by one (ref: https://github.com/vercel/next.js/issues/62331)
+          // './data/**/*'
+          './data/initiatives/**/*',
+          './data/domains.csv',
+          './data/graph.json',
+          './data/repositories.json',
+          './data/tools.csv',
+          './scripts/**/*',
+        ], // Note that folders starting with a dot are already ignored after verification
       },
       swcPlugins: [['next-superjson-plugin', { excluded: [] }]],
     },

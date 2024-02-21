@@ -25,7 +25,7 @@ check_server_and_init() {
   counter=0
 
   while true; do
-    response=$(curl --write-out %{http_code} --silent --output /dev/null http://localhost:$PORT)
+    response=$(curl --write-out %{http_code} --silent --output /dev/null http://$APP_HOST:$PORT)
     if [ "$response" = "200" ]; then
       break
     fi
@@ -44,7 +44,7 @@ check_server_and_init() {
     counter=$((counter+1))
   done
 
-  curl http://localhost:$PORT/api/init
+  curl http://$APP_HOST:$PORT/api/init
 }
 
 # In parallel wait for the server readiness to init some services

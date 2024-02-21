@@ -1,9 +1,11 @@
 # [IMPORTANT] Must be built from the root of the project for the COPY/paths to work
+# The `APP_HOST` variable defaults onto what Next.js server uses in a Docker environment
 
 ARG NODE_VERSION=18.19.0
 ARG RUBY_VERSION=3.2.2-r1
 ARG PIP_VERSION=23.3.1-r0
 ARG PRISMA_VERSION=4.16.2
+ARG APP_HOST=172.17.0.2
 ARG PORT=3000
 
 FROM node:${NODE_VERSION}-alpine
@@ -11,6 +13,7 @@ FROM node:${NODE_VERSION}-alpine
 ARG RUBY_VERSION
 ARG PIP_VERSION
 ARG PRISMA_VERSION
+ARG APP_HOST
 ARG PORT
 
 RUN apk add --no-cache \
@@ -63,6 +66,7 @@ COPY --chown=nextjs:nodejs "public" "./public"
 
 ENV PRISMA_VERSION $PRISMA_VERSION
 
+ENV APP_HOST $APP_HOST
 ENV PORT $PORT
 EXPOSE $PORT
 

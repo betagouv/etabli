@@ -9,7 +9,7 @@ export function getBaseUrl() {
     return '';
   }
 
-  return `http://localhost:${process.env.PORT ?? getListeningPort()}`;
+  return `http://${process.env.NEXT_PUBLIC_APP_HOST ?? 'localhost'}:${process.env.PORT ?? getListeningPort()}`;
 }
 
 export function getListeningPort() {

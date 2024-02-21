@@ -23,7 +23,8 @@ jobs:
     name: Continuous Integration
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+      packages: write
       issues: write
       pull-requests: write
     steps:

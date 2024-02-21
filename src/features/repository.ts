@@ -12,6 +12,7 @@ import { rawRepositoryPlatformJsonToModel } from '@etabli/src/models/mappers/raw
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
+import { formatArrayProgress } from '@etabli/src/utils/format';
 import { emptyStringtoNullPreprocessor } from '@etabli/src/utils/validation';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -325,11 +326,13 @@ export async function updateInferredMetadataOnRepositories() {
     },
   });
 
-  for (const rawRepository of rawRepositories) {
+  for (const [rawRepositoryIndex, rawRepository] of Object.entries(rawRepositories)) {
     watchGracefulExitInLoop();
 
     console.log(
-      `try to locally infer metadata for repository {${rawRepository.platform}} ${rawRepository.organizationName}/${rawRepository.name} (${rawRepository.id})`
+      `try to locally infer metadata for repository {${rawRepository.platform}} ${rawRepository.organizationName}/${rawRepository.name} (${
+        rawRepository.id
+      }) ${formatArrayProgress(rawRepositoryIndex, rawRepositories.length)}`
     );
 
     // If there is a declared URL, take it as it comes
@@ -436,11 +439,13 @@ export async function matchRepositories() {
     },
   });
 
-  for (const rawRepositoryToUpdate of rawRepositoriesToUpdate) {
+  for (const [rawRepositoryToUpdateIndex, rawRepositoryToUpdate] of Object.entries(rawRepositoriesToUpdate)) {
     watchGracefulExitInLoop();
 
     console.log(
-      `try to bind similar repositories to repository {${rawRepositoryToUpdate.platform}} ${rawRepositoryToUpdate.organizationName}/${rawRepositoryToUpdate.name} (${rawRepositoryToUpdate.id})`
+      `try to bind similar repositories to repository {${rawRepositoryToUpdate.platform}} ${rawRepositoryToUpdate.organizationName}/${
+        rawRepositoryToUpdate.name
+      } (${rawRepositoryToUpdate.id}) ${formatArrayProgress(rawRepositoryToUpdateIndex, rawRepositoriesToUpdate.length)}`
     );
 
     // The repositories to look for should be under the same platform and organization (unlikely people would set code for the same application at multiple locations)

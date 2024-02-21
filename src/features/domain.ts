@@ -21,6 +21,7 @@ import { rawDomainTypeCsvToModel } from '@etabli/src/models/mappers/raw-domain';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
+import { formatArrayProgress } from '@etabli/src/utils/format';
 import { containsHtml } from '@etabli/src/utils/html';
 import { sleep } from '@etabli/src/utils/sleep';
 
@@ -312,10 +313,10 @@ export async function updateRobotsTxtOnDomains() {
     },
   });
 
-  for (const rawDomain of rawDomains) {
+  for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
     watchGracefulExitInLoop();
 
-    console.log(`try to process robots.txt for domain ${rawDomain.name} (${rawDomain.id})`);
+    console.log(`try to process robots.txt for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(rawDomainIndex, rawDomains.length)}`);
 
     try {
       const rootUrl = new URL(`https://${rawDomain.name}`);
@@ -429,10 +430,12 @@ export async function updateWildcardCertificateOnDomains() {
     },
   });
 
-  for (const rawDomain of rawDomains) {
+  for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
     watchGracefulExitInLoop();
 
-    console.log(`try to process SSL certificate for domain ${rawDomain.name} (${rawDomain.id})`);
+    console.log(
+      `try to process SSL certificate for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(rawDomainIndex, rawDomains.length)}`
+    );
 
     const certificate = await new Promise<PeerCertificate | null>((resolve, reject) => {
       const request = https.request(
@@ -493,10 +496,12 @@ export async function updateWebsiteDataOnDomains() {
     },
   });
 
-  for (const rawDomain of rawDomains) {
+  for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
     watchGracefulExitInLoop();
 
-    console.log(`try to process website content for domain ${rawDomain.name} (${rawDomain.id})`);
+    console.log(
+      `try to process website content for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(rawDomainIndex, rawDomains.length)}`
+    );
 
     try {
       const url = new URL(`https://${rawDomain.name}`);
@@ -736,10 +741,15 @@ export async function matchDomains() {
     return (b.name.match(/\./g) || []).length - (a.name.match(/\./g) || []).length;
   });
 
-  for (const rawDomainToUpdate of rawDomainsToUpdate) {
+  for (const [rawDomainToUpdateIndex, rawDomainToUpdate] of Object.entries(rawDomainsToUpdate)) {
     watchGracefulExitInLoop();
 
-    console.log(`try to bind similar domains to domain ${rawDomainToUpdate.name} (${rawDomainToUpdate.id})`);
+    console.log(
+      `try to bind similar domains to domain ${rawDomainToUpdate.name} (${rawDomainToUpdate.id}) ${formatArrayProgress(
+        rawDomainToUpdateIndex,
+        rawDomainsToUpdate.length
+      )}`
+    );
 
     const rootRawDomain = sortedRootRawDomains.find((d) => {
       // Look for `.abc.com` in case of `subdomain.abc.com`

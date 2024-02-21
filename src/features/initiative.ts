@@ -37,6 +37,7 @@ import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter } from '@etabli/src/utils/format';
+import { formatArrayProgress } from '@etabli/src/utils/format';
 import { languagesExtensions } from '@etabli/src/utils/languages';
 import { sleep } from '@etabli/src/utils/sleep';
 import { WappalyzerResultSchema } from '@etabli/src/wappalyzer';
@@ -465,10 +466,10 @@ export async function feedInitiativesFromDatabase() {
     const initiativeGptTemplate = handlebars.compile(initiativeGptTemplateContent);
 
     // To debug easily we write each result on disk (also, since using lot of CLIs we have no other choice :D)
-    for (const initiativeMap of initiativeMaps) {
+    for (const [initiativeMapIndex, initiativeMap] of Object.entries(initiativeMaps)) {
       watchGracefulExitInLoop();
 
-      console.log(`feed initiative ${initiativeMap.id}`);
+      console.log(`feed initiative ${initiativeMap.id} ${formatArrayProgress(initiativeMapIndex, initiativeMaps.length)}`);
 
       if (initiativeMap.RawDomainsOnInitiativeMaps.length > 0 && initiativeMap.RawRepositoriesOnInitiativeMaps.length > 0) {
         // TODO: for test for now we just skip those not having both types
@@ -502,10 +503,15 @@ export async function feedInitiativesFromDatabase() {
       }
 
       let mixedInitiativeTools: string[] = [];
-      for (const rawDomainOnIMap of initiativeMap.RawDomainsOnInitiativeMaps) {
+      for (const [rawDomainOnIMapIndex, rawDomainOnIMap] of Object.entries(initiativeMap.RawDomainsOnInitiativeMaps)) {
         watchGracefulExitInLoop();
 
-        console.log(`domain ${rawDomainOnIMap.rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomainOnIMap.rawDomain.id})`);
+        console.log(
+          `domain ${rawDomainOnIMap.rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomainOnIMap.rawDomain.id}) ${formatArrayProgress(
+            rawDomainOnIMapIndex,
+            initiativeMap.RawDomainsOnInitiativeMaps.length
+          )}`
+        );
 
         const rawDomain = rawDomainOnIMap.rawDomain;
 
@@ -567,13 +573,13 @@ export async function feedInitiativesFromDatabase() {
         }
       }
 
-      for (const rawRepositoryOnIMap of initiativeMap.RawRepositoriesOnInitiativeMaps) {
+      for (const [rawRepositoryOnIMapIndex, rawRepositoryOnIMap] of Object.entries(initiativeMap.RawRepositoriesOnInitiativeMaps)) {
         watchGracefulExitInLoop();
 
         console.log(
           `repository ${rawRepositoryOnIMap.rawRepository.repositoryUrl} ${rawRepositoryOnIMap.main ? '(main)' : ''} (${
             rawRepositoryOnIMap.rawRepository.id
-          })`
+          }) ${formatArrayProgress(rawRepositoryOnIMapIndex, initiativeMap.RawRepositoriesOnInitiativeMaps.length)}`
         );
 
         const rawRepository = rawRepositoryOnIMap.rawRepository;

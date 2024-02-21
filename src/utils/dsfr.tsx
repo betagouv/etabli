@@ -49,14 +49,6 @@ export const commonFooterAttributes = {
       },
       text: 'Politique de confidentialité',
     },
-    {
-      iconId: undefined as any,
-      linkProps: {
-        // href: linkRegistry.get('termsOfUse', undefined),
-        href: '/terms-of-use',
-      },
-      text: `Conditions générales d'utilisation`,
-    },
     headerFooterDisplayItem,
   ],
   license: (

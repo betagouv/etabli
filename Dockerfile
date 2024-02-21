@@ -3,12 +3,14 @@
 ARG NODE_VERSION=18.19.0
 ARG RUBY_VERSION=3.2.2-r1
 ARG PIP_VERSION=23.3.1-r0
+ARG PRISMA_VERSION=4.16.2
 ARG PORT=3000
 
 FROM node:${NODE_VERSION}-alpine
 
 ARG RUBY_VERSION
 ARG PIP_VERSION
+ARG PRISMA_VERSION
 ARG PORT
 
 RUN apk add --no-cache \
@@ -59,8 +61,10 @@ COPY --chown=nextjs:nodejs ".next/static" "./.next/static"
 COPY --chown=nextjs:nodejs "public" "./public"
 COPY --chown=nextjs:nodejs "start-and-wait-to-init.sh" ./
 
+ENV PRISMA_VERSION $PRISMA_VERSION
+
 ENV PORT $PORT
 EXPOSE $PORT
 
 # We use `npx` to avoid using `npm run db:migration:deploy:unsecure` since we build as standalone the entire application and we no longer want to rely application `node_modules` folder
-CMD npx prisma migrate deploy && start-and-wait-to-init.sh
+CMD npx --yes prisma@${PRISMA_VERSION} migrate deploy && start-and-wait-to-init.sh

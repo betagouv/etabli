@@ -57,6 +57,9 @@ const moduleExports = async () => {
     },
     transpilePackages: commonPackages,
     experimental: {
+      outputFileTracingIncludes: {
+        '*': ['src/prisma/migrations/**/*', 'src/prisma/schema.prisma'], // Migration files are required when doing automatic migration before starting the application
+      },
       outputFileTracingExcludes: {
         '*': ['data/**/*', 'scripts/**/*'], // Note folders starting with a dot are already ignored after verification
       },

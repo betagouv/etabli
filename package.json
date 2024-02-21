@@ -28,7 +28,7 @@
     "start:app": "next start -p $PORT",
     "start:storybook": "serve -l 6006 storybook-static",
     "cli": "dotenv-run-script .env.test -- cli:unsecure",
-    "cli:unsecure": "tsx src/cli.ts",
+    "cli:unsecure": "tsx src/cli/index.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:prepare": "npm run db:schema:compile",

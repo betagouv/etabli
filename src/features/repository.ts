@@ -70,6 +70,7 @@ export async function saveRepositoryListFile(cache = true) {
 export async function formatRepositoriesIntoDatabase() {
   const content = await fs.readFile(localJsonPath, 'utf-8');
   const records: unknown[] = JSON.parse(content);
+  const duplicatesMarkers: string[] = [];
 
   const jsonRepositories = records
     .map((record) => {
@@ -87,6 +88,13 @@ export async function formatRepositoriesIntoDatabase() {
       } else if (jsonRepository.is_fork === null && jsonRepository.description?.toLowerCase().includes('fork')) {
         // Repositories from forges other than GitHub do not have the fork metadata so trying to look is the developper specified it in the description
         return false;
+      }
+
+      // Keep and compare its "unique" signature to skip duplicates
+      if (duplicatesMarkers.find((repositoryUrl) => repositoryUrl === jsonRepository.repository_url)) {
+        return false;
+      } else {
+        duplicatesMarkers.push(jsonRepository.repository_url);
       }
 
       // Note: we keep archived projects because they can still bring value years after :)
@@ -230,11 +238,7 @@ export async function formatRepositoriesIntoDatabase() {
 
           const deletedRawDomain = await tx.rawRepository.delete({
             where: {
-              platform_organizationName_name: {
-                platform: liteRawRepository.platform,
-                organizationName: liteRawRepository.organizationName,
-                name: liteRawRepository.name,
-              },
+              repositoryUrl: liteRawRepository.repositoryUrl,
             },
             include: {
               RawRepositoriesOnInitiativeMaps: true,
@@ -258,11 +262,7 @@ export async function formatRepositoriesIntoDatabase() {
 
           const updatedRawRepository = await tx.rawRepository.update({
             where: {
-              platform_organizationName_name: {
-                platform: liteRawRepository.platform,
-                organizationName: liteRawRepository.organizationName,
-                name: liteRawRepository.name,
-              },
+              repositoryUrl: liteRawRepository.repositoryUrl,
             },
             data: {
               name: liteRawRepository.name,

@@ -57,11 +57,12 @@ enum RawRepositoryPlatform {
 }
 
 model RawRepository {
+  // Note we couldn't make a constraint `@@unique([platform, organizationName, name])` because GitLab can manage subgroups which are not reflected in those three, so using the repository URL
   id                     String                @id @default(uuid()) @db.Uuid
   name                   String
   organizationName       String
   platform               RawRepositoryPlatform
-  repositoryUrl          String
+  repositoryUrl          String                @unique
   description            String?               @db.Text
   defaultBranch          String
   isFork                 Boolean?
@@ -95,8 +96,6 @@ model RawRepository {
   mainSimilarRepository           RawRepository?                   @relation("SimilarRepositories", fields: [mainSimilarRepositoryId], references: [id], onDelete: SetNull)
   similarRepositories             RawRepository[]                  @relation("SimilarRepositories")
   RawRepositoriesOnInitiativeMaps RawRepositoriesOnInitiativeMaps?
-
-  @@unique([platform, organizationName, name])
 }
 
 enum RawDomainType {

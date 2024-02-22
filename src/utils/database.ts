@@ -1,11 +1,10 @@
-import { fileURLToPath } from 'node:url';
 import path from 'path';
 import { DockerComposeEnvironment, Wait } from 'testcontainers';
 import type { StartedGenericContainer } from 'testcontainers/dist/src/generic-container/started-generic-container';
 
 import { bindContainerLogs, defaultEnvironment, formatContainerNameWithSuffix } from '@etabli/src/utils/testcontainers';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __root_dirname = process.cwd();
 
 export interface PostgresContainer {
   container: StartedGenericContainer;
@@ -22,7 +21,7 @@ export async function setupPostgres(): Promise<PostgresContainer> {
     process.env.TESTCONTAINERS_RYUK_DISABLED = 'true';
   }
 
-  const composeFilePath = path.resolve(__dirname, '../../');
+  const composeFilePath = path.resolve(__root_dirname, './');
   const composeFile = 'docker-compose.yaml';
   const serviceName = 'postgres';
   const containerName = formatContainerNameWithSuffix('etabli_postgres_container');

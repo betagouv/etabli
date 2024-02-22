@@ -3,7 +3,6 @@ import fsSync from 'fs';
 import fs from 'fs/promises';
 import linkifyit from 'linkify-it';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/src/common';
@@ -15,13 +14,13 @@ import { getListDiff } from '@etabli/src/utils/comparaison';
 import { formatArrayProgress } from '@etabli/src/utils/format';
 import { emptyStringtoNullPreprocessor } from '@etabli/src/utils/validation';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __root_dirname = process.cwd();
 const linkify = linkifyit();
 
 // We did not used the CSV format even if less heavy to avoid extra parsing for numbers, null, string on multiple lines... (ref: https://code.gouv.fr/data/repositories/csv/all.csv)
 
 export const latestRemoteJsonUrl = 'https://code.gouv.fr/data/repositories/json/all.json';
-export const localJsonPath = path.resolve(__dirname, '../../data/repositories.json');
+export const localJsonPath = path.resolve(__root_dirname, './data/repositories.json');
 
 export const JsonRepositoryPlatformSchema = z.enum(['GitHub', 'GitLab']);
 export type JsonRepositoryPlatformSchemaType = z.infer<typeof JsonRepositoryPlatformSchema>;

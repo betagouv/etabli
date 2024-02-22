@@ -9,7 +9,6 @@ import { ParseResultType, parseDomain } from 'parse-domain';
 import path from 'path';
 import robotsParser from 'robots-parser';
 import { PeerCertificate, TLSSocket } from 'tls';
-import { fileURLToPath } from 'url';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/src/common';
@@ -25,11 +24,11 @@ import { formatArrayProgress } from '@etabli/src/utils/format';
 import { containsHtml } from '@etabli/src/utils/html';
 import { sleep } from '@etabli/src/utils/sleep';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __root_dirname = process.cwd();
 
 export const latestRemoteCsvUrl =
   'https://gitlab.adullact.net/dinum/noms-de-domaine-organismes-secteur-public/-/raw/master/domains.csv?ref_type=heads';
-export const localCsvPath = path.resolve(__dirname, '../../data/domains.csv');
+export const localCsvPath = path.resolve(__root_dirname, './data/domains.csv');
 
 export const CsvDomainTypeSchema = z.enum([
   '',

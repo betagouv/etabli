@@ -15,7 +15,6 @@ import OpenAI from 'openai';
 import path from 'path';
 import prettyBytes from 'pretty-bytes';
 import { simpleGit } from 'simple-git';
-import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import Wappalyzer from 'wappalyzer';
 
@@ -36,13 +35,12 @@ import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
-import { capitalizeFirstLetter } from '@etabli/src/utils/format';
-import { formatArrayProgress } from '@etabli/src/utils/format';
+import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { languagesExtensions } from '@etabli/src/utils/languages';
 import { sleep } from '@etabli/src/utils/sleep';
 import { WappalyzerResultSchema } from '@etabli/src/wappalyzer';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __root_dirname = process.cwd();
 
 const fastFolderSizeAsync = promisify(fastFolderSize);
 const useLocalFileCache = true; // Switch it when testing locally to prevent multiplying network request whereas the remote content has probably no change since then
@@ -59,8 +57,8 @@ const filesToKeepGitEndingPatterns: string[] = [
   ...languagesExtensions,
 ];
 
-const noImgAndSvgFilterPath = path.resolve(__dirname, '../../src/pandoc/no-img-and-svg.lua');
-const extractMetaDescriptionFilterPath = path.resolve(__dirname, '../../src/pandoc/extract-meta-description.lua');
+const noImgAndSvgFilterPath = path.resolve(__root_dirname, './src/pandoc/no-img-and-svg.lua');
+const extractMetaDescriptionFilterPath = path.resolve(__root_dirname, './src/pandoc/extract-meta-description.lua');
 
 const wappalyzer = new Wappalyzer({
   debug: false,
@@ -173,7 +171,7 @@ export async function inferInitiativesFromDatabase() {
   // To debug it may be useful to print a global JSON representation
   if (!!false) {
     const jsonContent = graphlib.json.write(graph);
-    const jsonPath = path.resolve(__dirname, '../../data/graph.json');
+    const jsonPath = path.resolve(__root_dirname, './data/graph.json');
 
     await fs.writeFile(jsonPath, JSON.stringify(jsonContent, null, 2));
   }
@@ -456,9 +454,9 @@ export async function feedInitiativesFromDatabase() {
     await wappalyzer.init();
 
     // Prepare the message template used to ask GPT about the initiative
-    const initiativeGptTemplateContent = await fs.readFile(path.resolve(__dirname, '../../src/gpt/templates/initiative.md'), 'utf-8');
-    const websiteGptTemplateContent = await fs.readFile(path.resolve(__dirname, '../../src/gpt/templates/website.md'), 'utf-8');
-    const repositoryGptTemplateContent = await fs.readFile(path.resolve(__dirname, '../../src/gpt/templates/repository.md'), 'utf-8');
+    const initiativeGptTemplateContent = await fs.readFile(path.resolve(__root_dirname, './src/gpt/templates/initiative.md'), 'utf-8');
+    const websiteGptTemplateContent = await fs.readFile(path.resolve(__root_dirname, './src/gpt/templates/website.md'), 'utf-8');
+    const repositoryGptTemplateContent = await fs.readFile(path.resolve(__root_dirname, './src/gpt/templates/repository.md'), 'utf-8');
 
     handlebars.registerPartial('websitePartial', websiteGptTemplateContent);
     handlebars.registerPartial('repositoryPartial', repositoryGptTemplateContent);
@@ -485,7 +483,7 @@ export async function feedInitiativesFromDatabase() {
       // actuellement JE REGARDAIS pour faire marcher "context". Now c'est good mais il est sur une ligne pas dans un array
       // je voulais tester quand y'a plusieurs documents à retourner...
 
-      const projectDirectory = path.resolve(__dirname, '../../data/initiatives/', initiativeMap.id);
+      const projectDirectory = path.resolve(__root_dirname, './data/initiatives/', initiativeMap.id);
 
       const websitesTemplates: WebsiteTemplateSchemaType[] = [];
       const repositoriesTemplates: RepositoryTemplateSchemaType[] = [];

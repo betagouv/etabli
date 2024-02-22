@@ -3,7 +3,6 @@ import { parse } from 'csv-parse';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/src/common';
@@ -14,10 +13,10 @@ import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
 import { emptyStringtoNullPreprocessor } from '@etabli/src/utils/validation';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __root_dirname = process.cwd();
 
 export const latestRemoteCsvUrl = 'https://raw.githubusercontent.com/captn3m0/stackshare-dataset/main/tools.csv';
-export const localCsvPath = path.resolve(__dirname, '../../data/tools.csv');
+export const localCsvPath = path.resolve(__root_dirname, './data/tools.csv');
 
 export const CsvToolCategorySchema = z.enum([
   'languages-and-frameworks',

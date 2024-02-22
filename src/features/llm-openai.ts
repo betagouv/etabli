@@ -10,7 +10,6 @@ import { AssistantFile } from 'openai/resources/beta/assistants/files';
 import { Run } from 'openai/resources/beta/threads/runs/runs';
 import path from 'path';
 import { encoding_for_model } from 'tiktoken';
-import { fileURLToPath } from 'url';
 
 import { ChunkEventEmitter, LlmManager } from '@etabli/src/features/llm';
 import { gptInstances } from '@etabli/src/gpt';
@@ -20,7 +19,7 @@ import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { sleep } from '@etabli/src/utils/sleep';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __root_dirname = process.cwd();
 
 export class OpenaiWithAssistantApiLlmManager implements LlmManager {
   public readonly openaiItemPrefix = 'etabli_';
@@ -180,7 +179,7 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
 
     const toolsNames: string[] = tools.map((tool) => tool.name);
 
-    const toolsGptTemplateContent = await fs.readFile(path.resolve(__dirname, '../../src/gpt/templates/tools-document.md'), 'utf-8');
+    const toolsGptTemplateContent = await fs.readFile(path.resolve(__root_dirname, './src/gpt/templates/tools-document.md'), 'utf-8');
     const toolsGptTemplate = handlebars.compile(toolsGptTemplateContent);
 
     // Since tools should not reach limit of 2M tokens for 1 document, we have no chunk logic
@@ -196,7 +195,7 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     }
 
     // Store the document for debug
-    const gptToolsDocumentPath = path.resolve(__dirname, '../../data/gpt-document-tools.md');
+    const gptToolsDocumentPath = path.resolve(__root_dirname, './data/gpt-document-tools.md');
     await fs.mkdir(path.dirname(gptToolsDocumentPath), { recursive: true });
     await fs.writeFile(gptToolsDocumentPath, toolsGptContent);
 
@@ -282,12 +281,12 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     }
 
     const initiativesChunkGptTemplateContent = await fs.readFile(
-      path.resolve(__dirname, '../../src/gpt/templates/initiatives-chunk-document.md'),
+      path.resolve(__root_dirname, './src/gpt/templates/initiatives-chunk-document.md'),
       'utf-8'
     );
     const initiativesChunkGptTemplate = handlebars.compile(initiativesChunkGptTemplateContent);
     const initiativeGptTemplateContent = await fs.readFile(
-      path.resolve(__dirname, '../../src/gpt/templates/initiatives-chunk-document-initiative.md'),
+      path.resolve(__root_dirname, './src/gpt/templates/initiatives-chunk-document-initiative.md'),
       'utf-8'
     );
     const initiativeGptTemplate = handlebars.compile(initiativeGptTemplateContent);
@@ -369,7 +368,7 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
       formattedInitiativesPerChunk[currentChunk - 1].push(formattedInitiativeContent);
     }
 
-    const gptInitiativeChunksDocumentsFolderPath = path.resolve(__dirname, '../../data/gpt-document-initiatives');
+    const gptInitiativeChunksDocumentsFolderPath = path.resolve(__root_dirname, './data/gpt-document-initiatives');
 
     // Remove previous debug files if any
     if (fsSync.existsSync(gptInitiativeChunksDocumentsFolderPath)) {

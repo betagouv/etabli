@@ -2,18 +2,17 @@
  * @jest-environment node
  */
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __root_dirname = process.cwd();
 
 describe('analyzeWithSemgrep()', () => {
   it(
     'should analyze correctly a node project',
     async () => {
-      const codeFolder = path.resolve(__dirname, 'samples/node');
-      const resultsPath = path.resolve(__dirname, 'results/code-analysis-node.json');
+      const codeFolder = path.resolve(__root_dirname, './src/semgrep/samples/node');
+      const resultsPath = path.resolve(__root_dirname, './src/semgrep/results/code-analysis-node.json');
 
       const results = await analyzeWithSemgrep(codeFolder, resultsPath);
 
@@ -28,8 +27,8 @@ describe('analyzeWithSemgrep()', () => {
   it(
     'should analyze correctly a php project',
     async () => {
-      const codeFolder = path.resolve(__dirname, 'samples/php');
-      const resultsPath = path.resolve(__dirname, 'results/code-analysis-php.json');
+      const codeFolder = path.resolve(__root_dirname, './src/semgrep/samples/php');
+      const resultsPath = path.resolve(__root_dirname, './src/semgrep/results/code-analysis-php.json');
 
       const results = await analyzeWithSemgrep(codeFolder, resultsPath);
 
@@ -44,8 +43,8 @@ describe('analyzeWithSemgrep()', () => {
   it(
     'should analyze correctly a ruby project',
     async () => {
-      const codeFolder = path.resolve(__dirname, 'samples/ruby');
-      const resultsPath = path.resolve(__dirname, 'results/code-analysis-ruby.json');
+      const codeFolder = path.resolve(__root_dirname, './src/semgrep/samples/ruby');
+      const resultsPath = path.resolve(__root_dirname, './src/semgrep/results/code-analysis-ruby.json');
 
       const results = await analyzeWithSemgrep(codeFolder, resultsPath);
 
@@ -60,8 +59,8 @@ describe('analyzeWithSemgrep()', () => {
   it(
     'should analyze correctly a python project',
     async () => {
-      const codeFolder = path.resolve(__dirname, 'samples/python');
-      const resultsPath = path.resolve(__dirname, 'results/code-analysis-python.json');
+      const codeFolder = path.resolve(__root_dirname, './src/semgrep/samples/python');
+      const resultsPath = path.resolve(__root_dirname, './src/semgrep/results/code-analysis-python.json');
 
       const results = await analyzeWithSemgrep(codeFolder, resultsPath);
 
@@ -90,8 +89,8 @@ describe('analyzeWithSemgrep()', () => {
   it(
     'should analyze correctly a java project',
     async () => {
-      const codeFolder = path.resolve(__dirname, 'samples/java');
-      const resultsPath = path.resolve(__dirname, 'results/code-analysis-java.json');
+      const codeFolder = path.resolve(__root_dirname, './src/semgrep/samples/java');
+      const resultsPath = path.resolve(__root_dirname, './src/semgrep/results/code-analysis-java.json');
 
       const results = await analyzeWithSemgrep(codeFolder, resultsPath);
 
@@ -113,8 +112,8 @@ describe('analyzeWithSemgrep()', () => {
   it(
     'should analyze correctly a golang project',
     async () => {
-      const codeFolder = path.resolve(__dirname, 'samples/golang');
-      const resultsPath = path.resolve(__dirname, 'results/code-analysis-golang.json');
+      const codeFolder = path.resolve(__root_dirname, './src/semgrep/samples/golang');
+      const resultsPath = path.resolve(__root_dirname, './src/semgrep/results/code-analysis-golang.json');
 
       const results = await analyzeWithSemgrep(codeFolder, resultsPath);
 
@@ -129,8 +128,8 @@ describe('analyzeWithSemgrep()', () => {
   it(
     'should analyze correctly a rust project',
     async () => {
-      const codeFolder = path.resolve(__dirname, 'samples/rust');
-      const resultsPath = path.resolve(__dirname, 'results/code-analysis-rust.json');
+      const codeFolder = path.resolve(__root_dirname, './src/semgrep/samples/rust');
+      const resultsPath = path.resolve(__root_dirname, './src/semgrep/results/code-analysis-rust.json');
 
       const results = await analyzeWithSemgrep(codeFolder, resultsPath);
 
@@ -145,8 +144,8 @@ describe('analyzeWithSemgrep()', () => {
   it(
     'should analyze correctly a cpp project',
     async () => {
-      const codeFolder = path.resolve(__dirname, 'samples/cpp');
-      const resultsPath = path.resolve(__dirname, 'results/code-analysis-cpp.json');
+      const codeFolder = path.resolve(__root_dirname, './src/semgrep/samples/cpp');
+      const resultsPath = path.resolve(__root_dirname, './src/semgrep/results/code-analysis-cpp.json');
 
       const results = await analyzeWithSemgrep(codeFolder, resultsPath);
 
@@ -173,8 +172,8 @@ describe('analyzeWithSemgrep()', () => {
   it(
     'should analyze correctly a scala project',
     async () => {
-      const codeFolder = path.resolve(__dirname, 'samples/scala');
-      const resultsPath = path.resolve(__dirname, 'results/code-analysis-scala.json');
+      const codeFolder = path.resolve(__root_dirname, './src/semgrep/samples/scala');
+      const resultsPath = path.resolve(__root_dirname, './src/semgrep/results/code-analysis-scala.json');
 
       const results = await analyzeWithSemgrep(codeFolder, resultsPath);
 

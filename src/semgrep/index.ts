@@ -1,21 +1,20 @@
 import { $ } from 'execa';
 import fsSync from 'fs';
 import fs from 'fs/promises';
-import { fileURLToPath } from 'node:url';
 import path from 'path';
 
 import { SemgrepResultSchema } from '@etabli/src/semgrep';
+
+const __root_dirname = process.cwd();
 
 export interface AnalysisResult {
   functions: string[];
   dependencies: string[];
 }
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 export async function analyzeWithSemgrep(folderPath: string, outputPath: string): Promise<AnalysisResult> {
-  const codeAnalysisRulesPath = path.resolve(__dirname, '../../semgrep-rules.yaml');
-  const bibliothecaryScriptPath = path.resolve(__dirname, '../../src/bibliothecary/deps-parser.rb');
+  const codeAnalysisRulesPath = path.resolve(__root_dirname, './semgrep-rules.yaml');
+  const bibliothecaryScriptPath = path.resolve(__root_dirname, './src/bibliothecary/deps-parser.rb');
 
   if (!fsSync.existsSync(codeAnalysisRulesPath)) {
     throw new Error('semgrep rules must exist');

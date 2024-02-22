@@ -69,7 +69,7 @@
     "db:studio": "dotenv-run-script .env.test -- db:studio:unsecure",
     "db:studio:unsecure": "prisma studio",
     "clean": "rm -rf .next && rm -rf node_modules",
-    "chromatic": "npx chromatic --build-script-name build --auto-accept-changes --exit-zero-on-changes --only-changed --externals \"public/**\"",
+    "chromatic": "npx chromatic --build-script-name build:storybook --auto-accept-changes --exit-zero-on-changes --only-changed --externals \"public/**\"",
     "jest": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "prisma": {

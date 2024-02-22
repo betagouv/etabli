@@ -3,6 +3,8 @@ import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@prisma/cli
 import assert from 'assert';
 import chalk from 'chalk';
 import { differenceInDays } from 'date-fns/differenceInDays';
+import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
+import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import { EventEmitter } from 'eventemitter3';
 import { $ } from 'execa';
 import fastFolderSize from 'fast-folder-size';
@@ -402,7 +404,7 @@ export async function inferInitiativesFromDatabase() {
       }
     },
     {
-      timeout: 1 * 60 * 1000, // Since dealing with a lot of data, prevent closing whereas everything is alright
+      timeout: minutesToMilliseconds(5), // Since dealing with a lot of data, prevent closing whereas everything is alright
       isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     }
   );
@@ -883,7 +885,7 @@ export async function feedInitiativesFromDatabase() {
               });
             },
             {
-              timeout: 15 * 1000, // Since dealing with a lot of data, prevent closing whereas everything is alright
+              timeout: secondsToMilliseconds(30), // Since dealing with a lot of data, prevent closing whereas everything is alright
               isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
             }
           );

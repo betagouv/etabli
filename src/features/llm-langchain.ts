@@ -5,6 +5,7 @@ import { ChainValues } from '@langchain/core/utils/types';
 import { ChatMistralAI, MistralAIEmbeddings } from '@langchain/mistralai';
 import { InitiativeLlmDocument, Prisma, Settings, ToolLlmDocument } from '@prisma/client';
 import assert from 'assert';
+import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import fs from 'fs/promises';
 import { LLMChain } from 'langchain/chains';
 import { createStuffDocumentsChain } from 'langchain/chains/combine_documents';
@@ -151,7 +152,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
         return toolDocumentsToCalculate;
       },
       {
-        timeout: 1 * 60 * 1000,
+        timeout: minutesToMilliseconds(1),
         isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       }
     );
@@ -265,7 +266,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
         return initiativeDocumentsToCalculate;
       },
       {
-        timeout: 1 * 60 * 1000,
+        timeout: minutesToMilliseconds(1),
         isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       }
     );

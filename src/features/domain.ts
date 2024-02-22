@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { parse } from 'csv-parse';
+import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import https from 'https';
@@ -293,7 +294,7 @@ export async function formatDomainsIntoDatabase() {
           }
         },
         {
-          timeout: 1 * 60 * 1000, // Since dealing with a lot of data, prevent closing whereas everything is alright
+          timeout: minutesToMilliseconds(5), // Since dealing with a lot of data, prevent closing whereas everything is alright
           isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
         }
       );

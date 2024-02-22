@@ -124,6 +124,17 @@ jobs:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
           SENTRY_RELEASE_UPLOAD: true
+          # [WORKAROUND] When building Next.js in a standalone mode the frontend `NEXT_PUBLIC_*` environement variables are hardcoded
+          # So they are not switchable at runtime. Since ours won't change overtime, we are fine to retrigger a build in needed
+          # but it would be painful for someone reusing directly the Docker image. Some workarounds exist but they are by far too hacky, see:
+          # - https://github.com/vercel/next.js/discussions/17641
+          # - https://phase.dev/blog/nextjs-public-runtime-variables/
+          # - https://www.tomoliver.net/posts/nextjs-docker-public-env-vars
+          NEXT_PUBLIC_APP_BASE_URL: ${{ secrets.NEXT_PUBLIC_APP_BASE_URL }}
+          NEXT_PUBLIC_CRISP_WEBSITE_ID: ${{ secrets.NEXT_PUBLIC_CRISP_WEBSITE_ID }}
+          NEXT_PUBLIC_MATOMO_SITE_ID: ${{ secrets.NEXT_PUBLIC_MATOMO_SITE_ID }}
+          NEXT_PUBLIC_MATOMO_URL: ${{ secrets.NEXT_PUBLIC_MATOMO_URL }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
         run: make build
 
       - name: Test end-to-end

@@ -23,6 +23,7 @@ import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
 import { formatArrayProgress } from '@etabli/src/utils/format';
 import { containsHtml } from '@etabli/src/utils/html';
+import { handleReachabilityError } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
 
 const __root_dirname = process.cwd();
@@ -393,13 +394,8 @@ export async function updateRobotsTxtOnDomains() {
         });
 
         continue;
-      } else if (error instanceof Error && ['ENETUNREACH', 'ENOTFOUND'].includes((error.cause as FetchError)?.code || '')) {
-        // The server is unreachable, since the route may be broken temporarily we skip the domain to be reprocessed next time
-      } else if (error instanceof Error && (error.cause as any)?.code === 'HPE_INVALID_HEADER_TOKEN') {
-        // Note: HTTPParserError is not a known type so casting manually (I don't even understand why I can find it on internet... only in a Ruby project)
-        // Some websites return wrongly formatted headers (like https://mesads.beta.gouv.fr/robots.txt due to the provider Clever Cloud)
-        // Which makes `fetch()` failing with `HPE_INVALID_HEADER_TOKEN ... Invalid header value char`. We just skip this domain
-        // because it may be fixed in the future. Also, there is no easy way into new Node.js versions to disable this check.
+      } else if (error instanceof Error) {
+        handleReachabilityError(error);
       } else {
         throw error;
       }
@@ -445,10 +441,15 @@ export async function updateWildcardCertificateOnDomains() {
       );
 
       request.on('error', (error) => {
-        if (error instanceof Error && ['ENETUNREACH', 'ENOTFOUND'].includes((error as FetchError).code || '')) {
-          // The server is unreachable, since the route may be broken temporarily we skip the domain to be reprocessed next time
-          resolve(null);
-        } else {
+        try {
+          if (error instanceof Error) {
+            handleReachabilityError(error);
+
+            resolve(null);
+          } else {
+            throw error;
+          }
+        } catch (catcherError) {
           reject(error);
         }
       });

@@ -151,17 +151,9 @@ jobs:
 
       - name: Publish to Chromatic
         if: ${{ !github.event.act }}
-        uses: chromaui/action@v1
         env:
           CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-        with:
-          # Note: since we use `buildScriptName` we have to specify some of those parameters into the underlying `package.json` script named `chromatic`
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-          buildScriptName: build
-          autoAcceptChanges: true
-          onlyChanged: true
-          externals: public/**
-          exitZeroOnChanges: true
+        run: npm run chromatic
 
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3

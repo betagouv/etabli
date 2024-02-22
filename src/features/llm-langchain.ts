@@ -152,7 +152,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
         return toolDocumentsToCalculate;
       },
       {
-        timeout: minutesToMilliseconds(1),
+        timeout: minutesToMilliseconds(process.env.NODE_ENV !== 'production' ? 10 : 2),
         isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       }
     );
@@ -266,7 +266,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
         return initiativeDocumentsToCalculate;
       },
       {
-        timeout: minutesToMilliseconds(1),
+        timeout: minutesToMilliseconds(process.env.NODE_ENV !== 'production' ? 20 : 5),
         isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       }
     );

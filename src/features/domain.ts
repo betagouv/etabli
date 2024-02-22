@@ -287,7 +287,7 @@ export async function formatDomainsIntoDatabase() {
       }
     },
     {
-      timeout: minutesToMilliseconds(5), // Since dealing with a lot of data, prevent closing whereas everything is alright
+      timeout: minutesToMilliseconds(process.env.NODE_ENV !== 'production' ? 20 : 5), // Since dealing with a lot of data, prevent closing whereas everything is alright
       isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     }
   );

@@ -187,7 +187,7 @@ export async function formatToolsIntoDatabase() {
       }
     },
     {
-      timeout: minutesToMilliseconds(2), // Since dealing with a lot of data, prevent closing whereas everything is alright
+      timeout: minutesToMilliseconds(process.env.NODE_ENV !== 'production' ? 10 : 2), // Since dealing with a lot of data, prevent closing whereas everything is alright
       isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     }
   );

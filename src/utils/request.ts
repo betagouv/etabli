@@ -1,4 +1,8 @@
-// When it's an error related to the remote server or the connection we skip it since we have no control over it
+import * as Sentry from '@sentry/nextjs';
+
+// This should be used close to network calls because it silents errors
+// And in our case of long-running jobs we want the loop to continue despite network errors because it will be fetch again next time
+// TODO: in the future we could register the error into the database for specific domains so we can tell to the list source to look at removing them if appropriate
 export function handleReachabilityError(error: Error) {
   if (
     ![
@@ -15,8 +19,13 @@ export function handleReachabilityError(error: Error) {
       // Hostname/IP does not match certificate's altnames (which makes the certificate invalid)
       'ERR_TLS_CERT_ALTNAME_INVALID',
       'DEPTH_ZERO_SELF_SIGNED_CERT',
+      'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+      'CERT_HAS_EXPIRED',
     ].includes((error.cause as any)?.code || '')
   ) {
-    throw error;
+    // Since we do not throw error, we log them for record but we also notify Sentry so we can make the list above updated with appropriate codes
+    console.error(error);
+
+    Sentry.captureException(error);
   }
 }

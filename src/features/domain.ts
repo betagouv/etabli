@@ -13,7 +13,7 @@ import { PeerCertificate, TLSSocket } from 'tls';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/src/common';
-import { getWebsiteData, guessWebsiteNameFromPageTitles } from '@etabli/src/features/website';
+import { getWebsiteData, getWebsiteDataResponse, guessWebsiteNameFromPageTitles } from '@etabli/src/features/website';
 import { LitePeerCertificateSchema } from '@etabli/src/models/entities/certificate';
 import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/src/models/entities/errors';
 import { LiteRawDomainSchema, LiteRawDomainSchemaType } from '@etabli/src/models/entities/raw-domain';
@@ -313,7 +313,20 @@ export async function updateRobotsTxtOnDomains() {
     try {
       const rootUrl = new URL(`https://${rawDomain.name}`);
       const robotsUrl = `${rootUrl.toString()}robots.txt`;
-      const result = await fetch(robotsUrl);
+
+      let result: Response;
+      try {
+        result = await fetch(robotsUrl);
+      } catch (error) {
+        if (error instanceof Error) {
+          handleReachabilityError(error);
+
+          // Skip this one to perform other domains
+          continue;
+        } else {
+          throw error;
+        }
+      }
 
       // We want to prevent redirection on another domain to keep integrity but we let pathname redirection pass, so looking at domain only
       const resultingUrl = new URL(result.url);
@@ -424,6 +437,7 @@ export async function updateWildcardCertificateOnDomains() {
       `try to process SSL certificate for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(rawDomainIndex, rawDomains.length)}`
     );
 
+    let toSkip: boolean = false;
     const certificate = await new Promise<PeerCertificate | null>((resolve, reject) => {
       const request = https.request(
         {
@@ -445,6 +459,8 @@ export async function updateWildcardCertificateOnDomains() {
           if (error instanceof Error) {
             handleReachabilityError(error);
 
+            // Skip this one to perform other domains
+            toSkip = true;
             resolve(null);
           } else {
             throw error;
@@ -456,6 +472,10 @@ export async function updateWildcardCertificateOnDomains() {
 
       request.end();
     });
+
+    if (toSkip) {
+      continue;
+    }
 
     // The content has no defined structure, we just kept the library format to debug if needed main processed values as it comes
     let certificateContent: object | null = null;
@@ -497,7 +517,20 @@ export async function updateWebsiteDataOnDomains() {
 
     try {
       const url = new URL(`https://${rawDomain.name}`);
-      const websiteData = await getWebsiteData(url.toString());
+
+      let websiteData: getWebsiteDataResponse;
+      try {
+        websiteData = await getWebsiteData(url.toString());
+      } catch (error) {
+        if (error instanceof Error) {
+          handleReachabilityError(error);
+
+          // Skip this one to perform other domains
+          continue;
+        } else {
+          throw error;
+        }
+      }
 
       if (websiteData.status >= 200 && websiteData.status < 300) {
         if (containsHtml(websiteData.html)) {
@@ -560,7 +593,20 @@ export async function updateWebsiteDataOnDomains() {
                   // Wait a bit to not flood this website (tiny delay in this loop because it's just the second request to this domain in this iteration)
                   await sleep(50);
 
-                  const anotherPageData = await getWebsiteData(anotherPageUrl);
+                  let anotherPageData: getWebsiteDataResponse;
+                  try {
+                    anotherPageData = await getWebsiteData(url.toString());
+                  } catch (error) {
+                    if (error instanceof Error) {
+                      handleReachabilityError(error);
+
+                      // Skip this one to perform other domains
+                      continue;
+                    } else {
+                      throw error;
+                    }
+                  }
+
                   anotherPageTitle = anotherPageData.title;
 
                   break;

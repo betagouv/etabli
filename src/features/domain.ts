@@ -74,230 +74,221 @@ export async function saveDomainCsvFile(cache = true) {
 }
 
 export async function formatDomainsIntoDatabase() {
-  const content = await fs.readFile(localCsvPath, 'utf-8');
-
-  parse(
-    content,
-    {
+  const parser = fsSync.createReadStream(localCsvPath, 'utf-8').pipe(
+    parse({
       columns: true, // Each record as object instead of array
       delimiter: ',',
       cast: true,
       cast_date: true,
       skip_empty_lines: true,
-    },
-    async (err, records) => {
-      if (err) {
-        throw new Error('Error parsing CSV:', err);
-      }
+    })
+  );
 
-      const csvDomains: CsvDomainSchemaType[] = records
-        .map((record: unknown) => {
-          return CsvDomainSchema.parse(record);
+  const csvDomains: CsvDomainSchemaType[] = [];
+  for await (const record of parser) {
+    const csvDomain = CsvDomainSchema.parse(record);
+
+    // In development environment we reduce the dataset to analyze
+    if (process.env.APP_MODE === 'dev' && !csvDomain.name.includes('.beta.gouv.fr')) {
+      continue;
+    }
+
+    // "Only" consider sites returning HTTPS code 200
+    // (as of 2023, we consider a website without a valid HTTPS not being worth it. It will simplify in the meantime the analysis of the certificate to aggregate domains)
+    //
+    // Information for those with a 3xx redirection:
+    // - the redirection destination has a high chance to be referenced too if it's legit
+    // - domains outside of public gTLD can be purchased by individuals and the redirection could bring to bad websites (fair, the purchased website by someone could end in being the bad website, but this list is ideally supposed to be updated soon enough)
+    if (csvDomain.https_status !== '200 OK') {
+      continue;
+    }
+
+    // Now filter the best as we can all domains that are not for production:
+    // - some technical patterns are regularly used and isolated by separator characters (".", "-")
+    // - temporary websites (for review apps for example) can be tricky to catch due to random pattern `app-x2gh58d.example.com` (but since temporary they should not have returned a 200 response)
+    const knownTechnicalPatterns: string[] = [
+      'api',
+      'qa',
+      'preview',
+      'dev',
+      'staging',
+      'alpha',
+      'beta',
+      'test',
+      'tst',
+      'recette',
+      'rec',
+      'demo',
+      'review',
+      'preprod',
+      'tmp',
+      'pr',
+      'chore',
+      'feat',
+      'fix',
+      'ci',
+      'deploy',
+      'mail',
+      'auth',
+      'oauth',
+      'link',
+      'status',
+      'ftp',
+      'login',
+      'wiki',
+      'cdn',
+      'forum',
+    ];
+
+    // Only look at subdomains because some of the main parts could contain technical patterns (even if low probability)
+    const parsedDomain = parseDomain(csvDomain.name);
+    if (parsedDomain.type !== ParseResultType.Listed) {
+      continue;
+    }
+
+    const { subDomains } = parsedDomain;
+    const isolatedParts: string[] = subDomains.join('.').split(/\.|-|_/);
+    if (knownTechnicalPatterns.some((pattern) => isolatedParts.includes(pattern))) {
+      continue;
+    }
+
+    csvDomains.push(csvDomain);
+  }
+
+  await prisma.$transaction(
+    async (tx) => {
+      const storedRawDomains = await tx.rawDomain.findMany({
+        include: {
+          RawDomainsOnInitiativeMaps: true,
+        },
+      });
+
+      // To make the diff we compare only meaningful properties
+      const storedLiteRawDomains = storedRawDomains.map((rawDomain) =>
+        LiteRawDomainSchema.parse({
+          name: rawDomain.name,
+          siren: rawDomain.siren,
+          type: rawDomain.type,
+          sources: rawDomain.sources,
         })
-        .filter((csvDomain: CsvDomainSchemaType) => {
-          // In development environment we reduce the dataset to analyze
-          if (process.env.APP_MODE === 'dev' && !csvDomain.name.includes('.beta.gouv.fr')) {
-            return false;
-          }
+      );
+      const csvLiteDomains = csvDomains.map((csvDomain) =>
+        LiteRawDomainSchema.parse({
+          name: csvDomain.name,
+          siren: csvDomain.SIREN,
+          type: rawDomainTypeCsvToModel(csvDomain.type),
+          sources: csvDomain.sources,
+        })
+      );
 
-          // "Only" consider sites returning HTTPS code 200
-          // (as of 2023, we consider a website without a valid HTTPS not being worth it. It will simplify in the meantime the analysis of the certificate to aggregate domains)
-          //
-          // Information for those with a 3xx redirection:
-          // - the redirection destination has a high chance to be referenced too if it's legit
-          // - domains outside of public gTLD can be purchased by individuals and the redirection could bring to bad websites (fair, the purchased website by someone could end in being the bad website, but this list is ideally supposed to be updated soon enough)
-          if (csvDomain.https_status !== '200 OK') {
-            return false;
-          }
+      const diffResult = getListDiff(storedLiteRawDomains, csvLiteDomains, {
+        referenceProperty: 'name',
+      });
 
-          // Now filter the best as we can all domains that are not for production:
-          // - some technical patterns are regularly used and isolated by separator characters (".", "-")
-          // - temporary websites (for review apps for example) can be tricky to catch due to random pattern `app-x2gh58d.example.com` (but since temporary they should not have returned a 200 response)
-          const knownTechnicalPatterns: string[] = [
-            'api',
-            'qa',
-            'preview',
-            'dev',
-            'staging',
-            'alpha',
-            'beta',
-            'test',
-            'tst',
-            'recette',
-            'rec',
-            'demo',
-            'review',
-            'preprod',
-            'tmp',
-            'pr',
-            'chore',
-            'feat',
-            'fix',
-            'ci',
-            'deploy',
-            'mail',
-            'auth',
-            'oauth',
-            'link',
-            'status',
-            'ftp',
-            'login',
-            'wiki',
-            'cdn',
-            'forum',
-          ];
+      for (const diffItem of diffResult.diff) {
+        watchGracefulExitInLoop();
 
-          // Only look at subdomains because some of the main parts could contain technical patterns (even if low probability)
-          const parsedDomain = parseDomain(csvDomain.name);
-          if (parsedDomain.type !== ParseResultType.Listed) {
-            return false;
-          }
+        if (diffItem.status === 'added') {
+          const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
 
-          const { subDomains } = parsedDomain;
-          const isolatedParts: string[] = subDomains.join('.').split(/\.|-|_/);
-          if (knownTechnicalPatterns.some((pattern) => isolatedParts.includes(pattern))) {
-            return false;
-          }
+          await tx.rawDomain.create({
+            data: {
+              name: liteRawDomain.name,
+              siren: liteRawDomain.siren,
+              type: liteRawDomain.type,
+              sources: liteRawDomain.sources,
+              indexableFromRobotsTxt: null,
+              updateIndexableFromRobotsTxt: true,
+              robotsTxtContent: null,
+              wildcardCertificate: null,
+              updateWildcardCertificate: true,
+              certificateContent: null,
+              websiteRawContent: null,
+              websiteTitle: null,
+              websiteAnotherPageTitle: null,
+              websiteInferredName: null,
+              websiteHasContent: null,
+              websiteHasStyle: null,
+              websiteContentIndexable: null,
+              websitePseudoFingerprint: null,
+              updateWebsiteData: true,
+              updateMainSimilarDomain: true,
+            },
+          });
+        } else if (diffItem.status === 'deleted') {
+          const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
 
-          return true;
-        });
+          // If it was considered as a main raw domain for some others, we mark those ones to be reprocessed
+          await tx.rawDomain.updateMany({
+            where: {
+              name: {
+                not: liteRawDomain.name,
+              },
+              mainSimilarDomain: {
+                is: {
+                  name: liteRawDomain.name,
+                },
+              },
+            },
+            data: {
+              mainSimilarDomainId: null,
+              updateMainSimilarDomain: true,
+            },
+          });
 
-      await prisma.$transaction(
-        async (tx) => {
-          const storedRawDomains = await tx.rawDomain.findMany({
+          const deletedRawDomain = await tx.rawDomain.delete({
+            where: {
+              name: liteRawDomain.name,
+            },
             include: {
               RawDomainsOnInitiativeMaps: true,
             },
           });
 
-          // To make the diff we compare only meaningful properties
-          const storedLiteRawDomains = storedRawDomains.map((rawDomain) =>
-            LiteRawDomainSchema.parse({
-              name: rawDomain.name,
-              siren: rawDomain.siren,
-              type: rawDomain.type,
-              sources: rawDomain.sources,
-            })
-          );
-          const csvLiteDomains = csvDomains.map((csvDomain) =>
-            LiteRawDomainSchema.parse({
-              name: csvDomain.name,
-              siren: csvDomain.SIREN,
-              type: rawDomainTypeCsvToModel(csvDomain.type),
-              sources: csvDomain.sources,
-            })
-          );
+          if (deletedRawDomain.RawDomainsOnInitiativeMaps) {
+            await tx.initiativeMap.update({
+              where: {
+                id: deletedRawDomain.RawDomainsOnInitiativeMaps.initiativeMapId,
+              },
+              data: {
+                update: true,
+              },
+            });
+          }
+        } else if (diffItem.status === 'updated') {
+          const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
 
-          const diffResult = getListDiff(storedLiteRawDomains, csvLiteDomains, {
-            referenceProperty: 'name',
+          const updatedRawDomain = await tx.rawDomain.update({
+            where: {
+              name: liteRawDomain.name,
+            },
+            data: {
+              name: liteRawDomain.name,
+              siren: liteRawDomain.siren,
+              type: liteRawDomain.type,
+              sources: liteRawDomain.sources,
+            },
+            include: {
+              RawDomainsOnInitiativeMaps: true,
+            },
           });
 
-          for (const diffItem of diffResult.diff) {
-            watchGracefulExitInLoop();
-
-            if (diffItem.status === 'added') {
-              const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
-
-              await tx.rawDomain.create({
-                data: {
-                  name: liteRawDomain.name,
-                  siren: liteRawDomain.siren,
-                  type: liteRawDomain.type,
-                  sources: liteRawDomain.sources,
-                  indexableFromRobotsTxt: null,
-                  updateIndexableFromRobotsTxt: true,
-                  robotsTxtContent: null,
-                  wildcardCertificate: null,
-                  updateWildcardCertificate: true,
-                  certificateContent: null,
-                  websiteRawContent: null,
-                  websiteTitle: null,
-                  websiteAnotherPageTitle: null,
-                  websiteInferredName: null,
-                  websiteHasContent: null,
-                  websiteHasStyle: null,
-                  websiteContentIndexable: null,
-                  websitePseudoFingerprint: null,
-                  updateWebsiteData: true,
-                  updateMainSimilarDomain: true,
-                },
-              });
-            } else if (diffItem.status === 'deleted') {
-              const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
-
-              // If it was considered as a main raw domain for some others, we mark those ones to be reprocessed
-              await tx.rawDomain.updateMany({
-                where: {
-                  name: {
-                    not: liteRawDomain.name,
-                  },
-                  mainSimilarDomain: {
-                    is: {
-                      name: liteRawDomain.name,
-                    },
-                  },
-                },
-                data: {
-                  mainSimilarDomainId: null,
-                  updateMainSimilarDomain: true,
-                },
-              });
-
-              const deletedRawDomain = await tx.rawDomain.delete({
-                where: {
-                  name: liteRawDomain.name,
-                },
-                include: {
-                  RawDomainsOnInitiativeMaps: true,
-                },
-              });
-
-              if (deletedRawDomain.RawDomainsOnInitiativeMaps) {
-                await tx.initiativeMap.update({
-                  where: {
-                    id: deletedRawDomain.RawDomainsOnInitiativeMaps.initiativeMapId,
-                  },
-                  data: {
-                    update: true,
-                  },
-                });
-              }
-            } else if (diffItem.status === 'updated') {
-              const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
-
-              const updatedRawDomain = await tx.rawDomain.update({
-                where: {
-                  name: liteRawDomain.name,
-                },
-                data: {
-                  name: liteRawDomain.name,
-                  siren: liteRawDomain.siren,
-                  type: liteRawDomain.type,
-                  sources: liteRawDomain.sources,
-                },
-                include: {
-                  RawDomainsOnInitiativeMaps: true,
-                },
-              });
-
-              if (updatedRawDomain.RawDomainsOnInitiativeMaps) {
-                await tx.initiativeMap.update({
-                  where: {
-                    id: updatedRawDomain.RawDomainsOnInitiativeMaps.initiativeMapId,
-                  },
-                  data: {
-                    update: true,
-                  },
-                });
-              }
-            }
+          if (updatedRawDomain.RawDomainsOnInitiativeMaps) {
+            await tx.initiativeMap.update({
+              where: {
+                id: updatedRawDomain.RawDomainsOnInitiativeMaps.initiativeMapId,
+              },
+              data: {
+                update: true,
+              },
+            });
           }
-        },
-        {
-          timeout: minutesToMilliseconds(5), // Since dealing with a lot of data, prevent closing whereas everything is alright
-          isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
         }
-      );
+      }
+    },
+    {
+      timeout: minutesToMilliseconds(5), // Since dealing with a lot of data, prevent closing whereas everything is alright
+      isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     }
   );
 }

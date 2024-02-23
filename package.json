@@ -70,6 +70,7 @@
     "db:studio:unsecure": "prisma studio",
     "clean": "rm -rf .next && rm -rf node_modules",
     "chromatic": "only-include-used-icons && chromatic --build-script-name build:storybook:command --auto-accept-changes --exit-zero-on-changes --only-changed --externals \"public/**\"",
+    "playwright": "playwright",
     "jest": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
   "prisma": {
@@ -125,7 +126,7 @@
     "openai": "^4.25.0",
     "parse-domain": "^8.0.1",
     "pg-boss": "^9.0.1",
-    "playwright": "^1.39.0",
+    "playwright": "1.39.0",
     "pretty-bytes": "^6.1.1",
     "prisma": "4.16.2",
     "react": "^18.2.0",

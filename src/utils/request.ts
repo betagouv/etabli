@@ -24,7 +24,8 @@ export function handleReachabilityError(error: Error) {
       // Some websites return wrongly formatted headers (like https://mesads.beta.gouv.fr/robots.txt due to the provider Clever Cloud)
       // Which makes `fetch()` failing with `HPE_INVALID_HEADER_TOKEN ... Invalid header value char`.
       'HPE_INVALID_HEADER_TOKEN',
-      // Invalid certificate
+      // Invalid certificate or secure connection
+      'EPROTO',
       'ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR',
       'ERR_TLS_CERT_ALTNAME_INVALID', // Hostname/IP does not match certificate's altnames (which makes the certificate invalid)
       'DEPTH_ZERO_SELF_SIGNED_CERT',

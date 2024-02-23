@@ -11,7 +11,13 @@ import {
 } from '@etabli/src/features/domain';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/src/features/llm';
-import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/src/features/repository';
+import {
+  enhanceRepositoriesIntoDatabase,
+  formatRepositoriesIntoDatabase,
+  matchRepositories,
+  saveRepositoryListFile,
+  updateInferredMetadataOnRepositories,
+} from '@etabli/src/features/repository';
 import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli/src/features/tool';
 
 export const program = new Command();
@@ -96,8 +102,24 @@ repository
 repository
   .command('enhance')
   .description('do extra work to bring repository information that needs a third-party')
-  .action(async () => {
-    await enhanceRepositoriesIntoDatabase();
+  .addOption(
+    new Option(
+      '-t, --type <type...>',
+      'type of metadata to enhance (locally you may need to use "npm run cli --- -t certificate" for example)'
+    ).choices(['metadata', 'matching'] as const)
+  )
+  .action(async (options) => {
+    if (!!options.type) {
+      if (options.type.includes('metadata')) {
+        await updateInferredMetadataOnRepositories();
+      }
+
+      if (options.type.includes('matching')) {
+        await matchRepositories();
+      }
+    } else {
+      await enhanceRepositoriesIntoDatabase();
+    }
   });
 
 repository

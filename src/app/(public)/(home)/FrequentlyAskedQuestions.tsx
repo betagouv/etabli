@@ -120,7 +120,7 @@ export function FrequentlyAskedQuestions() {
                   </li>
                 </ol>
                 À noter que notre synthétisons l&apos;information pour faire les fiches d&apos;initiatives, il est possible que notre processus
-                automatisé soit encore à optimiser. Si tel est le cas, merci de nous part de vos difficultés.
+                automatisé soit encore à optimiser. Si tel est le cas, merci de nous faire part de vos difficultés.
               </AccordionDetails>
             </Accordion>
             <Accordion sx={{ boxShadow: 'none' }}>
@@ -143,7 +143,7 @@ export function FrequentlyAskedQuestions() {
               </AccordionSummary>
               <AccordionDetails>
                 En nous basant sur une liste de noms de domaine et une liste de dépôts de code source, nous avons défini des règles pour les regrouper
-                en petits groupes (dits &quot;initiatives&quot;). Il se peut que nos règles soient encore à optimiser, mais en voici quelques unes qui
+                en petits groupes (dits &quot;initiatives&quot;). Il se peut que nos règles soient encore à optimiser, mais en voici quelques-unes qui
                 augmentent les chances d&apos;être dans un même groupe :
                 <ul>
                   <li>Les sites internet sous un même nom de domaine avec une syntaxe similaire ;</li>

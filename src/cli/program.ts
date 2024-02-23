@@ -1,6 +1,14 @@
-import { Command } from '@commander-js/extra-typings';
+import { Command, Option } from '@commander-js/extra-typings';
 
-import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/src/features/domain';
+import {
+  enhanceDomainsIntoDatabase,
+  formatDomainsIntoDatabase,
+  matchDomains,
+  saveDomainCsvFile,
+  updateRobotsTxtOnDomains,
+  updateWebsiteDataOnDomains,
+  updateWildcardCertificateOnDomains,
+} from '@etabli/src/features/domain';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/src/features/llm';
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/src/features/repository';
@@ -34,8 +42,32 @@ domain
 domain
   .command('enhance')
   .description('do extra work to bring domain information that needs a third-party')
-  .action(async () => {
-    await enhanceDomainsIntoDatabase();
+  .addOption(
+    new Option(
+      '-t, --type <type...>',
+      'type of metadata to enhance (locally you may need to use "npm run cli --- -t certificate" for example)'
+    ).choices(['indexing', 'certificate', 'content', 'matching'] as const)
+  )
+  .action(async (options) => {
+    if (!!options.type) {
+      if (options.type.includes('indexing')) {
+        await updateRobotsTxtOnDomains();
+      }
+
+      if (options.type.includes('certificate')) {
+        await updateWildcardCertificateOnDomains();
+      }
+
+      if (options.type.includes('content')) {
+        await updateWebsiteDataOnDomains();
+      }
+
+      if (options.type.includes('matching')) {
+        await matchDomains();
+      }
+    } else {
+      await enhanceDomainsIntoDatabase();
+    }
   });
 
 domain

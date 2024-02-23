@@ -8,6 +8,7 @@ import { JSDOM } from 'jsdom';
 import { FetchError } from 'node-fetch';
 import { ParseResultType, parseDomain } from 'parse-domain';
 import path from 'path';
+import { chromium } from 'playwright';
 import robotsParser from 'robots-parser';
 import { PeerCertificate, TLSSocket } from 'tls';
 import z from 'zod';
@@ -511,250 +512,255 @@ export async function updateWebsiteDataOnDomains() {
     },
   });
 
-  for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
-    watchGracefulExitInLoop();
+  const browser = await chromium.launch();
+  try {
+    for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
+      watchGracefulExitInLoop();
 
-    console.log(
-      `try to process website content for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(rawDomainIndex, rawDomains.length)}`
-    );
+      console.log(
+        `try to process website content for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(rawDomainIndex, rawDomains.length)}`
+      );
 
-    try {
-      const url = new URL(`https://${rawDomain.name}`);
-
-      let websiteData: getWebsiteDataResponse;
       try {
-        websiteData = await getWebsiteData(url.toString(), 5000);
-      } catch (error) {
-        if (error instanceof Error) {
-          handleReachabilityError(error);
+        const url = new URL(`https://${rawDomain.name}`);
 
-          // Skip this one to perform other domains
-          continue;
-        } else {
-          throw error;
+        let websiteData: getWebsiteDataResponse;
+        try {
+          websiteData = await getWebsiteData(browser, url.toString(), 5000);
+        } catch (error) {
+          if (error instanceof Error) {
+            handleReachabilityError(error);
+
+            // Skip this one to perform other domains
+            continue;
+          } else {
+            throw error;
+          }
         }
-      }
 
-      if (websiteData.status >= 200 && websiteData.status < 300) {
-        if (containsHtml(websiteData.html)) {
-          // We consider the head tag content as a fingerprint common
-          // between different environments (dev, staging, production) for the same website.
-          // It's not perfect but it's in addition to other filters performed aside this
-          const dom = new JSDOM(websiteData.html, {
-            url: url.toString(),
-            contentType: 'text/html',
-          });
+        if (websiteData.status >= 200 && websiteData.status < 300) {
+          if (containsHtml(websiteData.html)) {
+            // We consider the head tag content as a fingerprint common
+            // between different environments (dev, staging, production) for the same website.
+            // It's not perfect but it's in addition to other filters performed aside this
+            const dom = new JSDOM(websiteData.html, {
+              url: url.toString(),
+              contentType: 'text/html',
+            });
 
-          const headContent = dom.window.document.head.innerHTML;
-          const hasStyle = dom.window.document.querySelectorAll('link[rel="stylesheet"], style').length > 0;
+            const headContent = dom.window.document.head.innerHTML;
+            const hasStyle = dom.window.document.querySelectorAll('link[rel="stylesheet"], style').length > 0;
 
-          // Since looking at text content would include content from `script` and `noscript` tags, we do proper analysis aside
-          const deepcopyBody = dom.window.document.body.cloneNode(true) as HTMLElement;
-          deepcopyBody.querySelectorAll('script, noscript').forEach((element) => {
-            element.parentNode?.removeChild(element);
-          });
-          const contentText = deepcopyBody.textContent?.trim();
-          const hasContent = !!contentText && contentText !== '';
+            // Since looking at text content would include content from `script` and `noscript` tags, we do proper analysis aside
+            const deepcopyBody = dom.window.document.body.cloneNode(true) as HTMLElement;
+            deepcopyBody.querySelectorAll('script, noscript').forEach((element) => {
+              element.parentNode?.removeChild(element);
+            });
+            const contentText = deepcopyBody.textContent?.trim();
+            const hasContent = !!contentText && contentText !== '';
 
-          // A missing `noindex` means it can be indexed in this context (don't forget a `robots.txt`)
-          // Note: we don't look at specific crawler restriction because we only want to know if the website is considered "private" or not
-          const indexableMetaElement = dom.window.document.querySelector('meta[name="robots"]');
-          const isIndexableAccordingToThisContentOnly = indexableMetaElement ? indexableMetaElement.getAttribute('content') !== 'noindex' : true;
-          const isIndexableAccordingToHeadersOnly = websiteData.headers['x-robots-tag'] !== 'noindex'; // As for the `meta` tag, is not globally `noindex` we don't try to parse other form of complexity since it's unlikely formatted like that (and also no header parser library exists for this case)
-          const isIndexableAccordingToWebsiteData = isIndexableAccordingToThisContentOnly && isIndexableAccordingToHeadersOnly;
+            // A missing `noindex` means it can be indexed in this context (don't forget a `robots.txt`)
+            // Note: we don't look at specific crawler restriction because we only want to know if the website is considered "private" or not
+            const indexableMetaElement = dom.window.document.querySelector('meta[name="robots"]');
+            const isIndexableAccordingToThisContentOnly = indexableMetaElement ? indexableMetaElement.getAttribute('content') !== 'noindex' : true;
+            const isIndexableAccordingToHeadersOnly = websiteData.headers['x-robots-tag'] !== 'noindex'; // As for the `meta` tag, is not globally `noindex` we don't try to parse other form of complexity since it's unlikely formatted like that (and also no header parser library exists for this case)
+            const isIndexableAccordingToWebsiteData = isIndexableAccordingToThisContentOnly && isIndexableAccordingToHeadersOnly;
 
-          const websiteNameMetaElement = dom.window.document.querySelector('meta[name="application-name"]');
-          const properWebsiteName = websiteNameMetaElement?.getAttribute('content') || null;
+            const websiteNameMetaElement = dom.window.document.querySelector('meta[name="application-name"]');
+            const properWebsiteName = websiteNameMetaElement?.getAttribute('content') || null;
 
-          // If no proper website name, find another page of this website to infer website name according to 2 titles
-          // Note: if not working perflectly we could count how many `/` into the path, and sort links to look for the link with fewer "/" (indicating a main page)
-          // Note: by specifying the `url` with `JSDOM` it turns relative paths into absolute ones (which is ideal to browse across)
-          let anotherPageTitle: string | null = null;
-          if (!properWebsiteName) {
-            const links = dom.window.document.querySelectorAll('a');
-            for (const link of links) {
-              try {
-                // Reset the "hash" because in most case it's just targetting a section of the same page
-                // So we cannot consider it as another page (even it may in a few cases of Single Page Application)
-                // (not necessary on the initial `url` because built from manually from a raw domain)
-                const parsedLink = new URL(link.href);
-                parsedLink.hash = '';
-                const cleanLink = parsedLink.toString();
+            // If no proper website name, find another page of this website to infer website name according to 2 titles
+            // Note: if not working perflectly we could count how many `/` into the path, and sort links to look for the link with fewer "/" (indicating a main page)
+            // Note: by specifying the `url` with `JSDOM` it turns relative paths into absolute ones (which is ideal to browse across)
+            let anotherPageTitle: string | null = null;
+            if (!properWebsiteName) {
+              const links = dom.window.document.querySelectorAll('a');
+              for (const link of links) {
+                try {
+                  // Reset the "hash" because in most case it's just targetting a section of the same page
+                  // So we cannot consider it as another page (even it may in a few cases of Single Page Application)
+                  // (not necessary on the initial `url` because built from manually from a raw domain)
+                  const parsedLink = new URL(link.href);
+                  parsedLink.hash = '';
+                  const cleanLink = parsedLink.toString();
 
-                if (websiteData.redirectTargetUrl) {
-                  websiteData.redirectTargetUrl.hash = '';
-                }
-
-                // We also consider excluding the URL in case of a redirection or a `window.replace` from the website, or if the page targets itself
-                if (
-                  cleanLink.startsWith(url.toString()) &&
-                  cleanLink !== url.toString() &&
-                  (!websiteData.redirectTargetUrl || cleanLink !== websiteData.redirectTargetUrl.toString())
-                ) {
-                  const anotherPageUrl = cleanLink;
-
-                  // Wait a bit to not flood this website (tiny delay in this loop because it's just the second request to this domain in this iteration)
-                  await sleep(50);
-
-                  let anotherPageData: getWebsiteDataResponse;
-                  try {
-                    anotherPageData = await getWebsiteData(url.toString(), 5000);
-                  } catch (error) {
-                    if (error instanceof Error) {
-                      handleReachabilityError(error);
-
-                      // Skip this one to perform other domains
-                      continue;
-                    } else {
-                      throw error;
-                    }
+                  if (websiteData.redirectTargetUrl) {
+                    websiteData.redirectTargetUrl.hash = '';
                   }
 
-                  anotherPageTitle = anotherPageData.title;
+                  // We also consider excluding the URL in case of a redirection or a `window.replace` from the website, or if the page targets itself
+                  if (
+                    cleanLink.startsWith(url.toString()) &&
+                    cleanLink !== url.toString() &&
+                    (!websiteData.redirectTargetUrl || cleanLink !== websiteData.redirectTargetUrl.toString())
+                  ) {
+                    const anotherPageUrl = cleanLink;
 
-                  break;
+                    // Wait a bit to not flood this website (tiny delay in this loop because it's just the second request to this domain in this iteration)
+                    await sleep(50);
+
+                    let anotherPageData: getWebsiteDataResponse;
+                    try {
+                      anotherPageData = await getWebsiteData(browser, url.toString(), 5000);
+                    } catch (error) {
+                      if (error instanceof Error) {
+                        handleReachabilityError(error);
+
+                        // Skip this one to perform other domains
+                        continue;
+                      } else {
+                        throw error;
+                      }
+                    }
+
+                    anotherPageTitle = anotherPageData.title;
+
+                    break;
+                  }
+                } catch (error) {
+                  // The `href` may not be a valid URL, just skip this link
+                  continue;
+                }
+              }
+            }
+
+            // Try to find a link to a repository by only looking at header, sidebar, footer
+            // to avoid links that could be written into posts or so
+            // By default we look at main repository forges
+            let sourceForgesDomains = ['github.com', 'gitlab.com', 'bitbucket.org'];
+
+            // But we look at other forges that are used when the repositories table is filled (it improves the search)
+            const additionalForgesDomainsThroughRepositories = await prisma.rawRepository.findMany({
+              where: {},
+              distinct: ['probableWebsiteDomain'],
+            });
+
+            sourceForgesDomains.push(...additionalForgesDomainsThroughRepositories.map((proxyRepository) => proxyRepository.repositoryDomain));
+            sourceForgesDomains = [...new Set(sourceForgesDomains)];
+
+            const matchingLinks: string[] = [];
+            const linksForRepository = dom.window.document.querySelectorAll('header a, footer a, nav a, aside a');
+            for (const linkElement of linksForRepository) {
+              try {
+                const parsedUrl = new URL((linkElement as HTMLAnchorElement).href);
+
+                if (sourceForgesDomains.includes(parsedUrl.hostname)) {
+                  matchingLinks.push(parsedUrl.toString());
                 }
               } catch (error) {
-                // The `href` may not be a valid URL, just skip this link
-                continue;
+                // Silent :)
               }
             }
-          }
 
-          // Try to find a link to a repository by only looking at header, sidebar, footer
-          // to avoid links that could be written into posts or so
-          // By default we look at main repository forges
-          let sourceForgesDomains = ['github.com', 'gitlab.com', 'bitbucket.org'];
+            let probableRepositoryUrl: URL | null = null;
 
-          // But we look at other forges that are used when the repositories table is filled (it improves the search)
-          const additionalForgesDomainsThroughRepositories = await prisma.rawRepository.findMany({
-            where: {},
-            distinct: ['probableWebsiteDomain'],
-          });
-
-          sourceForgesDomains.push(...additionalForgesDomainsThroughRepositories.map((proxyRepository) => proxyRepository.repositoryDomain));
-          sourceForgesDomains = [...new Set(sourceForgesDomains)];
-
-          const matchingLinks: string[] = [];
-          const linksForRepository = dom.window.document.querySelectorAll('header a, footer a, nav a, aside a');
-          for (const linkElement of linksForRepository) {
-            try {
-              const parsedUrl = new URL((linkElement as HTMLAnchorElement).href);
-
-              if (sourceForgesDomains.includes(parsedUrl.hostname)) {
-                matchingLinks.push(parsedUrl.toString());
-              }
-            } catch (error) {
-              // Silent :)
+            // We consider the website lists its own repository if only 1 pseudo-repository link is found (we make unique filter over the array)
+            if ([...new Set(matchingLinks)].length === 1) {
+              probableRepositoryUrl = new URL(matchingLinks[0]);
             }
-          }
 
-          let probableRepositoryUrl: URL | null = null;
-
-          // We consider the website lists its own repository if only 1 pseudo-repository link is found (we make unique filter over the array)
-          if ([...new Set(matchingLinks)].length === 1) {
-            probableRepositoryUrl = new URL(matchingLinks[0]);
-          }
-
-          await prisma.rawDomain.update({
-            where: {
-              id: rawDomain.id,
-            },
-            data: {
-              websiteRawContent: websiteData.html,
-              websiteTitle: !properWebsiteName ? websiteData.title : null,
-              websiteAnotherPageTitle: !properWebsiteName ? anotherPageTitle : null,
-              websiteInferredName:
-                properWebsiteName ||
-                (websiteData.title && anotherPageTitle ? guessWebsiteNameFromPageTitles(websiteData.title, anotherPageTitle) : null),
-              websiteHasContent: hasContent,
-              websiteHasStyle: hasStyle,
-              websiteContentIndexable: isIndexableAccordingToWebsiteData,
-              websitePseudoFingerprint: headContent || null,
-              probableRepositoryUrl: probableRepositoryUrl?.toString() || null,
-              probableRepositoryDomain: probableRepositoryUrl?.hostname || null,
-              updateWebsiteData: false,
-              redirectDomainTargetName: null,
-              redirectDomainTarget: {
-                disconnect: true,
+            await prisma.rawDomain.update({
+              where: {
+                id: rawDomain.id,
               },
-            },
-          });
+              data: {
+                websiteRawContent: websiteData.html,
+                websiteTitle: !properWebsiteName ? websiteData.title : null,
+                websiteAnotherPageTitle: !properWebsiteName ? anotherPageTitle : null,
+                websiteInferredName:
+                  properWebsiteName ||
+                  (websiteData.title && anotherPageTitle ? guessWebsiteNameFromPageTitles(websiteData.title, anotherPageTitle) : null),
+                websiteHasContent: hasContent,
+                websiteHasStyle: hasStyle,
+                websiteContentIndexable: isIndexableAccordingToWebsiteData,
+                websitePseudoFingerprint: headContent || null,
+                probableRepositoryUrl: probableRepositoryUrl?.toString() || null,
+                probableRepositoryDomain: probableRepositoryUrl?.hostname || null,
+                updateWebsiteData: false,
+                redirectDomainTargetName: null,
+                redirectDomainTarget: {
+                  disconnect: true,
+                },
+              },
+            });
+          } else {
+            await prisma.rawDomain.update({
+              where: {
+                id: rawDomain.id,
+              },
+              data: {
+                websiteRawContent: websiteData.html,
+                websiteTitle: null,
+                websiteAnotherPageTitle: null,
+                websiteInferredName: rawDomain.name,
+                websiteHasContent: false,
+                websiteHasStyle: false,
+                websiteContentIndexable: true, // Since no specific tag, we consider it as indexable even if we won't due to missing HTML content
+                websitePseudoFingerprint: null,
+                updateWebsiteData: false,
+              },
+            });
+          }
+        } else if (websiteData.status > 500) {
+          // Website not reachable yet, hope to have it on next attempt
         } else {
+          // In case of an error, set to null
           await prisma.rawDomain.update({
             where: {
               id: rawDomain.id,
             },
             data: {
-              websiteRawContent: websiteData.html,
+              websiteRawContent: null,
               websiteTitle: null,
               websiteAnotherPageTitle: null,
-              websiteInferredName: rawDomain.name,
-              websiteHasContent: false,
-              websiteHasStyle: false,
-              websiteContentIndexable: true, // Since no specific tag, we consider it as indexable even if we won't due to missing HTML content
+              websiteInferredName: null,
+              websiteHasContent: null,
+              websiteHasStyle: null,
+              websiteContentIndexable: null,
               websitePseudoFingerprint: null,
               updateWebsiteData: false,
             },
           });
         }
-      } else if (websiteData.status > 500) {
-        // Website not reachable yet, hope to have it on next attempt
-      } else {
-        // In case of an error, set to null
-        await prisma.rawDomain.update({
-          where: {
-            id: rawDomain.id,
-          },
-          data: {
-            websiteRawContent: null,
-            websiteTitle: null,
-            websiteAnotherPageTitle: null,
-            websiteInferredName: null,
-            websiteHasContent: null,
-            websiteHasStyle: null,
-            websiteContentIndexable: null,
-            websitePseudoFingerprint: null,
-            updateWebsiteData: false,
-          },
-        });
-      }
-    } catch (error) {
-      if (error instanceof BusinessDomainError && error.code === unexpectedDomainRedirectionError.code) {
-        const relatedRawDomain = await prisma.rawDomain.findUnique({
-          where: {
-            name: error.name,
-          },
-        });
-
-        await prisma.rawDomain.update({
-          where: {
-            id: rawDomain.id,
-          },
-          data: {
-            redirectDomainTargetName: error.domain,
-            redirectDomainTarget: {
-              connect: !!relatedRawDomain
-                ? {
-                    id: relatedRawDomain.id,
-                  }
-                : undefined,
-              disconnect: !relatedRawDomain,
+      } catch (error) {
+        if (error instanceof BusinessDomainError && error.code === unexpectedDomainRedirectionError.code) {
+          const relatedRawDomain = await prisma.rawDomain.findUnique({
+            where: {
+              name: error.name,
             },
-          },
-        });
+          });
 
-        continue;
-      } else if (['net::ERR_ADDRESS_UNREACHABLE', 'net::ERR_NAME_NOT_RESOLVED'].includes((error as any).errorText)) {
-        // The server is unreachable, since the route may be broken temporarily we skip the domain to be reprocessed next time
-        // Note: Playwright has no common instance to catch and analyze errors, keeping the analysis dirty for now
-      } else {
-        throw error;
+          await prisma.rawDomain.update({
+            where: {
+              id: rawDomain.id,
+            },
+            data: {
+              redirectDomainTargetName: error.domain,
+              redirectDomainTarget: {
+                connect: !!relatedRawDomain
+                  ? {
+                      id: relatedRawDomain.id,
+                    }
+                  : undefined,
+                disconnect: !relatedRawDomain,
+              },
+            },
+          });
+
+          continue;
+        } else if (['net::ERR_ADDRESS_UNREACHABLE', 'net::ERR_NAME_NOT_RESOLVED'].includes((error as any).errorText)) {
+          // The server is unreachable, since the route may be broken temporarily we skip the domain to be reprocessed next time
+          // Note: Playwright has no common instance to catch and analyze errors, keeping the analysis dirty for now
+        } else {
+          throw error;
+        }
       }
-    }
 
-    // Do not flood network (tiny delay since it's unlikely a lot consecutive domains would be managed by the same provider)
-    await sleep(50);
+      // Do not flood network (tiny delay since it's unlikely a lot consecutive domains would be managed by the same provider)
+      await sleep(50);
+    }
+  } finally {
+    await browser.close();
   }
 }
 

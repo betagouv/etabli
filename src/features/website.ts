@@ -13,71 +13,72 @@ export interface getWebsiteDataResponse {
   redirectTargetUrl: URL | null;
 }
 
-export async function getWebsiteData(url: string, timeoutForDomContentLoaded?: number): Promise<getWebsiteDataResponse> {
+// We pass the browser from the parent since it's always used into loops and that launching + closing last for 600ms
+export async function getWebsiteData(browser: Browser, url: string, timeoutForDomContentLoaded?: number): Promise<getWebsiteDataResponse> {
   console.log(`getting the page content of ${url}`);
 
-  const browser: Browser = await chromium.launch();
   const page: Page = await browser.newPage();
+  try {
+    const response = await new Promise<Response | null>((resolve, reject) => {
+      let errorWithDetailsIntoListener: {
+        errorText: string;
+      } | null = null;
 
-  const response = await new Promise<Response | null>((resolve, reject) => {
-    let errorWithDetailsIntoListener: {
-      errorText: string;
-    } | null = null;
+      // When an error is thrown from `.goto()` it cannot be destructured to get technical details
+      // So we hack a bit by looking for last request failed error that has details to throw them instead
+      // Note: `requestfailed` notifies about error loading into the page itself, which is problematic so we do not throw from here to be sure it's a fatal error
+      page.on('requestfailed', (request) => {
+        errorWithDetailsIntoListener = request.failure();
+      });
 
-    // When an error is thrown from `.goto()` it cannot be destructured to get technical details
-    // So we hack a bit by looking for last request failed error that has details to throw them instead
-    // Note: `requestfailed` notifies about error loading into the page itself, which is problematic so we do not throw from here to be sure it's a fatal error
-    page.on('requestfailed', (request) => {
-      errorWithDetailsIntoListener = request.failure();
+      page
+        .goto(url, {
+          timeout: timeoutForDomContentLoaded,
+          // This will wait for HTML to be parsed but also for all JavaScript synchronous script to be executed
+          // It does not wait for CSS stylesheets so it's good for us (but the event `load` would do it, so it would be longer)
+          // Note: as a reminder, to handle single page application (SPA) it was important to us to have scripts loaded (to then wait X seconds for it to be initialized)
+          // Ref: https://developer.mozilla.org/en-US/docs/Web/API/Document/DOMContentLoaded_event
+          waitUntil: 'domcontentloaded',
+        })
+        .then((res) => {
+          resolve(res);
+        })
+        .catch((error) => {
+          if (errorWithDetailsIntoListener) {
+            reject(errorWithDetailsIntoListener);
+          } else {
+            reject(error);
+          }
+        });
     });
 
-    page
-      .goto(url, {
-        timeout: timeoutForDomContentLoaded,
-        // This will wait for HTML to be parsed but also for all JavaScript synchronous script to be executed
-        // It does not wait for CSS stylesheets so it's good for us (but the event `load` would do it, so it would be longer)
-        // Note: as a reminder, to handle single page application (SPA) it was important to us to have scripts loaded (to then wait X seconds for it to be initialized)
-        // Ref: https://developer.mozilla.org/en-US/docs/Web/API/Document/DOMContentLoaded_event
-        waitUntil: 'domcontentloaded',
-      })
-      .then((res) => {
-        resolve(res);
-      })
-      .catch((error) => {
-        if (errorWithDetailsIntoListener) {
-          reject(errorWithDetailsIntoListener);
-        } else {
-          reject(error);
-        }
-      });
-  });
+    assert(response);
 
-  assert(response);
+    await page.waitForTimeout(2000); // Wait for JS to init page (in case it's needed)
 
-  await page.waitForTimeout(2000); // Wait for JS to init page (in case it's needed)
+    // We want to prevent redirection on another domain to keep integrity but we let pathname redirection pass, so looking at domain only
+    const originalUrl = new URL(url);
+    const resultingRawUrl = await page.evaluate(() => document.location.href);
+    const resultingUrl = new URL(resultingRawUrl);
+    if (resultingUrl.host !== originalUrl.host) {
+      throw new BusinessDomainError(unexpectedDomainRedirectionError, resultingUrl.hostname);
+    }
 
-  // We want to prevent redirection on another domain to keep integrity but we let pathname redirection pass, so looking at domain only
-  const originalUrl = new URL(url);
-  const resultingRawUrl = await page.evaluate(() => document.location.href);
-  const resultingUrl = new URL(resultingRawUrl);
-  if (resultingUrl.host !== originalUrl.host) {
-    throw new BusinessDomainError(unexpectedDomainRedirectionError, resultingUrl.hostname);
+    const html: string = await page.content();
+    const title = await page.title();
+    const status = response.status();
+    const headers = response.headers();
+
+    return {
+      status: status,
+      html: html,
+      title: title !== '' ? title : null,
+      headers: headers,
+      redirectTargetUrl: originalUrl.toString() !== resultingUrl.toString() ? resultingUrl : null,
+    };
+  } finally {
+    await page.close();
   }
-
-  const html: string = await page.content();
-  const title = await page.title();
-  const status = response.status();
-  const headers = response.headers();
-
-  await browser.close();
-
-  return {
-    status: status,
-    html: html,
-    title: title !== '' ? title : null,
-    headers: headers,
-    redirectTargetUrl: originalUrl.toString() !== resultingUrl.toString() ? resultingUrl : null,
-  };
 }
 
 export const toolsWithUnguessableWebsiteTitles = {

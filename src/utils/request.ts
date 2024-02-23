@@ -31,7 +31,7 @@ export function handleReachabilityError(error: Error) {
       'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
       'CERT_HAS_EXPIRED',
       'SELF_SIGNED_CERT_IN_CHAIN',
-    ].includes((error.cause as any)?.code || '') &&
+    ].includes((error.cause as any)?.code || (error as any).code || '') &&
     !(
       error instanceof TypeError &&
       [

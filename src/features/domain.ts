@@ -316,7 +316,9 @@ export async function updateRobotsTxtOnDomains() {
 
       let result: Response;
       try {
-        result = await fetch(robotsUrl);
+        result = await fetch(robotsUrl, {
+          signal: AbortSignal.timeout(2000), // Tiny timeout otherwise it slows down the whole processing (may be more than a minute of timeout)
+        });
       } catch (error) {
         if (error instanceof Error) {
           handleReachabilityError(error);
@@ -444,6 +446,7 @@ export async function updateWildcardCertificateOnDomains() {
           host: rawDomain.name,
           port: 443, // Should always be this one
           method: 'GET',
+          signal: AbortSignal.timeout(2000), // Tiny timeout otherwise it slows down the whole processing (may be more than a minute of timeout)
         },
         (response) => {
           if (response.socket instanceof TLSSocket) {
@@ -520,7 +523,7 @@ export async function updateWebsiteDataOnDomains() {
 
       let websiteData: getWebsiteDataResponse;
       try {
-        websiteData = await getWebsiteData(url.toString());
+        websiteData = await getWebsiteData(url.toString(), 5000);
       } catch (error) {
         if (error instanceof Error) {
           handleReachabilityError(error);
@@ -595,7 +598,7 @@ export async function updateWebsiteDataOnDomains() {
 
                   let anotherPageData: getWebsiteDataResponse;
                   try {
-                    anotherPageData = await getWebsiteData(url.toString());
+                    anotherPageData = await getWebsiteData(url.toString(), 5000);
                   } catch (error) {
                     if (error instanceof Error) {
                       handleReachabilityError(error);

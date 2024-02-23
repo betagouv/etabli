@@ -13,7 +13,7 @@ export interface getWebsiteDataResponse {
   redirectTargetUrl: URL | null;
 }
 
-export async function getWebsiteData(url: string): Promise<getWebsiteDataResponse> {
+export async function getWebsiteData(url: string, timeoutForDomContentLoaded?: number): Promise<getWebsiteDataResponse> {
   console.log(`getting the page content of ${url}`);
 
   const browser: Browser = await chromium.launch();
@@ -32,7 +32,14 @@ export async function getWebsiteData(url: string): Promise<getWebsiteDataRespons
     });
 
     page
-      .goto(url)
+      .goto(url, {
+        timeout: timeoutForDomContentLoaded,
+        // This will wait for HTML to be parsed but also for all JavaScript synchronous script to be executed
+        // It does not wait for CSS stylesheets so it's good for us (but the event `load` would do it, so it would be longer)
+        // Note: as a reminder, to handle single page application (SPA) it was important to us to have scripts loaded (to then wait X seconds for it to be initialized)
+        // Ref: https://developer.mozilla.org/en-US/docs/Web/API/Document/DOMContentLoaded_event
+        waitUntil: 'domcontentloaded',
+      })
       .then((res) => {
         resolve(res);
       })

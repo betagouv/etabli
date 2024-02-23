@@ -1,10 +1,14 @@
 import * as Sentry from '@sentry/nextjs';
+import { errors as playwrightErrors } from 'playwright';
 
 // This should be used close to network calls because it silents errors
 // And in our case of long-running jobs we want the loop to continue despite network errors because it will be fetch again next time
 // TODO: in the future we could register the error into the database for specific domains so we can tell to the list source to look at removing them if appropriate
 export function handleReachabilityError(error: Error) {
   if (
+    !(error instanceof playwrightErrors.TimeoutError) && // This error came from us forcing the Playwright timeout
+    !(error.name === 'AbortError' && error.cause instanceof DOMException && error.cause.code === DOMException.TIMEOUT_ERR) && // This error came from us forcing the `https.request()` timeout
+    !(error instanceof DOMException && error.code === DOMException.TIMEOUT_ERR) && // This error came from us forcing the `fetch()` timeout
     ![
       // The server is unreachable, since the route may be broken temporarily we skip the domain to be reprocessed next time
       'EAI_AGAIN',

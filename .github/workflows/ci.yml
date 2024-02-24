@@ -112,7 +112,7 @@ jobs:
           version: '2.14.2'
       - name: Install `Xvfb` and others to run browsers for end-to-end testing in local CI/CD simulations (https://github.com/nektos/act/issues/1300#issuecomment-1387344639)
         if: ${{ env.ACT }}
-        run: sudo apt-get update && sudo apt-get install -y xvfb && npm run playwright install-deps
+        run: sudo apt-get update && sudo apt-get install -y xvfb && npm run playwright install-deps chromium
 
       - name: Test unit
         run: make test-unit

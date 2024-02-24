@@ -603,7 +603,7 @@ export async function updateWebsiteDataOnDomains() {
 
                     let anotherPageData: getWebsiteDataResponse;
                     try {
-                      anotherPageData = await getWebsiteData(browser, url.toString(), 5000);
+                      anotherPageData = await getWebsiteData(browser, anotherPageUrl.toString(), 5000);
                     } catch (error) {
                       if (error instanceof Error) {
                         handleReachabilityError(error);
@@ -615,7 +615,9 @@ export async function updateWebsiteDataOnDomains() {
                       }
                     }
 
-                    anotherPageTitle = anotherPageData.title;
+                    if (anotherPageData.status >= 200 && anotherPageData.status < 300) {
+                      anotherPageTitle = anotherPageData.title;
+                    }
 
                     break;
                   }

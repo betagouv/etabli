@@ -60,8 +60,8 @@ RUN python3 -m venv ./venv \
 
 ENV PATH="/app/venv/bin:$PATH"
 
-# We use `npx` to install browsers needed to avoid using `npm run playwright install chromium` since we build as standalone the entire application and we no longer want to rely application `node_modules` folder
-RUN npx --yes playwright@${PLAYWRIGHT_VERSION} install chromium
+# We use `npx` to install browsers needed to avoid using `npm run playwright install --with-deps chromium` since we build as standalone the entire application and we no longer want to rely application `node_modules` folder
+RUN npx --yes playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium
 
 # Manage the final server build
 

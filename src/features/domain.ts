@@ -512,7 +512,9 @@ export async function updateWebsiteDataOnDomains() {
     },
   });
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  });
   try {
     for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
       watchGracefulExitInLoop();

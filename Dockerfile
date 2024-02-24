@@ -5,7 +5,6 @@ ARG NODE_VERSION=18.19.0
 ARG RUBY_VERSION=3.2.2-r1
 ARG PIP_VERSION=23.3.1-r0
 ARG PRISMA_VERSION=4.16.2
-ARG PLAYWRIGHT_VERSION=1.39.0
 ARG APP_HOST=172.17.0.2
 ARG PORT=3000
 
@@ -14,18 +13,33 @@ FROM node:${NODE_VERSION}-alpine
 ARG RUBY_VERSION
 ARG PIP_VERSION
 ARG PRISMA_VERSION
-ARG PLAYWRIGHT_VERSION
 ARG APP_HOST
 ARG PORT
 
-RUN apk add --no-cache \
+USER root
+
+RUN apk add \
+  # This is for the code we manage
   "build-base" \
   "libffi-dev" \
   "libcurl" \
   "curl" \
   "ruby-dev=${RUBY_VERSION}" \
-  "py3-pip=${PIP_VERSION}"
-RUN apk update
+  "py3-pip=${PIP_VERSION}" \
+  # This is the dependencies needed by chromium
+  "chromium" \
+  "libstdc++" \
+  "harfbuzz" \
+  "nss" \
+  "freetype" \
+  "ttf-freefont" \
+  "font-noto-emoji" \
+  "wqy-zenhei"
+
+ENV CHROME_BIN="/usr/bin/chromium-browser"
+ENV CHROME_PATH="/usr/lib/chromium/"
+
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${CHROME_BIN}"
 
 # Restrict the permissions
 
@@ -59,9 +73,6 @@ RUN python3 -m venv ./venv \
   && pip install -r requirements.txt
 
 ENV PATH="/app/venv/bin:$PATH"
-
-# We use `npx` to install browsers needed to avoid using `npm run playwright install --with-deps chromium` since we build as standalone the entire application and we no longer want to rely application `node_modules` folder
-RUN npx --yes playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium
 
 # Manage the final server build
 

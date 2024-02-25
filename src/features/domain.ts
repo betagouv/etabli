@@ -4,7 +4,7 @@ import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import https from 'https';
-import { JSDOM } from 'jsdom';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { FetchError } from 'node-fetch';
 import { ParseResultType, parseDomain } from 'parse-domain';
 import path from 'path';
@@ -512,6 +512,17 @@ export async function updateWebsiteDataOnDomains() {
     },
   });
 
+  // Create a virtual JSDOM console when parsing fetched content because sometimes it fails
+  // parsing CSS from websites, and since we do not care about this we just want to silent this kind of error
+  // Ref: https://github.com/jsdom/jsdom/issues/2177#issuecomment-772815161
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.sendTo(console, { omitJSDOMErrors: true });
+  virtualConsole.on('jsdomError', (err) => {
+    if (err.message !== 'Could not parse CSS stylesheet') {
+      console.error(err);
+    }
+  });
+
   const browser = await chromium.launch({
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
   });
@@ -548,6 +559,7 @@ export async function updateWebsiteDataOnDomains() {
             const dom = new JSDOM(websiteData.html, {
               url: url.toString(),
               contentType: 'text/html',
+              virtualConsole: virtualConsole,
             });
 
             const headContent = dom.window.document.head.innerHTML;

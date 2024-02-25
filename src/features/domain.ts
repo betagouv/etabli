@@ -411,6 +411,9 @@ export async function updateRobotsTxtOnDomains() {
         });
 
         continue;
+      } else if (error instanceof PrismaClientUnknownRequestError && error.message.includes('invalid byte sequence for encoding \\"UTF8\\": 0x00')) {
+        // Skip this error since it's extremely rare and we are fine to skip non-compliant websites.
+        // For whatever reason the website is having a null charater in its content which is unallowed by PostgreSQL for text fields (ref: https://stackoverflow.com/a/1348551/3608410)
       } else {
         throw error;
       }

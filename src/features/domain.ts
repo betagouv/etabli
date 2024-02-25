@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import { parse } from 'csv-parse';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import fsSync from 'fs';
@@ -764,6 +765,15 @@ export async function updateWebsiteDataOnDomains() {
           });
 
           continue;
+        } else if (error instanceof PrismaClientUnknownRequestError && error.message.includes('is not a valid unicode code point')) {
+          // Skip this error since it's extremely rare and we are fine to skip non-compliant websites. It's a bit complex to understand why the encoding is failing
+          // but it seems an incorrect UTF "surrogate pair" is present in the content so Prisma fails parsing it.
+          //
+          // In our case we had the exact error `d835 is not a valid unicode code point` which can be reproduced by updating a Prisma row with the text `Hello \ud835`
+          //
+          // Refs:
+          // - https://stackoverflow.com/questions/54536539/unicodeencodeerror-utf-8-codec-cant-encode-character-ud83d-in-position-38/54549874#54549874
+          // - https://github.com/prisma/prisma/issues/21578
         } else {
           throw error;
         }

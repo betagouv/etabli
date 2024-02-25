@@ -20,15 +20,26 @@ export async function getWebsiteData(browser: Browser, url: string, timeoutForDo
   const page: Page = await browser.newPage();
   try {
     const response = await new Promise<Response | null>((resolve, reject) => {
-      let errorWithDetailsIntoListener: {
-        errorText: string;
-      } | null = null;
+      let errorWithDetailsIntoListener: Error | null = null;
 
       // When an error is thrown from `.goto()` it cannot be destructured to get technical details
       // So we hack a bit by looking for last request failed error that has details to throw them instead
       // Note: `requestfailed` notifies about error loading into the page itself, which is problematic so we do not throw from here to be sure it's a fatal error
       page.on('requestfailed', (request) => {
-        errorWithDetailsIntoListener = request.failure();
+        const failure = request.failure();
+
+        if (!!failure) {
+          // Mimic errors format we can have we other network libraries to factorize the handling logic since here it's just pure "useless" text (have a look at `src/utils/request.ts`)
+          if (failure.errorText.startsWith('net::')) {
+            const errorToThrow = new Error(`an error comes from the processing of Playwright`);
+
+            errorToThrow.cause = {
+              code: failure.errorText,
+            };
+
+            errorWithDetailsIntoListener = errorToThrow;
+          } else errorWithDetailsIntoListener = new Error(`an error comes from the processing of Playwright: ${failure.errorText}`);
+        }
       });
 
       page

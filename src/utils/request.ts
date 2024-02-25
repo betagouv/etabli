@@ -32,6 +32,10 @@ export function handleReachabilityError(error: Error) {
       'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
       'CERT_HAS_EXPIRED',
       'SELF_SIGNED_CERT_IN_CHAIN',
+      // Errors coming from Playwright
+      'net::ERR_ADDRESS_UNREACHABLE',
+      'net::ERR_CONNECTION_RESET',
+      'net::ERR_NAME_NOT_RESOLVED',
     ].includes((error.cause as any)?.code || (error as any).code || '') &&
     !(
       error instanceof TypeError &&

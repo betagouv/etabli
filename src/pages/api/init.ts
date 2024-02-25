@@ -25,8 +25,13 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     try {
       // Register the event listener for termination signals
-      process.on('SIGINT', gracefulExit);
-      process.on('SIGTERM', gracefulExit);
+      ['SIGINT', 'SIGTERM'].forEach((signal) => {
+        process.on(signal, () => {
+          console.log(`a "${signal}" signal has been received by the program and it's being handled`);
+
+          gracefulExit();
+        });
+      });
 
       // await scheduleCronTasks();
 

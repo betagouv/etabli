@@ -411,8 +411,6 @@ export async function updateRobotsTxtOnDomains() {
         });
 
         continue;
-      } else if (error instanceof Error) {
-        handleReachabilityError(error);
       } else {
         throw error;
       }

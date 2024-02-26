@@ -35,6 +35,9 @@ export async function errorHandler(error: unknown, req: NextApiRequest, res: Nex
     // (meaning the one throwing wants specific HTTP response, it's kind of a business error but with no translation at the end)
     res.status(error.statusCode).json({ error: { message: error.message } });
   } else {
+    console.log(`the following error is unexpected and went up to the api endpoint catcher before being logged to sentry`);
+    console.error(error);
+
     // Notify Sentry of this unexpected error
     Sentry.withScope(function (scope) {
       scope.setUser(null);

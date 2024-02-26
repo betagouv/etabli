@@ -29,23 +29,22 @@ export async function getWebsiteData(browser: Browser, url: string, timeoutForDo
         const failure = request.failure();
 
         if (!!failure) {
+          const errorMessage = `an error comes from the processing of Playwright for "${request.url()}" (which may just be an assert url when loading): ${
+            failure.errorText
+          }`;
+
           // Mimic errors format we can have we other network libraries to factorize the handling logic since here it's just pure "useless" text (have a look at `src/utils/request.ts`)
           if (failure.errorText.startsWith('net::')) {
-            const errorToThrow = new Error(
-              `an error comes from the processing of Playwright for "${request.url()}" (which may just be an assert url when loading)`
-            );
+            const errorToThrow = new Error(errorMessage);
 
             errorToThrow.cause = {
               code: failure.errorText,
             };
 
             errorWithDetailsIntoListener = errorToThrow;
-          } else
-            errorWithDetailsIntoListener = new Error(
-              `an error comes from the processing of Playwright for "${request.url()}" (which may just be an assert url when loading): ${
-                failure.errorText
-              }`
-            );
+          } else {
+            errorWithDetailsIntoListener = new Error(errorMessage);
+          }
         }
       });
 

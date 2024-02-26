@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs';
 
+import { llmManagerInstance } from '@etabli/src/features/llm';
 import { programRequestedToShutDownError } from '@etabli/src/models/entities/errors';
 import { stopBossClientInstance } from '@etabli/src/server/queueing/client';
 
@@ -27,7 +28,7 @@ export async function gracefulExit(error?: Error) {
 
   // Perform any necessary cleanup or finalization tasks here
   try {
-    await Promise.all([stopBossClientInstance(), Sentry.close(2000)]);
+    await Promise.all([stopBossClientInstance(), llmManagerInstance.stopHistoryCleaner(), Sentry.close(2000)]);
 
     console.log('The application has terminated gracefully');
   } finally {

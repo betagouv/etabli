@@ -13,6 +13,10 @@ export class MockVectorStoreLlmManager implements LlmManager {
 
   public async clean(): Promise<void> {}
 
+  public async startHistoryCleaner(): Promise<void> {}
+
+  public async stopHistoryCleaner(): Promise<void> {}
+
   public async ingestTools(settings: Settings): Promise<void> {}
 
   public async ingestInitiatives(settings: Settings): Promise<void> {}

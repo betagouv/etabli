@@ -5,7 +5,9 @@ import { ChainValues } from '@langchain/core/utils/types';
 import { ChatMistralAI, MistralAIEmbeddings } from '@langchain/mistralai';
 import { InitiativeLlmDocument, Prisma, Settings, ToolLlmDocument } from '@prisma/client';
 import assert from 'assert';
+import { CronJob } from 'cron';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
+import { subHours } from 'date-fns/subHours';
 import fs from 'fs/promises';
 import { LLMChain } from 'langchain/chains';
 import { createStuffDocumentsChain } from 'langchain/chains/combine_documents';
@@ -13,6 +15,7 @@ import { createRetrievalChain } from 'langchain/chains/retrieval';
 import { BufferMemory } from 'langchain/memory';
 import mistralTokenizer from 'mistral-tokenizer-js';
 import path from 'path';
+import { z } from 'zod';
 
 import { ChunkEventEmitter, LlmManager, extractFirstJsonCodeContentFromMarkdown } from '@etabli/src/features/llm';
 import { gptInstances, gptSeed } from '@etabli/src/gpt';
@@ -23,18 +26,22 @@ import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 import { sleep } from '@etabli/src/utils/sleep';
 
+export interface Memory {
+  history: BufferMemory;
+  lastRequestAt: Date;
+}
+
+export type Memories = {
+  [key in string]: Memory;
+};
+
 export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public readonly mistralaiClient;
   public readonly toolsVectorStore;
   public readonly initiativesVectorStore;
   public readonly gptInstance = gptInstances['tiny'];
-  // TODO: object of memory by sessionId, clean them at each new chat message (look for those expired)
-
-  public readonly chatPromptMemory = new BufferMemory({
-    inputKey: 'input',
-    memoryKey: 'chat_history',
-    returnMessages: true,
-  });
+  public readonly chatPromptMemories: Memories = {}; // To not overcomplexify the logic we go with memory history considering just 1 instance of the product (or if more, with sticky IP to target the same instance for the same user)
+  public readonly cleanHistoryJob;
 
   public constructor() {
     this.mistralaiClient = new ChatMistralAI({
@@ -69,6 +76,25 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
         content: PrismaVectorStore.ContentColumn,
       },
     });
+
+    // We want to avoid memory leak due to conversations but also for data privacy (the UUID is not guessable, but we limit the risk)
+    this.cleanHistoryJob = new CronJob(
+      '0 * * * *', // Every hour
+      () => {
+        const historyExpirationAt = subHours(new Date(), 6); // If a conversation has more than 6 hours, delete it
+
+        for (let sessionId in this.chatPromptMemories) {
+          if (this.chatPromptMemories[sessionId].lastRequestAt < historyExpirationAt) {
+            delete this.chatPromptMemories[sessionId];
+          }
+        }
+
+        console.log(`an history clean of conversation sessions has been performed`);
+      },
+      null,
+      false,
+      'Europe/Paris'
+    );
   }
 
   public async init() {
@@ -89,6 +115,14 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public async clean(): Promise<void> {
     await prisma.toolLlmDocument.deleteMany({});
     await prisma.initiativeLlmDocument.deleteMany({});
+  }
+
+  public async startHistoryCleaner(): Promise<void> {
+    this.cleanHistoryJob.start();
+  }
+
+  public async stopHistoryCleaner(): Promise<void> {
+    this.cleanHistoryJob.stop();
   }
 
   public async ingestTools(settings: Settings): Promise<void> {
@@ -457,6 +491,24 @@ CONTEXT:
   }
 
   public async requestAssistant(settings: Settings, sessionId: string, input: string, eventEmitter: ChunkEventEmitter): Promise<string> {
+    z.string().uuid().parse(sessionId); // Make sure of the type since used as index
+
+    // Create an history object if not existing for this session
+    if (!this.chatPromptMemories[sessionId]) {
+      this.chatPromptMemories[sessionId] = {
+        history: new BufferMemory({
+          inputKey: 'input',
+          memoryKey: 'chat_history',
+          returnMessages: true,
+        }),
+        lastRequestAt: new Date(),
+      };
+    } else {
+      this.chatPromptMemories[sessionId].lastRequestAt = new Date();
+    }
+
+    const sessionMemory: Memory = this.chatPromptMemories[sessionId];
+
     const promptCanvas = ChatPromptTemplate.fromMessages([
       [
         'system',
@@ -493,7 +545,7 @@ CONTEXT:
 
     const stream = await chain.stream(
       {
-        chat_history: await this.chatPromptMemory.chatHistory.getMessages(),
+        chat_history: await sessionMemory.history.chatHistory.getMessages(),
         input: input,
       },
       {
@@ -549,8 +601,8 @@ CONTEXT:
     }
 
     // Update history in case of a next invocation
-    await this.chatPromptMemory.chatHistory.addUserMessage(input);
-    await this.chatPromptMemory.chatHistory.addAIChatMessage(fullAnswer);
+    await sessionMemory.history.chatHistory.addUserMessage(input);
+    await sessionMemory.history.chatHistory.addAIChatMessage(fullAnswer);
 
     return fullAnswer;
   }

@@ -11,6 +11,8 @@ import { prisma } from '@etabli/src/prisma';
 export interface LlmManager {
   init(): Promise<void>;
   clean(): Promise<void>;
+  startHistoryCleaner(): Promise<void>;
+  stopHistoryCleaner(): Promise<void>;
   ingestTools(settings: Settings): Promise<void>;
   ingestInitiatives(settings: Settings): Promise<void>;
   computeInitiative(settings: Settings, projectDirectory: string, prompt: string, rawToolsFromAnalysis: string[]): Promise<ResultSchemaType>;

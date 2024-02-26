@@ -160,6 +160,14 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     });
   }
 
+  public async startHistoryCleaner(): Promise<void> {
+    throw new Error('not implemented yet');
+  }
+
+  public async stopHistoryCleaner(): Promise<void> {
+    throw new Error('not implemented yet');
+  }
+
   public async ingestTools(settings: Settings): Promise<void> {
     if (!settings.llmAnalyzerAssistantId) {
       throw new Error('the analyzer assistant must exist to compute initiative through the llm system');

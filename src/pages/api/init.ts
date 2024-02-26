@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
+import { llmManagerInstance } from '@etabli/src/features/llm';
 import { scheduleCronTasks } from '@etabli/src/server/queueing/schedule';
 import { gracefulExit } from '@etabli/src/server/system';
 import { apiHandlerWrapper } from '@etabli/src/utils/api';
@@ -35,6 +36,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
 
       await scheduleCronTasks();
+      await llmManagerInstance.startHistoryCleaner();
 
       console.log('All services have been initialized');
     } catch (error) {

@@ -19,6 +19,7 @@ import path from 'path';
 import prettyBytes from 'pretty-bytes';
 import { simpleGit } from 'simple-git';
 import { promisify } from 'util';
+import { v4 as uuidv4 } from 'uuid';
 import Wappalyzer from 'wappalyzer';
 
 import manifestsEndingPatterns from '@etabli/src/bibliothecary/manifests-patterns.json';
@@ -984,7 +985,7 @@ export async function runInitiativeAssistant() {
 
   await llmManagerInstance.assertInitiativesDocumentsAreReady(settings);
 
-  const sessionId = 'no_matter_since_cli';
+  const sessionId = uuidv4();
   const streamAnswer = true;
   const eventEmitter: ChunkEventEmitter = new EventEmitter<'chunk', number>();
 

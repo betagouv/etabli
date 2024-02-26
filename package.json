@@ -105,6 +105,7 @@
     "async": "^3.2.5",
     "chalk": "^5.3.0",
     "crisp-sdk-web": "^1.0.13",
+    "cron": "^3.1.6",
     "csv-parse": "^5.5.2",
     "date-fns": "^3.3.1",
     "eventemitter3": "^5.0.1",

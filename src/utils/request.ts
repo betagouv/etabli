@@ -36,14 +36,22 @@ export function handleReachabilityError(error: Error) {
       // Errors coming from Playwright
       'net::ERR_ABORTED',
       'net::ERR_ADDRESS_UNREACHABLE',
+      'net::ERR_BLOCKED_BY_RESPONSE',
+      'net::ERR_BLOCKED_BY_RESPONSE.NotSameOrigin',
       'net::ERR_CERT_AUTHORITY_INVALID',
       'net::ERR_CERT_COMMON_NAME_INVALID',
       'net::ERR_CERT_DATE_INVALID',
+      'net::ERR_CONNECTION_CLOSED',
+      'net::ERR_CONNECTION_REFUSED',
       'net::ERR_CONNECTION_RESET',
+      'net::ERR_CONTENT_DECODING_FAILED',
       'net::ERR_FAILED',
       'net::ERR_FILE_NOT_FOUND',
+      'net::ERR_HTTP2_PROTOCOL_ERROR',
       'net::ERR_NAME_NOT_RESOLVED',
+      'net::ERR_SOCKET_NOT_CONNECTED',
       'net::ERR_SSL_PROTOCOL_ERROR',
+      'net::ERR_UNKNOWN_URL_SCHEME',
     ].includes((error.cause as any)?.code || (error as any).code || '') &&
     !(
       error instanceof TypeError &&

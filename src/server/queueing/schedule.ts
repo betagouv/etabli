@@ -1,16 +1,9 @@
 import { getBossClientInstance } from '@etabli/src/server/queueing/client';
-import { cleanPendingUploadsTopic } from '@etabli/src/server/queueing/workers/clean-pending-uploads';
-import { sendAgentsActivitySumUpTopic } from '@etabli/src/server/queueing/workers/send-agents-activity-sum-up';
+import { updateEntitiesDataTopic } from '@etabli/src/server/queueing/workers/update-entities-data';
 
 export async function scheduleCronTasks() {
   const bossClient = await getBossClientInstance();
 
-  // TODO:
-  // TODO:
-  // TODO: to modify
-  // TODO:
-
   // Schedule tasks
-  await bossClient.schedule(cleanPendingUploadsTopic, `0 3 * * *`, undefined, { tz: 'Europe/Paris' }); // At night to save performance
-  await bossClient.schedule(sendAgentsActivitySumUpTopic, `30 7 * * 1-5`, undefined, { tz: 'Europe/Paris' }); // At the beginning of the day except the weekend so agents know what's urgent when starting their day of work
+  await bossClient.schedule(updateEntitiesDataTopic, `0 19 * * 0,3`, undefined, { tz: 'Europe/Paris' }); // Each sunday and wednesday at 7pm since the entire flow can be a bit long, it will run over night
 }

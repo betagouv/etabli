@@ -2,8 +2,7 @@ import * as Sentry from '@sentry/nextjs';
 import PgBoss from 'pg-boss';
 
 import { BusinessError } from '@etabli/src/models/entities/errors';
-import { cleanPendingUploads, cleanPendingUploadsTopic } from '@etabli/src/server/queueing/workers/clean-pending-uploads';
-import { sendAgentsActivitySumUp, sendAgentsActivitySumUpTopic } from '@etabli/src/server/queueing/workers/send-agents-activity-sum-up';
+import { updateEntitiesData, updateEntitiesDataTopic } from '@etabli/src/server/queueing/workers/update-entities-data';
 import { gracefulExit } from '@etabli/src/server/system';
 
 // It appears the PostgreSQL client for `pg-boss` acts differently than the `prisma` ORM one about SSL connection
@@ -56,8 +55,7 @@ export async function getBossClientInstance(): Promise<PgBoss> {
       await bossClient.start();
 
       // Bind listeners
-      await bossClient.work(cleanPendingUploadsTopic, handlerWrapper(cleanPendingUploads));
-      await bossClient.work(sendAgentsActivitySumUpTopic, handlerWrapper(sendAgentsActivitySumUp));
+      await bossClient.work(updateEntitiesDataTopic, handlerWrapper(updateEntitiesData));
     })();
   }
 

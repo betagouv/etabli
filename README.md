@@ -193,12 +193,13 @@ For each build and runtime (since they are shared), you should have set some env
 - `APP_MODE`: `prod` _(can be `dev` in case you would like to deploy a development environment)_
 - `DATABASE_URL`: `$POSTGRESQL_ADDON_URI` _(you must copy/paste the value provided by Clever Cloud into `$POSTGRESQL_ADDON_URI`, and note you must add as query parameter `sslmode=prefer`)_
 - `MAINTENANCE_API_KEY`: [SECRET] _(random string that can be generated with `openssl rand -base64 32`. Note this is needed to perform maintenance through dedicated API endpoints)_
+- `MISTRAL_API_KEY`: [SECRET] _(you can create an API key from your MistralAI "La plateforme" account)_
+- `CHROMIUM_MAXIMUM_CONCURRENCY`: [TO_DEFINE] _(by default it will be `1` but it takes a long time when analyzing thousands of websites through the headless Chromium. After some testing we think on Clever Cloud having `4` is fine for the `S` plan (and `8` for `XL` plan for a quick test to speed things up), and locally it will depend on your hardware. Consider to lower the value when having more than 10% of analyses timed out)_
 - `NEXT_PUBLIC_APP_BASE_URL`: [TO_DEFINE] _(must be the root URL to access the application, format `https://xxx.yyy.zzz`)_
 - `NEXT_PUBLIC_CRISP_WEBSITE_ID`: [TO_DEFINE] _(this ID is defined in your Crisp account and depends on the development or production environment)_
 - `NEXT_PUBLIC_SENTRY_DSN`: [SECRET] _(format `https://xxx.yyy.zzz/nn`)_
 - `NEXT_PUBLIC_MATOMO_URL`: [PROVIDED] _(format `https://xxx.yyy.zzz/`)_
 - `NEXT_PUBLIC_MATOMO_SITE_ID`: [GENERATED] _(format `https://xxx.yyy.zzz/`)_
-- `MISTRAL_API_KEY`: [SECRET] _(you can create an API key from your MistralAI "La plateforme" account)_
 
 **IMPORTANT: When building Next.js in a standalone mode the frontend `NEXT_PUBLIC_*` environement variables are hardcoded. It means you have to set them into the build environment too. For more information have a look at the build step comment into `.github/workflows/ci.yml`.**
 

@@ -598,9 +598,10 @@ export async function updateWebsiteDataOnDomains() {
   });
   try {
     // Since the underlying content fetching is based on waiting a timeout on the website "to be sure" single page applications (SPA)
-    // have rendered their content, it takes some time in the iteration are consecutives. Due to that we made the loop batching a few for each iteration
-    // Note: previously in average it was 6 seconds per website (since to 2 pages renderings with timeout), we tried to keep it short (others long-running jobs are bout ~50ms per page loaded)
-    await eachOfLimit(rawDomains, 15, async function (rawDomain, rawDomainIndex) {
+    // have rendered their content, it takes some time in the iteration are consecutives. Due to that we allowed the loop batching
+    // Note: for a concurren of 1 in average it was 6 seconds per website (since to 2 pages renderings with an await)
+    const maxConcurrency = !!process.env.CHROMIUM_MAXIMUM_CONCURRENCY ? parseInt(process.env.CHROMIUM_MAXIMUM_CONCURRENCY, 10) : 1;
+    await eachOfLimit(rawDomains, maxConcurrency, async function (rawDomain, rawDomainIndex) {
       watchGracefulExitInLoop();
 
       console.log(

@@ -26,13 +26,14 @@ import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 import { sleep } from '@etabli/src/utils/sleep';
 
-export interface Memory {
+export interface Session {
   history: BufferMemory;
   lastRequestAt: Date;
+  running: boolean;
 }
 
-export type Memories = {
-  [key in string]: Memory;
+export type Sessions = {
+  [key in string]: Session;
 };
 
 export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
@@ -40,7 +41,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public readonly toolsVectorStore;
   public readonly initiativesVectorStore;
   public readonly gptInstance = gptInstances['tiny'];
-  public readonly chatPromptMemories: Memories = {}; // To not overcomplexify the logic we go with memory history considering just 1 instance of the product (or if more, with sticky IP to target the same instance for the same user)
+  public readonly sessions: Sessions = {}; // To not overcomplexify the logic we go with memory history considering just 1 instance of the product (or if more, with sticky IP to target the same instance for the same user)
   public readonly cleanHistoryJob;
 
   public constructor() {
@@ -83,9 +84,9 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
       () => {
         const historyExpirationAt = subHours(new Date(), 6); // If a conversation has more than 6 hours, delete it
 
-        for (let sessionId in this.chatPromptMemories) {
-          if (this.chatPromptMemories[sessionId].lastRequestAt < historyExpirationAt) {
-            delete this.chatPromptMemories[sessionId];
+        for (let sessionId in this.sessions) {
+          if (this.sessions[sessionId].lastRequestAt < historyExpirationAt) {
+            delete this.sessions[sessionId];
           }
         }
 
@@ -258,8 +259,6 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
         const initiativeDocumentsToCalculate: InitiativeLlmDocument[] = [];
 
         for (const initiative of initiatives) {
-          watchGracefulExitInLoop();
-
           const resultingDocumentContentObject = DocumentInitiativeTemplateSchema.parse({
             id: initiative.id,
             name: initiative.name,
@@ -494,129 +493,139 @@ CONTEXT:
     z.string().uuid().parse(sessionId); // Make sure of the type since used as index
 
     // Create an history object if not existing for this session
-    if (!this.chatPromptMemories[sessionId]) {
-      this.chatPromptMemories[sessionId] = {
+    if (!this.sessions[sessionId]) {
+      this.sessions[sessionId] = {
         history: new BufferMemory({
           inputKey: 'input',
           memoryKey: 'chat_history',
           returnMessages: true,
         }),
         lastRequestAt: new Date(),
+        running: false,
       };
     } else {
-      this.chatPromptMemories[sessionId].lastRequestAt = new Date();
+      this.sessions[sessionId].lastRequestAt = new Date();
     }
 
-    const sessionMemory: Memory = this.chatPromptMemories[sessionId];
+    const session: Session = this.sessions[sessionId];
+    try {
+      if (session.running) {
+        throw new Error(`this session is already being running, wait for it to finish before requesting the assistant again`);
+      } else {
+        session.running = true;
+      }
 
-    const promptCanvas = ChatPromptTemplate.fromMessages([
-      [
-        'system',
-        `
+      const promptCanvas = ChatPromptTemplate.fromMessages([
+        [
+          'system',
+          `
 You are a bot helping users finding the right initiative sheet from a directory. Note the directory is named Etabli and you are considered as its assistant. Use the provided sheets information from the context to answer the user questions, and in case you mention an initiative don't forget to give its link (with the format "${linkRegistry.get(
-          'initiative',
-          { initiativeId: '$INITIATIVE_ID' },
-          { absolute: true }
-        )}"). You should mention initiatives according to the user message, don't if it provides no information to search with. Just know that initiative represents a project or a product. You should answer in french except if the user speaks another language, and remember the user is not supposed to know some documents are set in your context.
+            'initiative',
+            { initiativeId: '$INITIATIVE_ID' },
+            { absolute: true }
+          )}"). You should mention initiatives according to the user message, don't if it provides no information to search with. Just know that initiative represents a project or a product. You should answer in french except if the user speaks another language, and remember the user is not supposed to know some documents are set in your context.
 ---
 CONTEXT:
 {context}
 ---
 `,
-      ],
-      new MessagesPlaceholder('chat_history'),
-      ['human', '{input}'],
-    ]);
+        ],
+        new MessagesPlaceholder('chat_history'),
+        ['human', '{input}'],
+      ]);
 
-    const combineDocsChain = await createStuffDocumentsChain({
-      llm: this.mistralaiClient,
-      prompt: promptCanvas,
-      documentSeparator: '\n',
-    });
+      const combineDocsChain = await createStuffDocumentsChain({
+        llm: this.mistralaiClient,
+        prompt: promptCanvas,
+        documentSeparator: '\n',
+      });
 
-    const chain = await createRetrievalChain({
-      retriever: this.initiativesVectorStore.asRetriever(5),
-      combineDocsChain: combineDocsChain,
-    });
+      const chain = await createRetrievalChain({
+        retriever: this.initiativesVectorStore.asRetriever(5),
+        combineDocsChain: combineDocsChain,
+      });
 
-    // When using a stream there is no object `tokenUsage` as for the conventional way
-    // So do our own logic (it should be exactly true but maybe there is a little variation with the calculation from the remote LLM)
-    let totalTokensUsed = 0;
+      // When using a stream there is no object `tokenUsage` as for the conventional way
+      // So do our own logic (it should be exactly true but maybe there is a little variation with the calculation from the remote LLM)
+      let totalTokensUsed = 0;
 
-    const stream = await chain.stream(
-      {
-        chat_history: await sessionMemory.history.chatHistory.getMessages(),
-        input: input,
-      },
-      {
-        configurable: {
-          verbose: false,
+      const stream = await chain.stream(
+        {
+          chat_history: await session.history.chatHistory.getMessages(),
+          input: input,
         },
-        callbacks: [
-          {
-            handleLLMStart: async (llm, messages) => {
-              assert(messages.length === 1);
+        {
+          configurable: {
+            verbose: false,
+          },
+          callbacks: [
+            {
+              handleLLMStart: async (llm, messages) => {
+                assert(messages.length === 1);
 
-              const tokens = mistralTokenizer.encode(messages[0]);
-
-              totalTokensUsed += tokens.length;
-            },
-            handleLLMEnd: async (output) => {
-              if (!!output.generations[0]?.[0]) {
-                const tokens = mistralTokenizer.encode(output.generations[0][0].text);
+                const tokens = mistralTokenizer.encode(messages[0]);
 
                 totalTokensUsed += tokens.length;
-              }
+              },
+              handleLLMEnd: async (output) => {
+                if (!!output.generations[0]?.[0]) {
+                  const tokens = mistralTokenizer.encode(output.generations[0][0].text);
+
+                  totalTokensUsed += tokens.length;
+                }
+              },
             },
-          },
-        ],
-      }
-    );
-
-    let fullAnswer = '';
-    for await (const chunk of stream) {
-      // Note: for whatever reason the first ones are undefined despite the type (they are chunks with only `input`, then only `chat_history`, then only `content`, and after they are all answer message chunks)
-      if (chunk.answer !== undefined) {
-        fullAnswer += chunk.answer;
-
-        // Notify the caller if it wants to use realtime display (the current function will return will the whole result once the stream is done)
-        eventEmitter.emit('chunk', chunk.answer);
-      }
-    }
-
-    assert(totalTokensUsed > 0); // Since we do our own calculation, if it's 0 that's really weird
-
-    // We could debug token usage
-    if (!!false) {
-      console.log(
-        `the GPT input and output represent ${totalTokensUsed} tokens in total (for a cost of ~$${
-          (totalTokensUsed / 1000) * this.gptInstance.per1000TokensCost
-        })`
+          ],
+        }
       );
 
-      if (totalTokensUsed > this.gptInstance.modelTokenLimit) {
-        console.warn('it seemed to process more token than the limit, the content may be truncated and invalid');
-        throw tokensReachTheLimitError;
+      let fullAnswer = '';
+      for await (const chunk of stream) {
+        // Note: for whatever reason the first ones are undefined despite the type (they are chunks with only `input`, then only `chat_history`, then only `content`, and after they are all answer message chunks)
+        if (chunk.answer !== undefined) {
+          fullAnswer += chunk.answer;
+
+          // Notify the caller if it wants to use realtime display (the current function will return will the whole result once the stream is done)
+          eventEmitter.emit('chunk', chunk.answer);
+        }
       }
-    }
 
-    // Update history in case of a next invocation
-    await sessionMemory.history.chatHistory.addUserMessage(input);
-    await sessionMemory.history.chatHistory.addAIChatMessage(fullAnswer);
+      assert(totalTokensUsed > 0); // Since we do our own calculation, if it's 0 that's really weird
 
-    // Truncate history for oldest messages to keep next call possible (and not too costly)
-    // [WORKAROUND] The chat history messages are in a private property so impossible to filter them directly, so rebuilding the history
-    const historyMessages = await sessionMemory.history.chatHistory.getMessages();
-    if (historyMessages.length > 20) {
-      await sessionMemory.history.chatHistory.clear();
+      // We could debug token usage
+      if (!!false) {
+        console.log(
+          `the GPT input and output represent ${totalTokensUsed} tokens in total (for a cost of ~$${
+            (totalTokensUsed / 1000) * this.gptInstance.per1000TokensCost
+          })`
+        );
 
-      const messagesToKeep = historyMessages.slice(-20); // 20 last ones
-      for (const messageToKeep of messagesToKeep) {
-        await sessionMemory.history.chatHistory.addMessage(messageToKeep);
+        if (totalTokensUsed > this.gptInstance.modelTokenLimit) {
+          console.warn('it seemed to process more token than the limit, the content may be truncated and invalid');
+          throw tokensReachTheLimitError;
+        }
       }
-    }
 
-    return fullAnswer;
+      // Update history in case of a next invocation
+      await session.history.chatHistory.addUserMessage(input);
+      await session.history.chatHistory.addAIChatMessage(fullAnswer);
+
+      // Truncate history for oldest messages to keep next call possible (and not too costly)
+      // [WORKAROUND] The chat history messages are in a private property so impossible to filter them directly, so rebuilding the history
+      const historyMessages = await session.history.chatHistory.getMessages();
+      if (historyMessages.length > 20) {
+        await session.history.chatHistory.clear();
+
+        const messagesToKeep = historyMessages.slice(-20); // 20 last ones
+        for (const messageToKeep of messagesToKeep) {
+          await session.history.chatHistory.addMessage(messageToKeep);
+        }
+      }
+
+      return fullAnswer;
+    } finally {
+      session.running = false;
+    }
   }
 
   public async assertInitiativesDocumentsAreReady(settings: Settings): Promise<void> {

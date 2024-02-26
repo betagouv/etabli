@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
+import { subDays } from 'date-fns/subDays';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import linkifyit from 'linkify-it';
@@ -200,6 +201,8 @@ export async function formatRepositoriesIntoDatabase() {
               updateInferredMetadata: true,
               mainSimilarRepositoryId: null,
               updateMainSimilarRepository: true,
+              lastUpdateAttemptWithReachabilityError: null,
+              lastUpdateAttemptReachabilityError: null,
             },
           });
         } else if (diffItem.status === 'deleted') {
@@ -287,6 +290,8 @@ export async function formatRepositoriesIntoDatabase() {
               softwareHeritageExists: liteRawRepository.softwareHeritageExists,
               softwareHeritageUrl: liteRawRepository.softwareHeritageUrl,
               repositoryDomain: parsedRepositoryUrl.hostname,
+              lastUpdateAttemptWithReachabilityError: null,
+              lastUpdateAttemptReachabilityError: null,
               // Recompute some generated values since it was based on above values
               updateInferredMetadata: true,
               updateMainSimilarRepository: true,
@@ -320,6 +325,20 @@ export async function updateInferredMetadataOnRepositories() {
   const rawRepositories = await prisma.rawRepository.findMany({
     where: {
       updateInferredMetadata: true,
+      AND: {
+        OR: [
+          {
+            lastUpdateAttemptWithReachabilityError: {
+              equals: null,
+            },
+          },
+          {
+            lastUpdateAttemptWithReachabilityError: {
+              lt: subDays(new Date(), 1), // Skip rows with high probability of failure since they had recently a network reachability issue
+            },
+          },
+        ],
+      },
     },
     include: {
       RawRepositoriesOnInitiativeMaps: true,
@@ -373,6 +392,8 @@ export async function updateInferredMetadataOnRepositories() {
         probableWebsiteUrl: probableWebsiteUrl ? probableWebsiteUrl.toString() : null,
         probableWebsiteDomain: probableWebsiteUrl ? probableWebsiteUrl.hostname : null,
         updateInferredMetadata: false,
+        lastUpdateAttemptWithReachabilityError: null,
+        lastUpdateAttemptReachabilityError: null,
       },
     });
   }

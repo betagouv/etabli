@@ -89,6 +89,9 @@ model RawRepository {
   mainSimilarRepositoryId     String? @db.Uuid
   updateMainSimilarRepository Boolean @default(true)
 
+  lastUpdateAttemptWithReachabilityError DateTime?
+  lastUpdateAttemptReachabilityError     String?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
@@ -149,6 +152,9 @@ model RawDomain {
 
   mainSimilarDomainId     String? @db.Uuid
   updateMainSimilarDomain Boolean @default(true)
+
+  lastUpdateAttemptWithReachabilityError DateTime?
+  lastUpdateAttemptReachabilityError     String?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
@@ -255,9 +261,11 @@ model RawRepositoriesOnInitiativeMaps {
 }
 
 model InitiativeMap {
-  id                 String  @id @default(uuid()) @db.Uuid
-  mainItemIdentifier String  @db.Uuid // We can rely on it because we always keep only 1 top parent item in the graph for each group
-  update             Boolean
+  id                                     String    @id @default(uuid()) @db.Uuid
+  mainItemIdentifier                     String    @db.Uuid // We can rely on it because we always keep only 1 top parent item in the graph for each group
+  update                                 Boolean
+  lastUpdateAttemptWithReachabilityError DateTime?
+  lastUpdateAttemptReachabilityError     String?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt

@@ -3,6 +3,7 @@ import { PrismaClientUnknownRequestError } from '@prisma/client/runtime/library'
 import { eachOfLimit } from 'async';
 import { parse } from 'csv-parse';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
+import { subDays } from 'date-fns/subDays';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import https from 'https';
@@ -218,6 +219,8 @@ export async function formatDomainsIntoDatabase() {
               websitePseudoFingerprint: null,
               updateWebsiteData: true,
               updateMainSimilarDomain: true,
+              lastUpdateAttemptWithReachabilityError: null,
+              lastUpdateAttemptReachabilityError: null,
             },
           });
         } else if (diffItem.status === 'deleted') {
@@ -303,13 +306,27 @@ export async function updateRobotsTxtOnDomains() {
     where: {
       updateIndexableFromRobotsTxt: true,
       redirectDomainTargetName: null,
+      AND: {
+        OR: [
+          {
+            lastUpdateAttemptWithReachabilityError: {
+              equals: null,
+            },
+          },
+          {
+            lastUpdateAttemptWithReachabilityError: {
+              lt: subDays(new Date(), 1), // Skip rows with high probability of failure since they had recently a network reachability issue
+            },
+          },
+        ],
+      },
     },
     include: {
       RawDomainsOnInitiativeMaps: true,
     },
   });
 
-  let silentlyFailed: number = 0;
+  let networkFailures: number = 0;
   for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
     watchGracefulExitInLoop();
 
@@ -317,7 +334,7 @@ export async function updateRobotsTxtOnDomains() {
       `try to process robots.txt for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(
         rawDomainIndex,
         rawDomains.length
-      )} (${silentlyFailed}/${rawDomains.length} have silently failed)`
+      )} (${networkFailures}/${rawDomains.length} network issues)`
     );
 
     try {
@@ -331,8 +348,8 @@ export async function updateRobotsTxtOnDomains() {
         });
       } catch (error) {
         if (error instanceof Error) {
-          handleReachabilityError(error);
-          silentlyFailed++;
+          await handleReachabilityError(rawDomain, error);
+          networkFailures++;
 
           // Skip this one to perform other domains
           continue;
@@ -377,6 +394,8 @@ export async function updateRobotsTxtOnDomains() {
             redirectDomainTarget: {
               disconnect: true,
             },
+            lastUpdateAttemptWithReachabilityError: null,
+            lastUpdateAttemptReachabilityError: null,
           },
         });
       } else if (result.status > 500) {
@@ -391,6 +410,8 @@ export async function updateRobotsTxtOnDomains() {
             indexableFromRobotsTxt: null,
             updateIndexableFromRobotsTxt: false,
             robotsTxtContent: null,
+            lastUpdateAttemptWithReachabilityError: null,
+            lastUpdateAttemptReachabilityError: null,
           },
         });
       }
@@ -416,6 +437,8 @@ export async function updateRobotsTxtOnDomains() {
                 : undefined,
               disconnect: !relatedRawDomain,
             },
+            lastUpdateAttemptWithReachabilityError: null,
+            lastUpdateAttemptReachabilityError: null,
           },
         });
 
@@ -437,13 +460,27 @@ export async function updateWildcardCertificateOnDomains() {
     where: {
       updateWildcardCertificate: true,
       redirectDomainTargetName: null,
+      AND: {
+        OR: [
+          {
+            lastUpdateAttemptWithReachabilityError: {
+              equals: null,
+            },
+          },
+          {
+            lastUpdateAttemptWithReachabilityError: {
+              lt: subDays(new Date(), 1), // Skip rows with high probability of failure since they had recently a network reachability issue
+            },
+          },
+        ],
+      },
     },
     include: {
       RawDomainsOnInitiativeMaps: true,
     },
   });
 
-  let silentlyFailed: number = 0;
+  let networkFailures: number = 0;
   for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
     watchGracefulExitInLoop();
 
@@ -451,7 +488,7 @@ export async function updateWildcardCertificateOnDomains() {
       `try to process SSL certificate for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(
         rawDomainIndex,
         rawDomains.length
-      )} (${silentlyFailed}/${rawDomains.length} have silently failed)`
+      )} (${networkFailures}/${rawDomains.length} network issues)`
     );
 
     let toSkip: boolean = false;
@@ -472,11 +509,11 @@ export async function updateWildcardCertificateOnDomains() {
         }
       );
 
-      request.on('error', (error) => {
+      request.on('error', async (error) => {
         try {
           if (error instanceof Error) {
-            handleReachabilityError(error);
-            silentlyFailed++;
+            await handleReachabilityError(rawDomain, error);
+            networkFailures++;
 
             // Skip this one to perform other domains
             toSkip = true;
@@ -511,6 +548,8 @@ export async function updateWildcardCertificateOnDomains() {
         wildcardCertificate: certificate?.issuer.CN === `*.${rawDomain.name}`,
         updateWildcardCertificate: !certificate,
         certificateContent: certificateContent ? JSON.stringify(certificateContent) : null,
+        lastUpdateAttemptWithReachabilityError: null,
+        lastUpdateAttemptReachabilityError: null,
       },
     });
 
@@ -524,6 +563,20 @@ export async function updateWebsiteDataOnDomains() {
     where: {
       updateWebsiteData: true,
       redirectDomainTargetName: null,
+      AND: {
+        OR: [
+          {
+            lastUpdateAttemptWithReachabilityError: {
+              equals: null,
+            },
+          },
+          {
+            lastUpdateAttemptWithReachabilityError: {
+              lt: subDays(new Date(), 1), // Skip rows with high probability of failure since they had recently a network reachability issue
+            },
+          },
+        ],
+      },
     },
   });
 
@@ -538,7 +591,7 @@ export async function updateWebsiteDataOnDomains() {
     }
   });
 
-  let silentlyFailed: number = 0;
+  let networkFailures: number = 0;
   const browser = await chromium.launch({
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
   });
@@ -553,7 +606,7 @@ export async function updateWebsiteDataOnDomains() {
         `try to process website content for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(
           rawDomainIndex,
           rawDomains.length
-        )} (${silentlyFailed}/${rawDomains.length} have silently failed)`
+        )} (${networkFailures}/${rawDomains.length} network issues)`
       );
 
       try {
@@ -567,8 +620,8 @@ export async function updateWebsiteDataOnDomains() {
             // This is not only related to the network, so pass them to the upper catcher
             throw error;
           } else if (error instanceof Error) {
-            handleReachabilityError(error);
-            silentlyFailed++;
+            await handleReachabilityError(rawDomain, error);
+            networkFailures++;
 
             // Skip this one to perform other domains
             return;
@@ -655,8 +708,8 @@ export async function updateWebsiteDataOnDomains() {
                         // This is not only related to the network, so pass them to the upper catcher
                         throw error;
                       } else if (error instanceof Error) {
-                        handleReachabilityError(error);
-                        silentlyFailed++;
+                        await handleReachabilityError(rawDomain, error);
+                        networkFailures++;
 
                         // Skip this one to perform other domains
                         return;
@@ -735,6 +788,8 @@ export async function updateWebsiteDataOnDomains() {
                 redirectDomainTarget: {
                   disconnect: true,
                 },
+                lastUpdateAttemptWithReachabilityError: null,
+                lastUpdateAttemptReachabilityError: null,
               },
             });
           } else {
@@ -752,6 +807,8 @@ export async function updateWebsiteDataOnDomains() {
                 websiteContentIndexable: true, // Since no specific tag, we consider it as indexable even if we won't due to missing HTML content
                 websitePseudoFingerprint: null,
                 updateWebsiteData: false,
+                lastUpdateAttemptWithReachabilityError: null,
+                lastUpdateAttemptReachabilityError: null,
               },
             });
           }
@@ -773,6 +830,8 @@ export async function updateWebsiteDataOnDomains() {
               websiteContentIndexable: null,
               websitePseudoFingerprint: null,
               updateWebsiteData: false,
+              lastUpdateAttemptWithReachabilityError: null,
+              lastUpdateAttemptReachabilityError: null,
             },
           });
         }
@@ -798,6 +857,8 @@ export async function updateWebsiteDataOnDomains() {
                   : undefined,
                 disconnect: !relatedRawDomain,
               },
+              lastUpdateAttemptWithReachabilityError: null,
+              lastUpdateAttemptReachabilityError: null,
             },
           });
 

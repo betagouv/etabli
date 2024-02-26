@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { differenceInDays } from 'date-fns/differenceInDays';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
+import { subDays } from 'date-fns/subDays';
 import { EventEmitter } from 'eventemitter3';
 import { $ } from 'execa';
 import fastFolderSize from 'fast-folder-size';
@@ -276,6 +277,8 @@ export async function inferInitiativesFromDatabase() {
             data: {
               mainItemIdentifier: liteInitiativeMap.mainItemIdentifier,
               update: true,
+              lastUpdateAttemptWithReachabilityError: null,
+              lastUpdateAttemptReachabilityError: null,
               RawDomainsOnInitiativeMaps: {
                 createMany: {
                   skipDuplicates: true,
@@ -430,6 +433,20 @@ export async function feedInitiativesFromDatabase() {
     where: {
       update: true,
       deletedAt: null,
+      AND: {
+        OR: [
+          {
+            lastUpdateAttemptWithReachabilityError: {
+              equals: null,
+            },
+          },
+          {
+            lastUpdateAttemptWithReachabilityError: {
+              lt: subDays(new Date(), 1), // Skip rows with high probability of failure since they had recently a network reachability issue
+            },
+          },
+        ],
+      },
     },
     include: {
       Initiative: true,
@@ -881,6 +898,8 @@ export async function feedInitiativesFromDatabase() {
                 },
                 data: {
                   update: false,
+                  lastUpdateAttemptWithReachabilityError: null,
+                  lastUpdateAttemptReachabilityError: null,
                 },
               });
             },

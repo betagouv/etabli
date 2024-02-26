@@ -1,11 +1,14 @@
+import { RawDomain } from '@prisma/client';
 import { PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nextjs';
 import { errors as playwrightErrors } from 'playwright';
 
+import { prisma } from '@etabli/src/prisma';
+
 // This should be used close to network calls because it silents errors
 // And in our case of long-running jobs we want the loop to continue despite network errors because it will be fetch again next time
 // TODO: in the future we could register the error into the database for specific domains so we can tell to the list source to look at removing them if appropriate
-export function handleReachabilityError(error: Error) {
+export async function handleReachabilityError(rawDomain: RawDomain, error: Error): Promise<void> {
   if (
     !(error instanceof playwrightErrors.TimeoutError) && // This error came from us forcing the Playwright timeout
     !(error.name === 'AbortError' && error.cause instanceof DOMException && error.cause.code === DOMException.TIMEOUT_ERR) && // This error came from us forcing the `https.request()` timeout
@@ -64,7 +67,21 @@ export function handleReachabilityError(error: Error) {
     console.error(error);
 
     Sentry.captureException(error);
+  } else {
+    console.error(`an error has occured while doing some network process for "${rawDomain.name}"`);
+    console.error(error);
   }
+
+  // Register the error timestamp to avoid reprocessing it too quickly
+  await prisma.rawDomain.update({
+    where: {
+      id: rawDomain.id,
+    },
+    data: {
+      lastUpdateAttemptWithReachabilityError: new Date(),
+      lastUpdateAttemptReachabilityError: error.message,
+    },
+  });
 }
 
 export function handlePrismaErrorDueToContent(error: PrismaClientUnknownRequestError) {

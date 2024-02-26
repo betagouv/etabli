@@ -428,6 +428,7 @@ export async function updateRobotsTxtOnDomains() {
             id: rawDomain.id,
           },
           data: {
+            updateWebsiteData: false,
             redirectDomainTargetName: error.domain,
             redirectDomainTarget: {
               connect: !!relatedRawDomain
@@ -848,6 +849,7 @@ export async function updateWebsiteDataOnDomains() {
               id: rawDomain.id,
             },
             data: {
+              updateWebsiteData: false,
               redirectDomainTargetName: error.domain,
               redirectDomainTarget: {
                 connect: !!relatedRawDomain

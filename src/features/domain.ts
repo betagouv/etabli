@@ -546,7 +546,10 @@ export async function updateWebsiteDataOnDomains() {
         try {
           websiteData = await getWebsiteData(browser, url.toString(), 5000);
         } catch (error) {
-          if (error instanceof Error) {
+          if (error instanceof BusinessDomainError) {
+            // This is not only related to the network, so pass them to the upper catcher
+            throw error;
+          } else if (error instanceof Error) {
             handleReachabilityError(error);
 
             // Skip this one to perform other domains
@@ -622,7 +625,10 @@ export async function updateWebsiteDataOnDomains() {
                     try {
                       anotherPageData = await getWebsiteData(browser, anotherPageUrl.toString(), 5000);
                     } catch (error) {
-                      if (error instanceof Error) {
+                      if (error instanceof BusinessDomainError) {
+                        // This is not only related to the network, so pass them to the upper catcher
+                        throw error;
+                      } else if (error instanceof Error) {
                         handleReachabilityError(error);
 
                         // Skip this one to perform other domains

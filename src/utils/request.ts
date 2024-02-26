@@ -34,9 +34,16 @@ export function handleReachabilityError(error: Error) {
       'CERT_HAS_EXPIRED',
       'SELF_SIGNED_CERT_IN_CHAIN',
       // Errors coming from Playwright
+      'net::ERR_ABORTED',
       'net::ERR_ADDRESS_UNREACHABLE',
+      'net::ERR_CERT_AUTHORITY_INVALID',
+      'net::ERR_CERT_COMMON_NAME_INVALID',
+      'net::ERR_CERT_DATE_INVALID',
       'net::ERR_CONNECTION_RESET',
+      'net::ERR_FAILED',
+      'net::ERR_FILE_NOT_FOUND',
       'net::ERR_NAME_NOT_RESOLVED',
+      'net::ERR_SSL_PROTOCOL_ERROR',
     ].includes((error.cause as any)?.code || (error as any).code || '') &&
     !(
       error instanceof TypeError &&

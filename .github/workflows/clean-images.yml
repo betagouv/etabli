@@ -8,10 +8,10 @@ jobs:
     name: Docker images clean
     runs-on: ubuntu-latest
     steps:
-      - name: Delete old images
+      - name: Delete old production images
         uses: snok/container-retention-policy@v2
         with:
-          image-names: etabli/etabli-*
+          image-names: etabli/etabli-main # Since using `token-type: github-token` only 1 image name can be specified
           cut-off: A week ago UTC
           account-type: org
           org-name: betagouv
@@ -19,3 +19,14 @@ jobs:
           skip-tags: latest
           token-type: github-token
           token: ${{ secrets.GITHUB_TOKEN }}
+      # - name: Delete old development images
+      #   uses: snok/container-retention-policy@v2
+      #   with:
+      #     image-names: etabli/etabli-dev # Since using `token-type: github-token` only 1 image name can be specified
+      #     cut-off: A week ago UTC
+      #     account-type: org
+      #     org-name: betagouv
+      #     keep-at-least: 5
+      #     skip-tags: latest
+      #     token-type: github-token
+      #     token: ${{ secrets.GITHUB_TOKEN }}

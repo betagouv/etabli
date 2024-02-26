@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
+import { eachOfLimit } from 'async';
 import { parse } from 'csv-parse';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import fsSync from 'fs';
@@ -528,7 +529,10 @@ export async function updateWebsiteDataOnDomains() {
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
   });
   try {
-    for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
+    // Since the underlying content fetching is based on waiting a timeout on the website "to be sure" single page applications (SPA)
+    // have rendered their content, it takes some time in the iteration are consecutives. Due to that we made the loop batching a few for each iteration
+    // Note: previously in average it was 6 seconds per website (since to 2 pages renderings with timeout), we tried to keep it short (others long-running jobs are bout ~50ms per page loaded)
+    await eachOfLimit(rawDomains, 15, async function (rawDomain, rawDomainIndex) {
       watchGracefulExitInLoop();
 
       console.log(
@@ -546,7 +550,7 @@ export async function updateWebsiteDataOnDomains() {
             handleReachabilityError(error);
 
             // Skip this one to perform other domains
-            continue;
+            return;
           } else {
             throw error;
           }
@@ -622,7 +626,7 @@ export async function updateWebsiteDataOnDomains() {
                         handleReachabilityError(error);
 
                         // Skip this one to perform other domains
-                        continue;
+                        return;
                       } else {
                         throw error;
                       }
@@ -636,7 +640,7 @@ export async function updateWebsiteDataOnDomains() {
                   }
                 } catch (error) {
                   // The `href` may not be a valid URL, just skip this link
-                  continue;
+                  return;
                 }
               }
             }
@@ -764,7 +768,7 @@ export async function updateWebsiteDataOnDomains() {
             },
           });
 
-          continue;
+          return;
         } else if (error instanceof PrismaClientUnknownRequestError) {
           handlePrismaErrorDueToContent(error);
         } else {
@@ -774,7 +778,7 @@ export async function updateWebsiteDataOnDomains() {
 
       // Do not flood network (tiny delay since it's unlikely a lot consecutive domains would be managed by the same provider)
       await sleep(50);
-    }
+    });
   } finally {
     await browser.close();
   }

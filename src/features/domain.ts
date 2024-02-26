@@ -309,10 +309,16 @@ export async function updateRobotsTxtOnDomains() {
     },
   });
 
+  let silentlyFailed: number = 0;
   for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
     watchGracefulExitInLoop();
 
-    console.log(`try to process robots.txt for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(rawDomainIndex, rawDomains.length)}`);
+    console.log(
+      `try to process robots.txt for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(
+        rawDomainIndex,
+        rawDomains.length
+      )} (${silentlyFailed}/${rawDomains.length} have silently failed)`
+    );
 
     try {
       const rootUrl = new URL(`https://${rawDomain.name}`);
@@ -326,6 +332,7 @@ export async function updateRobotsTxtOnDomains() {
       } catch (error) {
         if (error instanceof Error) {
           handleReachabilityError(error);
+          silentlyFailed++;
 
           // Skip this one to perform other domains
           continue;
@@ -436,11 +443,15 @@ export async function updateWildcardCertificateOnDomains() {
     },
   });
 
+  let silentlyFailed: number = 0;
   for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
     watchGracefulExitInLoop();
 
     console.log(
-      `try to process SSL certificate for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(rawDomainIndex, rawDomains.length)}`
+      `try to process SSL certificate for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(
+        rawDomainIndex,
+        rawDomains.length
+      )} (${silentlyFailed}/${rawDomains.length} have silently failed)`
     );
 
     let toSkip: boolean = false;
@@ -465,6 +476,7 @@ export async function updateWildcardCertificateOnDomains() {
         try {
           if (error instanceof Error) {
             handleReachabilityError(error);
+            silentlyFailed++;
 
             // Skip this one to perform other domains
             toSkip = true;
@@ -526,6 +538,7 @@ export async function updateWebsiteDataOnDomains() {
     }
   });
 
+  let silentlyFailed: number = 0;
   const browser = await chromium.launch({
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
   });
@@ -537,7 +550,10 @@ export async function updateWebsiteDataOnDomains() {
       watchGracefulExitInLoop();
 
       console.log(
-        `try to process website content for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(rawDomainIndex, rawDomains.length)}`
+        `try to process website content for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(
+          rawDomainIndex,
+          rawDomains.length
+        )} (${silentlyFailed}/${rawDomains.length} have silently failed)`
       );
 
       try {
@@ -552,6 +568,7 @@ export async function updateWebsiteDataOnDomains() {
             throw error;
           } else if (error instanceof Error) {
             handleReachabilityError(error);
+            silentlyFailed++;
 
             // Skip this one to perform other domains
             return;
@@ -639,6 +656,7 @@ export async function updateWebsiteDataOnDomains() {
                         throw error;
                       } else if (error instanceof Error) {
                         handleReachabilityError(error);
+                        silentlyFailed++;
 
                         // Skip this one to perform other domains
                         return;

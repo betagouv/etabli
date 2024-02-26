@@ -76,7 +76,30 @@ export async function getWebsiteData(browser: Browser, url: string, timeoutForDo
 
     // We want to prevent redirection on another domain to keep integrity but we let pathname redirection pass, so looking at domain only
     const originalUrl = new URL(url);
-    const resultingRawUrl = await page.evaluate(() => document.location.href);
+    let resultingRawUrl: string = 'placeholder_for_now';
+
+    const maximumAttemptsToGetResultingUrl = 2;
+    for (let i = 0; i < maximumAttemptsToGetResultingUrl; i++) {
+      try {
+        resultingRawUrl = await page.evaluate(() => document.location.href);
+
+        break;
+      } catch (error) {
+        if (
+          i !== maximumAttemptsToGetResultingUrl - 1 &&
+          error instanceof Error &&
+          error.message === 'page.evaluate: Execution context was destroyed, most likely because of a navigation'
+        ) {
+          // Some websites do frontend redirection through JavaScript or `<meta http-equiv="refresh" content="0;URL=https:/xxxxx"></html>`
+          // And it's impossible to properly handle this case with `await page.waitForNavigation()` because if no redirection it will hang.
+          // The workaround is to wait for this specific error to deduce the page is changing, to wait a bit more and retry (throw this error if the retry attempts did not solved the issue)
+          await page.waitForTimeout(2000);
+        } else {
+          throw error;
+        }
+      }
+    }
+
     const resultingUrl = new URL(resultingRawUrl);
     if (resultingUrl.host !== originalUrl.host) {
       throw new BusinessDomainError(unexpectedDomainRedirectionError, resultingUrl.hostname);

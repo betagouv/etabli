@@ -23,6 +23,7 @@ import { LiteRawDomainSchema, LiteRawDomainSchemaType } from '@etabli/src/models
 import { rawDomainTypeCsvToModel } from '@etabli/src/models/mappers/raw-domain';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
+import { bitsFor } from '@etabli/src/utils/bits';
 import { getListDiff } from '@etabli/src/utils/comparaison';
 import { formatArrayProgress } from '@etabli/src/utils/format';
 import { containsHtml } from '@etabli/src/utils/html';
@@ -561,6 +562,14 @@ export async function updateWebsiteDataOnDomains() {
 
         if (websiteData.status >= 200 && websiteData.status < 300) {
           if (containsHtml(websiteData.html)) {
+            // Some websites have bundled their assets/libraries (CSS/JS) into their HTML code, which makes it huge
+            // There are just a few so we can handle this but still we set a 5 MB limit for the HTML to be store in case a website would fill up too much the database storage
+            if (new Blob([websiteData.html]).size > 5 * bitsFor.MiB) {
+              console.log(`the html content is considered too big to be stored in the database for further processing`);
+
+              return;
+            }
+
             // We consider the head tag content as a fingerprint common
             // between different environments (dev, staging, production) for the same website.
             // It's not perfect but it's in addition to other filters performed aside this

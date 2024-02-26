@@ -604,6 +604,18 @@ CONTEXT:
     await sessionMemory.history.chatHistory.addUserMessage(input);
     await sessionMemory.history.chatHistory.addAIChatMessage(fullAnswer);
 
+    // Truncate history for oldest messages to keep next call possible (and not too costly)
+    // [WORKAROUND] The chat history messages are in a private property so impossible to filter them directly, so rebuilding the history
+    const historyMessages = await sessionMemory.history.chatHistory.getMessages();
+    if (historyMessages.length > 20) {
+      await sessionMemory.history.chatHistory.clear();
+
+      const messagesToKeep = historyMessages.slice(-20); // 20 last ones
+      for (const messageToKeep of messagesToKeep) {
+        await sessionMemory.history.chatHistory.addMessage(messageToKeep);
+      }
+    }
+
     return fullAnswer;
   }
 

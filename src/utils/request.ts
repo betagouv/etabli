@@ -1,3 +1,4 @@
+import { PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nextjs';
 import { errors as playwrightErrors } from 'playwright';
 
@@ -48,5 +49,24 @@ export function handleReachabilityError(error: Error) {
     console.error(error);
 
     Sentry.captureException(error);
+  }
+}
+
+export function handlePrismaErrorDueToContent(error: PrismaClientUnknownRequestError) {
+  // If matching our rules skip the error since it's extremely rare and we are fine to skip non-compliant websites.
+  if (error.message.includes('invalid byte sequence for encoding \\"UTF8\\": 0x00')) {
+    // For whatever reason the website is having a null charater in its content which is unallowed by PostgreSQL for text fields (ref: https://stackoverflow.com/a/1348551/3608410)
+  } else if (error.message.includes('is not a valid unicode code point')) {
+    // It's a bit complex to understand why the encoding is failing
+    // but it seems an incorrect UTF "surrogate pair" is present in the content so Prisma fails parsing it.
+    //
+    // In our case we had the exact error `d835 is not a valid unicode code point` which can be reproduced by updating a Prisma row with the text `Hello \ud835`
+    //
+    // Refs:
+    // - https://stackoverflow.com/questions/54536539/unicodeencodeerror-utf-8-codec-cant-encode-character-ud83d-in-position-38/54549874#54549874
+    // - https://github.com/prisma/prisma/issues/21578
+  } else {
+    // It seems to not be an error about third-party content we have no control on, so we should investigate it
+    throw error;
   }
 }

@@ -25,7 +25,7 @@ import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getListDiff } from '@etabli/src/utils/comparaison';
 import { formatArrayProgress } from '@etabli/src/utils/format';
 import { containsHtml } from '@etabli/src/utils/html';
-import { handleReachabilityError } from '@etabli/src/utils/request';
+import { handlePrismaErrorDueToContent, handleReachabilityError } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
 
 const __root_dirname = process.cwd();
@@ -411,9 +411,8 @@ export async function updateRobotsTxtOnDomains() {
         });
 
         continue;
-      } else if (error instanceof PrismaClientUnknownRequestError && error.message.includes('invalid byte sequence for encoding \\"UTF8\\": 0x00')) {
-        // Skip this error since it's extremely rare and we are fine to skip non-compliant websites.
-        // For whatever reason the website is having a null charater in its content which is unallowed by PostgreSQL for text fields (ref: https://stackoverflow.com/a/1348551/3608410)
+      } else if (error instanceof PrismaClientUnknownRequestError) {
+        handlePrismaErrorDueToContent(error);
       } else {
         throw error;
       }
@@ -766,15 +765,8 @@ export async function updateWebsiteDataOnDomains() {
           });
 
           continue;
-        } else if (error instanceof PrismaClientUnknownRequestError && error.message.includes('is not a valid unicode code point')) {
-          // Skip this error since it's extremely rare and we are fine to skip non-compliant websites. It's a bit complex to understand why the encoding is failing
-          // but it seems an incorrect UTF "surrogate pair" is present in the content so Prisma fails parsing it.
-          //
-          // In our case we had the exact error `d835 is not a valid unicode code point` which can be reproduced by updating a Prisma row with the text `Hello \ud835`
-          //
-          // Refs:
-          // - https://stackoverflow.com/questions/54536539/unicodeencodeerror-utf-8-codec-cant-encode-character-ud83d-in-position-38/54549874#54549874
-          // - https://github.com/prisma/prisma/issues/21578
+        } else if (error instanceof PrismaClientUnknownRequestError) {
+          handlePrismaErrorDueToContent(error);
         } else {
           throw error;
         }

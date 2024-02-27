@@ -131,8 +131,15 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
     const toolLlmDocumentsToCalculate = await prisma.$transaction(
       async (tx) => {
         const tools = await tx.tool.findMany({
-          include: {
-            ToolLlmDocument: true,
+          select: {
+            id: true,
+            name: true,
+            updatedAt: true,
+            ToolLlmDocument: {
+              select: {
+                calculatedAt: true,
+              },
+            },
           },
           orderBy: [
             {
@@ -224,18 +231,37 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
               deletedAt: null,
             },
           },
-          include: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            websites: true,
+            repositories: true,
+            functionalUseCases: true,
+            updatedAt: true,
             BusinessUseCasesOnInitiatives: {
-              include: {
-                businessUseCase: true,
+              select: {
+                businessUseCase: {
+                  select: {
+                    name: true,
+                  },
+                },
               },
             },
             ToolsOnInitiatives: {
-              include: {
-                tool: true,
+              select: {
+                tool: {
+                  select: {
+                    name: true,
+                  },
+                },
               },
             },
-            InitiativeLlmDocument: true,
+            InitiativeLlmDocument: {
+              select: {
+                calculatedAt: true,
+              },
+            },
           },
           orderBy: [
             {

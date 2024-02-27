@@ -8,7 +8,7 @@ import { prisma } from '@etabli/src/prisma';
 // This should be used close to network calls because it silents errors
 // And in our case of long-running jobs we want the loop to continue despite network errors because it will be fetch again next time
 // TODO: in the future we could register the error into the database for specific domains so we can tell to the list source to look at removing them if appropriate
-export async function handleReachabilityError(rawDomain: RawDomain, error: Error): Promise<void> {
+export async function handleReachabilityError(rawDomain: Pick<RawDomain, 'id' | 'name'>, error: Error): Promise<void> {
   if (
     !(error instanceof playwrightErrors.TimeoutError) && // This error came from us forcing the Playwright timeout
     !(error.name === 'AbortError' && error.cause instanceof DOMException && error.cause.code === DOMException.TIMEOUT_ERR) && // This error came from us forcing the `https.request()` timeout
@@ -80,6 +80,9 @@ export async function handleReachabilityError(rawDomain: RawDomain, error: Error
     data: {
       lastUpdateAttemptWithReachabilityError: new Date(),
       lastUpdateAttemptReachabilityError: error.message,
+    },
+    select: {
+      id: true, // Ref: https://github.com/prisma/prisma/issues/6252
     },
   });
 }

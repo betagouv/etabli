@@ -174,6 +174,9 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     }
 
     const tools = await prisma.tool.findMany({
+      select: {
+        name: true,
+      },
       orderBy: [
         {
           name: 'asc',
@@ -265,15 +268,29 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
           deletedAt: null,
         },
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        websites: true,
+        repositories: true,
+        functionalUseCases: true,
         BusinessUseCasesOnInitiatives: {
-          include: {
-            businessUseCase: true,
+          select: {
+            businessUseCase: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
         ToolsOnInitiatives: {
-          include: {
-            tool: true,
+          select: {
+            tool: {
+              select: {
+                name: true,
+              },
+            },
           },
         },
       },

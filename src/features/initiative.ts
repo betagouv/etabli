@@ -82,11 +82,11 @@ const wappalyzer = new Wappalyzer({
 export type NodeLabel =
   | {
       type: 'domain';
-      entity: RawDomain;
+      entity: Pick<RawDomain, 'id' | 'name'>;
     }
   | {
       type: 'repository';
-      entity: RawRepository;
+      entity: Pick<RawRepository, 'id' | 'repositoryUrl'>;
     };
 
 export async function inferInitiativesFromDatabase() {
@@ -100,8 +100,16 @@ export async function inferInitiativesFromDatabase() {
       websiteHasStyle: true, // A website not having style in 2023+ is likely a test or exposing raw API data
       redirectDomainTarget: null, // A redirecting website won't be processed since we cannot guarantee the new location, we expect the target domain to be added to our source dataset
     },
-    include: {
-      similarDomains: true,
+    select: {
+      id: true,
+      name: true,
+      probableRepositoryUrl: true,
+      similarDomains: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
     orderBy: {
       createdAt: 'asc', // To keep similar order in logs across runs, and guarantee similar processing for graph logic below
@@ -114,8 +122,17 @@ export async function inferInitiativesFromDatabase() {
         not: true, // It's rare fork are dedicated new products (even more since GitHub allows "templates" now for project stacks)
       },
     },
-    include: {
-      similarRepositories: true,
+    select: {
+      id: true,
+      repositoryUrl: true,
+      homepage: true,
+      probableWebsiteDomain: true,
+      similarRepositories: {
+        select: {
+          id: true,
+          repositoryUrl: true,
+        },
+      },
     },
     orderBy: {
       createdAt: 'asc', // To keep similar order in logs across runs, and guarantee similar processing for graph logic below
@@ -229,9 +246,19 @@ export async function inferInitiativesFromDatabase() {
         where: {
           deletedAt: null,
         },
-        include: {
-          RawDomainsOnInitiativeMaps: true,
-          RawRepositoriesOnInitiativeMaps: true,
+        select: {
+          id: true,
+          mainItemIdentifier: true,
+          RawDomainsOnInitiativeMaps: {
+            select: {
+              rawDomainId: true,
+            },
+          },
+          RawRepositoriesOnInitiativeMaps: {
+            select: {
+              rawRepositoryId: true,
+            },
+          },
         },
       });
 
@@ -239,8 +266,8 @@ export async function inferInitiativesFromDatabase() {
       const storedLiteInitiativeMaps = storedInitiativeMaps.map((initiativeMap) =>
         LiteInitiativeMapSchema.parse({
           mainItemIdentifier: initiativeMap.mainItemIdentifier,
-          rawDomainsIds: initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomain) => rawDomain.rawDomainId),
-          rawRepositoriesIds: initiativeMap.RawRepositoriesOnInitiativeMaps.map((rawRepository) => rawRepository.rawRepositoryId),
+          rawDomainsIds: initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => rawDomainOnIMap.rawDomainId),
+          rawRepositoriesIds: initiativeMap.RawRepositoriesOnInitiativeMaps.map((rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepositoryId),
         })
       );
       const computedLiteInitiativeMaps = initiativeMapsWithLabels.map((initiativeMapWithLabels) => {
@@ -303,6 +330,9 @@ export async function inferInitiativesFromDatabase() {
                 },
               },
             },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+            },
           });
         } else if (diffItem.status === 'deleted') {
           const liteInitiativeMap = diffItem.value as LiteInitiativeMapSchemaType;
@@ -327,6 +357,9 @@ export async function inferInitiativesFromDatabase() {
             where: {
               mainItemIdentifier: liteInitiativeMap.mainItemIdentifier,
               deletedAt: null,
+            },
+            select: {
+              id: true,
             },
             orderBy: {
               updatedAt: 'desc',
@@ -354,9 +387,18 @@ export async function inferInitiativesFromDatabase() {
                 }),
               },
             },
-            include: {
-              RawDomainsOnInitiativeMaps: true,
-              RawRepositoriesOnInitiativeMaps: true,
+            select: {
+              mainItemIdentifier: true,
+              RawDomainsOnInitiativeMaps: {
+                select: {
+                  rawDomainId: true,
+                },
+              },
+              RawRepositoriesOnInitiativeMaps: {
+                select: {
+                  rawRepositoryId: true,
+                },
+              },
             },
           });
 
@@ -390,6 +432,9 @@ export async function inferInitiativesFromDatabase() {
                   };
                 }),
               },
+            },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
             },
           });
         }
@@ -449,22 +494,38 @@ export async function feedInitiativesFromDatabase() {
         ],
       },
     },
-    include: {
-      Initiative: true,
+    select: {
+      id: true,
       RawDomainsOnInitiativeMaps: {
         orderBy: {
           main: 'desc', // We want to have `main: true` first of the list due to some filtering below
         },
-        include: {
-          rawDomain: true,
+        select: {
+          main: true,
+          rawDomain: {
+            select: {
+              id: true,
+              name: true,
+              websiteRawContent: true,
+              websiteInferredName: true,
+            },
+          },
         },
       },
       RawRepositoriesOnInitiativeMaps: {
         orderBy: {
           main: 'desc', // We want to have `main: true` first of the list due to some filtering below
         },
-        include: {
-          rawRepository: true,
+        select: {
+          main: true,
+          rawRepository: {
+            select: {
+              id: true,
+              name: true,
+              repositoryUrl: true,
+              description: true,
+            },
+          },
         },
       },
     },
@@ -790,6 +851,9 @@ export async function feedInitiativesFromDatabase() {
                     mode: 'insensitive',
                   },
                 },
+                select: {
+                  id: true,
+                },
               });
 
               const existingBusinessUseCasesInTheDatabase = await tx.businessUseCase.findMany({
@@ -797,6 +861,10 @@ export async function feedInitiativesFromDatabase() {
                   name: {
                     in: answerData.businessUseCases,
                   },
+                },
+                select: {
+                  id: true,
+                  name: true,
                 },
               });
 
@@ -807,6 +875,9 @@ export async function feedInitiativesFromDatabase() {
               const existingInitiative = await tx.initiative.findUnique({
                 where: {
                   originId: initiativeMap.id,
+                },
+                select: {
+                  id: true, // Ref: https://github.com/prisma/prisma/issues/6252
                 },
               });
 
@@ -901,6 +972,9 @@ export async function feedInitiativesFromDatabase() {
                   update: false,
                   lastUpdateAttemptWithReachabilityError: null,
                   lastUpdateAttemptReachabilityError: null,
+                },
+                select: {
+                  id: true, // Ref: https://github.com/prisma/prisma/issues/6252
                 },
               });
             },

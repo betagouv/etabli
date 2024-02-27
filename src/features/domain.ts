@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, RawDomain } from '@prisma/client';
 import { PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import { eachOfLimit } from 'async';
 import { parse } from 'csv-parse';
@@ -164,8 +164,12 @@ export async function formatDomainsIntoDatabase() {
   await prisma.$transaction(
     async (tx) => {
       const storedRawDomains = await tx.rawDomain.findMany({
-        include: {
-          RawDomainsOnInitiativeMaps: true,
+        select: {
+          id: true,
+          name: true,
+          siren: true,
+          type: true,
+          sources: true,
         },
       });
 
@@ -222,6 +226,9 @@ export async function formatDomainsIntoDatabase() {
               lastUpdateAttemptWithReachabilityError: null,
               lastUpdateAttemptReachabilityError: null,
             },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+            },
           });
         } else if (diffItem.status === 'deleted') {
           const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
@@ -248,8 +255,12 @@ export async function formatDomainsIntoDatabase() {
             where: {
               name: liteRawDomain.name,
             },
-            include: {
-              RawDomainsOnInitiativeMaps: true,
+            select: {
+              RawDomainsOnInitiativeMaps: {
+                select: {
+                  initiativeMapId: true,
+                },
+              },
             },
           });
 
@@ -260,6 +271,9 @@ export async function formatDomainsIntoDatabase() {
               },
               data: {
                 update: true,
+              },
+              select: {
+                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
               },
             });
           }
@@ -276,8 +290,12 @@ export async function formatDomainsIntoDatabase() {
               type: liteRawDomain.type,
               sources: liteRawDomain.sources,
             },
-            include: {
-              RawDomainsOnInitiativeMaps: true,
+            select: {
+              RawDomainsOnInitiativeMaps: {
+                select: {
+                  initiativeMapId: true,
+                },
+              },
             },
           });
 
@@ -288,6 +306,9 @@ export async function formatDomainsIntoDatabase() {
               },
               data: {
                 update: true,
+              },
+              select: {
+                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
               },
             });
           }
@@ -321,8 +342,9 @@ export async function updateRobotsTxtOnDomains() {
         ],
       },
     },
-    include: {
-      RawDomainsOnInitiativeMaps: true,
+    select: {
+      id: true,
+      name: true,
     },
   });
 
@@ -397,6 +419,9 @@ export async function updateRobotsTxtOnDomains() {
             lastUpdateAttemptWithReachabilityError: null,
             lastUpdateAttemptReachabilityError: null,
           },
+          select: {
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+          },
         });
       } else if (result.status > 500) {
         // Website not reachable yet, hope to have it on next attempt
@@ -413,6 +438,9 @@ export async function updateRobotsTxtOnDomains() {
             lastUpdateAttemptWithReachabilityError: null,
             lastUpdateAttemptReachabilityError: null,
           },
+          select: {
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+          },
         });
       }
     } catch (error) {
@@ -420,6 +448,9 @@ export async function updateRobotsTxtOnDomains() {
         const relatedRawDomain = await prisma.rawDomain.findUnique({
           where: {
             name: error.name,
+          },
+          select: {
+            id: true,
           },
         });
 
@@ -440,6 +471,9 @@ export async function updateRobotsTxtOnDomains() {
             },
             lastUpdateAttemptWithReachabilityError: null,
             lastUpdateAttemptReachabilityError: null,
+          },
+          select: {
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
           },
         });
 
@@ -476,8 +510,9 @@ export async function updateWildcardCertificateOnDomains() {
         ],
       },
     },
-    include: {
-      RawDomainsOnInitiativeMaps: true,
+    select: {
+      id: true,
+      name: true,
     },
   });
 
@@ -552,6 +587,9 @@ export async function updateWildcardCertificateOnDomains() {
         lastUpdateAttemptWithReachabilityError: null,
         lastUpdateAttemptReachabilityError: null,
       },
+      select: {
+        id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+      },
     });
 
     // Do not flood network (tiny delay since it's unlikely a lot consecutive domains would be managed by the same provider)
@@ -578,6 +616,10 @@ export async function updateWebsiteDataOnDomains() {
           },
         ],
       },
+    },
+    select: {
+      id: true,
+      name: true,
     },
   });
 
@@ -742,6 +784,10 @@ export async function updateWebsiteDataOnDomains() {
             const additionalForgesDomainsThroughRepositories = await prisma.rawRepository.findMany({
               where: {},
               distinct: ['probableWebsiteDomain'],
+              select: {
+                repositoryDomain: true,
+                probableWebsiteDomain: true,
+              },
             });
 
             sourceForgesDomains.push(...additionalForgesDomainsThroughRepositories.map((proxyRepository) => proxyRepository.repositoryDomain));
@@ -793,6 +839,9 @@ export async function updateWebsiteDataOnDomains() {
                 lastUpdateAttemptWithReachabilityError: null,
                 lastUpdateAttemptReachabilityError: null,
               },
+              select: {
+                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+              },
             });
           } else {
             await prisma.rawDomain.update({
@@ -811,6 +860,9 @@ export async function updateWebsiteDataOnDomains() {
                 updateWebsiteData: false,
                 lastUpdateAttemptWithReachabilityError: null,
                 lastUpdateAttemptReachabilityError: null,
+              },
+              select: {
+                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
               },
             });
           }
@@ -835,6 +887,9 @@ export async function updateWebsiteDataOnDomains() {
               lastUpdateAttemptWithReachabilityError: null,
               lastUpdateAttemptReachabilityError: null,
             },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+            },
           });
         }
       } catch (error) {
@@ -842,6 +897,9 @@ export async function updateWebsiteDataOnDomains() {
           const relatedRawDomain = await prisma.rawDomain.findUnique({
             where: {
               name: error.name,
+            },
+            select: {
+              id: true,
             },
           });
 
@@ -862,6 +920,9 @@ export async function updateWebsiteDataOnDomains() {
               },
               lastUpdateAttemptWithReachabilityError: null,
               lastUpdateAttemptReachabilityError: null,
+            },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
             },
           });
 
@@ -889,12 +950,21 @@ export async function matchDomains() {
       updateMainSimilarDomain: true,
       redirectDomainTargetName: null,
     },
+    select: {
+      id: true,
+      name: true,
+      websitePseudoFingerprint: true,
+    },
   });
 
   // First look at domains similarity
   const rootRawDomains = await prisma.rawDomain.findMany({
     where: {
       wildcardCertificate: true,
+    },
+    select: {
+      id: true,
+      name: true,
     },
   });
 
@@ -923,7 +993,7 @@ export async function matchDomains() {
     // Also look at head content equivalence but only under the same top domain to avoid conflicting with other websites
     // Note: most of the time development environments should be marked as not indexable so they won't end into the listing
     // (sorting by `createdAt` to be sure the same main similar one is always the first of the list no matter the current one and no matter if others added in the future (to not target another one linked to a main similar one)
-    let mainSameParentDomainClone: typeof rawDomainToUpdate | null = null;
+    let mainSameParentDomainClone: Pick<RawDomain, 'id' | 'name'> | null = null;
 
     if (!!rawDomainToUpdate.websitePseudoFingerprint) {
       const mainRawDomainClones = await prisma.rawDomain.findMany({
@@ -932,6 +1002,10 @@ export async function matchDomains() {
             // Note: we switched to not exclude the current repository to have the top item for all similar ones
           },
           websitePseudoFingerprint: rawDomainToUpdate.websitePseudoFingerprint,
+        },
+        select: {
+          id: true,
+          name: true,
         },
         orderBy: {
           createdAt: 'asc',
@@ -984,6 +1058,9 @@ export async function matchDomains() {
           disconnect: !similarRawDomain ? true : undefined,
         },
         updateMainSimilarDomain: false,
+      },
+      select: {
+        id: true, // Ref: https://github.com/prisma/prisma/issues/6252
       },
     });
   }

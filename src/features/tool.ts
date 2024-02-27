@@ -91,8 +91,11 @@ export async function formatToolsIntoDatabase() {
   await prisma.$transaction(
     async (tx) => {
       const storedTools = await tx.tool.findMany({
-        include: {
-          ToolsOnInitiatives: true,
+        select: {
+          name: true,
+          title: true,
+          description: true,
+          category: true,
         },
       });
 
@@ -143,6 +146,9 @@ export async function formatToolsIntoDatabase() {
               description: liteTool.description,
               category: liteTool.category,
             },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+            },
           });
         } else if (diffItem.status === 'deleted') {
           const liteTool = diffItem.value as LiteToolSchemaType;
@@ -151,6 +157,9 @@ export async function formatToolsIntoDatabase() {
           const deletedTool = await tx.tool.delete({
             where: {
               name: liteTool.name,
+            },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
             },
           });
         } else if (diffItem.status === 'updated') {
@@ -167,8 +176,8 @@ export async function formatToolsIntoDatabase() {
               description: liteTool.description,
               category: liteTool.category,
             },
-            include: {
-              ToolsOnInitiatives: true,
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
             },
           });
         }

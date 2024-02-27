@@ -106,8 +106,27 @@ export async function formatRepositoriesIntoDatabase() {
   await prisma.$transaction(
     async (tx) => {
       const storedRawRepositories = await tx.rawRepository.findMany({
-        include: {
-          RawRepositoriesOnInitiativeMaps: true,
+        select: {
+          name: true,
+          organizationName: true,
+          platform: true,
+          repositoryUrl: true,
+          description: true,
+          defaultBranch: true,
+          isFork: true,
+          isArchived: true,
+          creationDate: true,
+          lastUpdate: true,
+          lastModification: true,
+          homepage: true,
+          starsCount: true,
+          forksCount: true,
+          license: true,
+          openIssuesCount: true,
+          language: true,
+          topics: true,
+          softwareHeritageExists: true,
+          softwareHeritageUrl: true,
         },
       });
 
@@ -204,6 +223,9 @@ export async function formatRepositoriesIntoDatabase() {
               lastUpdateAttemptWithReachabilityError: null,
               lastUpdateAttemptReachabilityError: null,
             },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+            },
           });
         } else if (diffItem.status === 'deleted') {
           const liteRawRepository = diffItem.value as LiteRawRepositorySchemaType;
@@ -244,8 +266,12 @@ export async function formatRepositoriesIntoDatabase() {
             where: {
               repositoryUrl: liteRawRepository.repositoryUrl,
             },
-            include: {
-              RawRepositoriesOnInitiativeMaps: true,
+            select: {
+              RawRepositoriesOnInitiativeMaps: {
+                select: {
+                  initiativeMapId: true,
+                },
+              },
             },
           });
 
@@ -256,6 +282,9 @@ export async function formatRepositoriesIntoDatabase() {
               },
               data: {
                 update: true,
+              },
+              select: {
+                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
               },
             });
           }
@@ -296,8 +325,12 @@ export async function formatRepositoriesIntoDatabase() {
               updateInferredMetadata: true,
               updateMainSimilarRepository: true,
             },
-            include: {
-              RawRepositoriesOnInitiativeMaps: true,
+            select: {
+              RawRepositoriesOnInitiativeMaps: {
+                select: {
+                  initiativeMapId: true,
+                },
+              },
             },
           });
 
@@ -308,6 +341,9 @@ export async function formatRepositoriesIntoDatabase() {
               },
               data: {
                 update: true,
+              },
+              select: {
+                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
               },
             });
           }
@@ -340,8 +376,13 @@ export async function updateInferredMetadataOnRepositories() {
         ],
       },
     },
-    include: {
-      RawRepositoriesOnInitiativeMaps: true,
+    select: {
+      id: true,
+      platform: true,
+      organizationName: true,
+      name: true,
+      description: true,
+      homepage: true,
     },
   });
 
@@ -394,6 +435,9 @@ export async function updateInferredMetadataOnRepositories() {
         updateInferredMetadata: false,
         lastUpdateAttemptWithReachabilityError: null,
         lastUpdateAttemptReachabilityError: null,
+      },
+      select: {
+        id: true, // Ref: https://github.com/prisma/prisma/issues/6252
       },
     });
   }
@@ -458,6 +502,14 @@ export async function matchRepositories() {
     where: {
       updateMainSimilarRepository: true,
     },
+    select: {
+      id: true,
+      platform: true,
+      organizationName: true,
+      name: true,
+      probableWebsiteDomain: true,
+      probableWebsiteUrl: true,
+    },
   });
 
   for (const [rawRepositoryToUpdateIndex, rawRepositoryToUpdate] of Object.entries(rawRepositoriesToUpdate)) {
@@ -475,6 +527,10 @@ export async function matchRepositories() {
         // Note: we switched to not exclude the current repository to have the top item for all similar ones
         platform: rawRepositoryToUpdate.platform,
         organizationName: rawRepositoryToUpdate.organizationName,
+      },
+      select: {
+        id: true,
+        name: true,
       },
       orderBy: [
         // If there is a matching we try to consider the main one based on naming pattern (root name would be the main one since other pattern is hard to say it has more value than others),
@@ -542,6 +598,10 @@ export async function matchRepositories() {
           probableWebsiteDomain: !hasGenericDomain ? rawRepositoryToUpdate.probableWebsiteDomain : undefined,
           probableWebsiteUrl: hasGenericDomain ? rawRepositoryToUpdate.probableWebsiteUrl : undefined,
         },
+        select: {
+          id: true,
+          name: true,
+        },
         orderBy: [
           // Keep always the same order so for next occurences they would be linked to the same
           {
@@ -577,6 +637,9 @@ export async function matchRepositories() {
           disconnect: !similarRawRepository ? true : undefined,
         },
         updateMainSimilarRepository: false,
+      },
+      select: {
+        id: true, // Ref: https://github.com/prisma/prisma/issues/6252
       },
     });
   }

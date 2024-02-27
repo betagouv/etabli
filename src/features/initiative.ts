@@ -92,6 +92,8 @@ export type NodeLabel =
 export async function inferInitiativesFromDatabase() {
   // TODO: should it be locked globally? But it should be a be long to compute... at risk since a lot of records to fetch/process/update
 
+  console.log(`starting the process of inferring initiative maps`);
+
   const rawDomains = await prisma.rawDomain.findMany({
     where: {
       indexableFromRobotsTxt: true, // Websites marked to not be indexed should not end into Etabli, moreover it helps not indexing tools like Grafana...
@@ -138,6 +140,8 @@ export async function inferInitiativesFromDatabase() {
       createdAt: 'asc', // To keep similar order in logs across runs, and guarantee similar processing for graph logic below
     },
   });
+
+  console.log(`inferring according to ${rawDomains.length} raw domains and ${rawRepositories.length} raw repositories`);
 
   // Below we use a graph logic to be more explicit in what happens
   // It may also helps fixing "parent - child" pairs from the database (we tried to have only 2 levels, but after multiple updates it's possible we have 2+ levels due to nested `mainSimilarXxx`)
@@ -197,6 +201,8 @@ export async function inferInitiativesFromDatabase() {
     await fs.writeFile(jsonPath, JSON.stringify(jsonContent, null, 2));
   }
 
+  console.log(`building initiative map groups by using a graph of nodes`);
+
   // Each initiative map is defined by a ending node (corresponding to the top parent)
   const sinkNodesIds = graph.sinks();
   const initiativeMapsWithLabels = graph.sinks().map((endingNodeId) => {
@@ -209,12 +215,14 @@ export async function inferInitiativesFromDatabase() {
     };
   });
 
+  const nodes = graph.nodes();
+  const nodesToBind = nodes.filter((nodeId) => !sinkNodesIds.includes(nodeId));
+
+  console.log(`${nodesToBind.length} of ${nodes.length} nodes need a calculation to be bound to a parent`);
+
   // Each node must be associated with the closest sink (closest top parent)
-  for (const nodeId of graph.nodes()) {
-    if (sinkNodesIds.includes(nodeId)) {
-      // We do not reprocess this one
-      continue;
-    }
+  for (const [nodeIdIndex, nodeId] of Object.entries(nodesToBind)) {
+    console.log(`looking for the closest parent node for the entity ${nodeId} ${formatArrayProgress(nodeIdIndex, nodesToBind.length)}`);
 
     const destinationPaths = graphlib.alg.dijkstra(graph, nodeId);
 
@@ -288,6 +296,8 @@ export async function inferInitiativesFromDatabase() {
           rawRepositoriesIds: rawRepositoriesIds,
         });
       });
+
+      console.log(`${computedLiteInitiativeMaps.length} initiative maps remain after grouping the nodes`);
 
       const diffResult = getListDiff(storedLiteInitiativeMaps, computedLiteInitiativeMaps, {
         referenceProperty: 'mainItemIdentifier',
@@ -457,6 +467,8 @@ export async function inferInitiativesFromDatabase() {
       isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     }
   );
+
+  console.log(`inferring has been done with success`);
 }
 
 export async function feedInitiativesFromDatabase() {

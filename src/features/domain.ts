@@ -945,17 +945,45 @@ export async function updateWebsiteDataOnDomains() {
 export async function matchDomains() {
   // All checks may not be done before matching (due to network errors)
   // but we cannot take the risk of letting alone a domain that would create an additional initiative
-  const rawDomainsToUpdate = await prisma.rawDomain.findMany({
-    where: {
-      updateMainSimilarDomain: true,
-      redirectDomainTargetName: null,
+
+  const rawDomainsToUpdate = await prisma.$transaction(
+    async (tx) => {
+      // We had to split the `findMany` into multiple chunks due to a mystic Prisma issue
+      // This is due to fetching too much data (`websitePseudoFingerprint` in this case) (ref: https://github.com/prisma/prisma/issues/13864#issuecomment-1966122882)
+      const chunkSize = 10_000;
+      const items: Pick<RawDomain, 'id' | 'name' | 'websitePseudoFingerprint'>[] = [];
+
+      while (true) {
+        const chunkItems = await tx.rawDomain.findMany({
+          where: {
+            updateMainSimilarDomain: true,
+            redirectDomainTargetName: null,
+          },
+          select: {
+            id: true,
+            name: true,
+            websitePseudoFingerprint: true,
+          },
+          skip: items.length,
+          take: chunkSize,
+        });
+
+        items.push(...chunkItems);
+
+        console.log(`currently retrieved ${items.length} raw domains with the splitted fetcher`);
+
+        if (chunkItems.length < chunkSize) {
+          break;
+        }
+      }
+
+      return items;
     },
-    select: {
-      id: true,
-      name: true,
-      websitePseudoFingerprint: true,
-    },
-  });
+    {
+      timeout: minutesToMilliseconds(process.env.NODE_ENV !== 'production' ? 5 : 2), // Since dealing with a lot of data, prevent closing whereas everything is alright
+      isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+    }
+  );
 
   // First look at domains similarity
   const rootRawDomains = await prisma.rawDomain.findMany({

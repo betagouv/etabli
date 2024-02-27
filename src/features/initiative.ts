@@ -94,19 +94,22 @@ export async function inferInitiativesFromDatabase() {
 
   console.log(`starting the process of inferring initiative maps`);
 
+  const rawDomainCriterias: Prisma.RawDomainWhereInput = {
+    indexableFromRobotsTxt: true, // Websites marked to not be indexed should not end into Etabli, moreover it helps not indexing tools like Grafana...
+    websiteContentIndexable: true, // Same as above
+    websiteHasContent: true, // When if the page returns no visible text content, we skip it
+    websiteHasStyle: true, // A website not having style in 2023+ is likely a test or exposing raw API data
+    redirectDomainTarget: null, // A redirecting website won't be processed since we cannot guarantee the new location, we expect the target domain to be added to our source dataset
+  };
+
   const rawDomains = await prisma.rawDomain.findMany({
-    where: {
-      indexableFromRobotsTxt: true, // Websites marked to not be indexed should not end into Etabli, moreover it helps not indexing tools like Grafana...
-      websiteContentIndexable: true, // Same as above
-      websiteHasContent: true, // When if the page returns no visible text content, we skip it
-      websiteHasStyle: true, // A website not having style in 2023+ is likely a test or exposing raw API data
-      redirectDomainTarget: null, // A redirecting website won't be processed since we cannot guarantee the new location, we expect the target domain to be added to our source dataset
-    },
+    where: rawDomainCriterias,
     select: {
       id: true,
       name: true,
       probableRepositoryUrl: true,
       similarDomains: {
+        where: rawDomainCriterias,
         select: {
           id: true,
           name: true,
@@ -118,18 +121,24 @@ export async function inferInitiativesFromDatabase() {
     },
   });
 
+  const rawRepositoryCriterias: Prisma.RawRepositoryWhereInput = {
+    OR: [
+      // It's rare a fork is dedicated new products (even more since GitHub allows "templates" now for project stacks)
+      // Note: we tried `not: true` but it was not including those with `null`... which is weird
+      { isFork: false },
+      { isFork: null },
+    ],
+  };
+
   const rawRepositories = await prisma.rawRepository.findMany({
-    where: {
-      isFork: {
-        not: true, // It's rare fork are dedicated new products (even more since GitHub allows "templates" now for project stacks)
-      },
-    },
+    where: rawRepositoryCriterias,
     select: {
       id: true,
       repositoryUrl: true,
       homepage: true,
       probableWebsiteDomain: true,
       similarRepositories: {
+        where: rawRepositoryCriterias, // It avoids redoing the filtering locally to make sure they are eligible (because a similar one may be marked as such without satisfying criterias to be listed)
         select: {
           id: true,
           repositoryUrl: true,

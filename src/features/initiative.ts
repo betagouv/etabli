@@ -571,20 +571,6 @@ export async function feedInitiativesFromDatabase() {
 
       console.log(`feed initiative ${initiativeMap.id} ${formatArrayProgress(initiativeMapIndex, initiativeMaps.length)}`);
 
-      if (initiativeMap.RawDomainsOnInitiativeMaps.length > 0 && initiativeMap.RawRepositoriesOnInitiativeMaps.length > 0) {
-        // TODO: for test for now we just skip those not having both types
-      } else {
-        // TODO: for test for now we just skip those not having both types
-        continue;
-      }
-
-      // issue with pathname encoding... fix it on 233d4562-2af3-4e04-9dd0-bb6307623dca
-      // set update again
-
-      // idem sur un autre, leur réactiver le "initMap" une fois fixé
-      // actuellement JE REGARDAIS pour faire marcher "context". Now c'est good mais il est sur une ligne pas dans un array
-      // je voulais tester quand y'a plusieurs documents à retourner...
-
       const projectDirectory = path.resolve(__root_dirname, './data/initiatives/', initiativeMap.id);
 
       const websitesTemplates: WebsiteTemplateSchemaType[] = [];

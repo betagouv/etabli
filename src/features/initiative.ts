@@ -723,11 +723,6 @@ export async function feedInitiativesFromDatabase() {
           // Ref: https://github.com/orgs/community/discussions/44515#discussioncomment-4795475
           await sleep(50);
 
-          // `git ls-files` was returning non-UT8 encoding so we were not able to easily delete files.
-          // A git config is needed to get UT8 encoding (ref: https://stackoverflow.com/a/22828826/3608410)
-          // (for example `vidéo_48_bicolore.svg` was returned as `vid\303\251o_48_bicolore.svg`)
-          await git.addConfig('core.quotepath', 'off');
-
           // Since Git does not allow using patterns to download only specific files, we just clean the folder after (to have a local disk cache for the next initiative compute before any erase of the data (container restart or manual delete))
           // We remove all files not used during the analysis + `git` data since not used at all
           // Note: the list of patterns must be updated each time new kinds of files to analyze are added
@@ -735,10 +730,13 @@ export async function feedInitiativesFromDatabase() {
           assert(folderSizeBeforeClean !== undefined);
 
           const projectGit = git.cwd({ path: codeFolderPath });
-          const lsResult = await projectGit.raw(['ls-files']);
+
+          // `git ls-files` was returning non-UT8 encoding if it has the default config `core.quotePath = true` (for example `vidéo_48_bicolore.svg` was returned as `vid\303\251o_48_bicolore.svg`)
+          // so forcing displaying verbatim paths with `-z`. We did not change `core.quotePath` because it would modify the host git config resulting a side-effects potentially
+          const lsResult = await projectGit.raw(['ls-files', '-z']);
 
           if (lsResult !== '') {
-            const filesToRemove = lsResult.split('\n').filter((filePath) => {
+            const filesToRemove = lsResult.split('\0').filter((filePath) => {
               // There is an empty line in the output result that cannot be used by `git rm`
               if (filePath.trim() === '') {
                 return false;

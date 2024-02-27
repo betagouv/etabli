@@ -523,14 +523,9 @@ export async function feedInitiativesFromDatabase() {
         },
         select: {
           main: true,
-          rawDomain: {
-            select: {
-              id: true,
-              name: true,
-              websiteRawContent: true,
-              websiteInferredName: true,
-            },
-          },
+          // We no longer get the domain object from here since the content of each one cumulated was breaking either the Prisma client (ref: https://github.com/prisma/prisma/issues/13864#issuecomment-1966122882)
+          // or the JavaScript heap memory maximum. So in opposite to what we have done for `matchDomains()` into `domain.ts`, chunking this `findMany(...)` is not much appropriate since we tried we even 2000 as chunk and it was failing and it would require freeing the memory as each iteration, so keeping the logic more simple here
+          rawDomainId: true,
         },
       },
       RawRepositoriesOnInitiativeMaps: {
@@ -573,6 +568,22 @@ export async function feedInitiativesFromDatabase() {
 
       const projectDirectory = path.resolve(__root_dirname, './data/initiatives/', initiativeMap.id);
 
+      // As explained into the `findMany.select.RawDomainsOnInitiativeMaps` comment, due to saturation reason we get raw domains from here to have the memory freed up at the end of the iteration
+      const initiativeMapRawDomains = await prisma.rawDomain.findMany({
+        where: {
+          id: {
+            in: initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => rawDomainOnIMap.rawDomainId),
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          websiteRawContent: true,
+          websiteInferredName: true,
+        },
+      });
+      assert(initiativeMapRawDomains.length === initiativeMap.RawDomainsOnInitiativeMaps.length);
+
       const websitesTemplates: WebsiteTemplateSchemaType[] = [];
       const repositoriesTemplates: RepositoryTemplateSchemaType[] = [];
 
@@ -580,8 +591,10 @@ export async function feedInitiativesFromDatabase() {
       // Note: website inferred name in priority since it should better reflect the reality (not the technical name), we should end on the `main` since sorting them in the `.findMany()`
       let initiativeName: string;
       if (initiativeMap.RawDomainsOnInitiativeMaps.length > 0 && initiativeMap.RawDomainsOnInitiativeMaps[0].main) {
-        initiativeName =
-          initiativeMap.RawDomainsOnInitiativeMaps[0].rawDomain.websiteInferredName || initiativeMap.RawDomainsOnInitiativeMaps[0].rawDomain.name;
+        const mainRawDomain = initiativeMapRawDomains.find((rd) => rd.id === initiativeMap.RawDomainsOnInitiativeMaps[0].rawDomainId);
+        assert(mainRawDomain);
+
+        initiativeName = mainRawDomain.websiteInferredName || mainRawDomain.name;
       } else if (initiativeMap.RawRepositoriesOnInitiativeMaps.length > 0 && initiativeMap.RawRepositoriesOnInitiativeMaps[0].main) {
         initiativeName = initiativeMap.RawRepositoriesOnInitiativeMaps[0].rawRepository.name;
       } else {
@@ -592,14 +605,15 @@ export async function feedInitiativesFromDatabase() {
       for (const [rawDomainOnIMapIndex, rawDomainOnIMap] of Object.entries(initiativeMap.RawDomainsOnInitiativeMaps)) {
         watchGracefulExitInLoop();
 
+        const rawDomain = initiativeMapRawDomains.find((rd) => rd.id === rawDomainOnIMap.rawDomainId);
+        assert(rawDomain);
+
         console.log(
-          `domain ${rawDomainOnIMap.rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomainOnIMap.rawDomain.id}) ${formatArrayProgress(
+          `domain ${rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomain.id}) ${formatArrayProgress(
             rawDomainOnIMapIndex,
             initiativeMap.RawDomainsOnInitiativeMaps.length
           )}`
         );
-
-        const rawDomain = rawDomainOnIMap.rawDomain;
 
         // Transform website HTML content into markdown to save tokens on GPT since HTML tags would increase the cost
         let websiteMarkdownContent: string | null = null;
@@ -832,7 +846,7 @@ export async function feedInitiativesFromDatabase() {
           console.log('\n');
 
           // Now prepare and save the results
-          const websites = initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => `https://${rawDomainOnIMap.rawDomain.name}`);
+          const websites = initiativeMapRawDomains.map((rawDomain) => `https://${rawDomain.name}`);
           const repositories = initiativeMap.RawRepositoriesOnInitiativeMaps.map(
             (rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepository.repositoryUrl
           );

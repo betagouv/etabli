@@ -35,7 +35,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
         });
       });
 
-      await scheduleCronTasks();
+      // await scheduleCronTasks();
       await llmManagerInstance.startHistoryCleaner();
 
       console.log('All services have been initialized');

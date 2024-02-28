@@ -232,6 +232,8 @@ export async function inferInitiativesFromDatabase() {
 
   // Each node must be associated with the closest sink (closest top parent)
   for (const [nodeIdIndex, nodeId] of Object.entries(nodesToBind)) {
+    watchGracefulExitInLoop();
+
     console.log(`looking for the closest parent node for the entity ${nodeId} ${formatArrayProgress(nodeIdIndex, nodesToBind.length)}`);
 
     const destinationPaths = graphlib.alg.dijkstra(graph, nodeId);

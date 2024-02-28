@@ -12,7 +12,7 @@ import { LiteRawRepositorySchema, LiteRawRepositorySchemaType } from '@etabli/sr
 import { rawRepositoryPlatformJsonToModel } from '@etabli/src/models/mappers/raw-repository';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
-import { getListDiff } from '@etabli/src/utils/comparaison';
+import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { formatArrayProgress } from '@etabli/src/utils/format';
 import { emptyStringtoNullPreprocessor } from '@etabli/src/utils/validation';
 
@@ -131,222 +131,229 @@ export async function formatRepositoriesIntoDatabase() {
       });
 
       // To make the diff we compare only meaningful properties
-      const storedLiteRawRepositories = storedRawRepositories.map((rawRepository) => {
-        return LiteRawRepositorySchema.parse({
-          name: rawRepository.name,
-          organizationName: rawRepository.organizationName,
-          platform: rawRepository.platform,
-          repositoryUrl: rawRepository.repositoryUrl,
-          description: rawRepository.description,
-          defaultBranch: rawRepository.defaultBranch,
-          isFork: rawRepository.isFork,
-          isArchived: rawRepository.isArchived,
-          creationDate: rawRepository.creationDate,
-          lastUpdate: rawRepository.lastUpdate,
-          lastModification: rawRepository.lastModification,
-          homepage: rawRepository.homepage,
-          starsCount: rawRepository.starsCount,
-          forksCount: rawRepository.forksCount,
-          license: rawRepository.license,
-          openIssuesCount: rawRepository.openIssuesCount,
-          language: rawRepository.language,
-          topics: rawRepository.topics,
-          softwareHeritageExists: rawRepository.softwareHeritageExists,
-          softwareHeritageUrl: rawRepository.softwareHeritageUrl,
-        });
-      });
-      const csvLiteRepositories = jsonRepositories.map((jsonRepository) => {
-        return LiteRawRepositorySchema.parse({
-          name: jsonRepository.name,
-          organizationName: jsonRepository.organization_name,
-          platform: rawRepositoryPlatformJsonToModel(jsonRepository.platform),
-          repositoryUrl: jsonRepository.repository_url,
-          description: jsonRepository.description,
-          defaultBranch: jsonRepository.default_branch,
-          isFork: jsonRepository.is_fork,
-          isArchived: jsonRepository.is_archived,
-          creationDate: jsonRepository.creation_date,
-          lastUpdate: jsonRepository.last_update,
-          lastModification: jsonRepository.last_modification,
-          homepage: jsonRepository.homepage,
-          starsCount: jsonRepository.stars_count,
-          forksCount: jsonRepository.forks_count,
-          license: jsonRepository.license,
-          openIssuesCount: jsonRepository.open_issues_count,
-          language: jsonRepository.language,
-          topics: jsonRepository.topics,
-          softwareHeritageExists: jsonRepository.software_heritage_exists,
-          softwareHeritageUrl: jsonRepository.software_heritage_url,
-        });
+      const storedLiteRawRepositories = new Map<LiteRawRepositorySchemaType['repositoryUrl'], LiteRawRepositorySchemaType>();
+      storedRawRepositories.forEach((rawRepository) => {
+        storedLiteRawRepositories.set(
+          rawRepository.repositoryUrl,
+          LiteRawRepositorySchema.parse({
+            name: rawRepository.name,
+            organizationName: rawRepository.organizationName,
+            platform: rawRepository.platform,
+            repositoryUrl: rawRepository.repositoryUrl,
+            description: rawRepository.description,
+            defaultBranch: rawRepository.defaultBranch,
+            isFork: rawRepository.isFork,
+            isArchived: rawRepository.isArchived,
+            creationDate: rawRepository.creationDate,
+            lastUpdate: rawRepository.lastUpdate,
+            lastModification: rawRepository.lastModification,
+            homepage: rawRepository.homepage,
+            starsCount: rawRepository.starsCount,
+            forksCount: rawRepository.forksCount,
+            license: rawRepository.license,
+            openIssuesCount: rawRepository.openIssuesCount,
+            language: rawRepository.language,
+            topics: rawRepository.topics,
+            softwareHeritageExists: rawRepository.softwareHeritageExists,
+            softwareHeritageUrl: rawRepository.softwareHeritageUrl,
+          })
+        );
       });
 
-      const diffResult = getListDiff(storedLiteRawRepositories, csvLiteRepositories, {
-        referenceProperty: 'repositoryUrl',
+      const csvLiteRepositories: typeof storedLiteRawRepositories = new Map();
+      jsonRepositories.forEach((jsonRepository) => {
+        const parsedRepositoryUrl = new URL(jsonRepository.repository_url); // Helps standardizing format with ending slash
+
+        csvLiteRepositories.set(
+          jsonRepository.repository_url,
+          LiteRawRepositorySchema.parse({
+            name: jsonRepository.name,
+            organizationName: jsonRepository.organization_name,
+            platform: rawRepositoryPlatformJsonToModel(jsonRepository.platform),
+            repositoryUrl: parsedRepositoryUrl.toString(),
+            description: jsonRepository.description,
+            defaultBranch: jsonRepository.default_branch,
+            isFork: jsonRepository.is_fork,
+            isArchived: jsonRepository.is_archived,
+            creationDate: jsonRepository.creation_date,
+            lastUpdate: jsonRepository.last_update,
+            lastModification: jsonRepository.last_modification,
+            homepage: jsonRepository.homepage,
+            starsCount: jsonRepository.stars_count,
+            forksCount: jsonRepository.forks_count,
+            license: jsonRepository.license,
+            openIssuesCount: jsonRepository.open_issues_count,
+            language: jsonRepository.language,
+            topics: jsonRepository.topics,
+            softwareHeritageExists: jsonRepository.software_heritage_exists,
+            softwareHeritageUrl: jsonRepository.software_heritage_url,
+          })
+        );
       });
 
-      for (const diffItem of diffResult.diff) {
+      const diffResult = getDiff(storedLiteRawRepositories, csvLiteRepositories);
+
+      console.log(`synchronizing raw repositories into the database (${formatDiffResultLog(diffResult)})`);
+
+      await tx.rawRepository.createMany({
+        data: diffResult.added.map((addedLiteRawRepository) => {
+          const parsedRepositoryUrl = new URL(addedLiteRawRepository.repositoryUrl);
+
+          return {
+            name: addedLiteRawRepository.name,
+            organizationName: addedLiteRawRepository.organizationName,
+            platform: addedLiteRawRepository.platform,
+            repositoryUrl: addedLiteRawRepository.repositoryUrl,
+            description: addedLiteRawRepository.description,
+            defaultBranch: addedLiteRawRepository.defaultBranch,
+            isFork: addedLiteRawRepository.isFork,
+            isArchived: addedLiteRawRepository.isArchived,
+            creationDate: addedLiteRawRepository.creationDate,
+            lastUpdate: addedLiteRawRepository.lastUpdate,
+            lastModification: addedLiteRawRepository.lastModification,
+            homepage: addedLiteRawRepository.homepage,
+            starsCount: addedLiteRawRepository.starsCount,
+            forksCount: addedLiteRawRepository.forksCount,
+            license: addedLiteRawRepository.license,
+            openIssuesCount: addedLiteRawRepository.openIssuesCount,
+            language: addedLiteRawRepository.language,
+            topics: addedLiteRawRepository.topics,
+            softwareHeritageExists: addedLiteRawRepository.softwareHeritageExists,
+            softwareHeritageUrl: addedLiteRawRepository.softwareHeritageUrl,
+            repositoryDomain: parsedRepositoryUrl.hostname,
+            probableWebsiteUrl: null,
+            probableWebsiteDomain: null,
+            updateInferredMetadata: true,
+            mainSimilarRepositoryId: null,
+            updateMainSimilarRepository: true,
+            lastUpdateAttemptWithReachabilityError: null,
+            lastUpdateAttemptReachabilityError: null,
+          };
+        }),
+        skipDuplicates: true,
+      });
+
+      for (const deletedLiteRawRepository of diffResult.removed) {
         watchGracefulExitInLoop();
 
-        if (diffItem.status === 'added') {
-          const liteRawRepository = diffItem.value as LiteRawRepositorySchemaType;
+        // If it was considered as a main raw domain for some others, we mark those ones to be reprocessed
+        await tx.rawRepository.updateMany({
+          where: {
+            AND: [
+              {
+                platform: {
+                  not: deletedLiteRawRepository.platform,
+                },
+              },
+              {
+                organizationName: {
+                  not: deletedLiteRawRepository.organizationName,
+                },
+              },
+              {
+                name: {
+                  not: deletedLiteRawRepository.name,
+                },
+              },
+            ],
+            mainSimilarRepository: {
+              is: {
+                name: deletedLiteRawRepository.name,
+              },
+            },
+          },
+          data: {
+            mainSimilarRepositoryId: null,
+            updateMainSimilarRepository: true,
+          },
+        });
 
-          const parsedRepositoryUrl = new URL(liteRawRepository.repositoryUrl); // Helps standardizing format with ending slash
+        const deletedRawDomain = await tx.rawRepository.delete({
+          where: {
+            repositoryUrl: deletedLiteRawRepository.repositoryUrl,
+          },
+          select: {
+            RawRepositoriesOnInitiativeMaps: {
+              select: {
+                initiativeMapId: true,
+              },
+            },
+          },
+        });
 
-          await tx.rawRepository.create({
+        if (deletedRawDomain.RawRepositoriesOnInitiativeMaps) {
+          await tx.initiativeMap.update({
+            where: {
+              id: deletedRawDomain.RawRepositoriesOnInitiativeMaps.initiativeMapId,
+            },
             data: {
-              name: liteRawRepository.name,
-              organizationName: liteRawRepository.organizationName,
-              platform: liteRawRepository.platform,
-              repositoryUrl: parsedRepositoryUrl.toString(),
-              description: liteRawRepository.description,
-              defaultBranch: liteRawRepository.defaultBranch,
-              isFork: liteRawRepository.isFork,
-              isArchived: liteRawRepository.isArchived,
-              creationDate: liteRawRepository.creationDate,
-              lastUpdate: liteRawRepository.lastUpdate,
-              lastModification: liteRawRepository.lastModification,
-              homepage: liteRawRepository.homepage,
-              starsCount: liteRawRepository.starsCount,
-              forksCount: liteRawRepository.forksCount,
-              license: liteRawRepository.license,
-              openIssuesCount: liteRawRepository.openIssuesCount,
-              language: liteRawRepository.language,
-              topics: liteRawRepository.topics,
-              softwareHeritageExists: liteRawRepository.softwareHeritageExists,
-              softwareHeritageUrl: liteRawRepository.softwareHeritageUrl,
-              repositoryDomain: parsedRepositoryUrl.hostname,
-              probableWebsiteUrl: null,
-              probableWebsiteDomain: null,
-              updateInferredMetadata: true,
-              mainSimilarRepositoryId: null,
-              updateMainSimilarRepository: true,
-              lastUpdateAttemptWithReachabilityError: null,
-              lastUpdateAttemptReachabilityError: null,
+              update: true,
             },
             select: {
               id: true, // Ref: https://github.com/prisma/prisma/issues/6252
             },
           });
-        } else if (diffItem.status === 'deleted') {
-          const liteRawRepository = diffItem.value as LiteRawRepositorySchemaType;
+        }
+      }
 
-          // If it was considered as a main raw domain for some others, we mark those ones to be reprocessed
-          await tx.rawRepository.updateMany({
-            where: {
-              AND: [
-                {
-                  platform: {
-                    not: liteRawRepository.platform,
-                  },
-                },
-                {
-                  organizationName: {
-                    not: liteRawRepository.organizationName,
-                  },
-                },
-                {
-                  name: {
-                    not: liteRawRepository.name,
-                  },
-                },
-              ],
-              mainSimilarRepository: {
-                is: {
-                  name: liteRawRepository.name,
-                },
+      for (const updatedLiteRawRepository of diffResult.updated) {
+        watchGracefulExitInLoop();
+
+        const parsedRepositoryUrl = new URL(updatedLiteRawRepository.repositoryUrl);
+
+        const updatedRawRepository = await tx.rawRepository.update({
+          where: {
+            repositoryUrl: updatedLiteRawRepository.repositoryUrl,
+          },
+          data: {
+            name: updatedLiteRawRepository.name,
+            organizationName: updatedLiteRawRepository.organizationName,
+            platform: updatedLiteRawRepository.platform,
+            repositoryUrl: updatedLiteRawRepository.repositoryUrl,
+            description: updatedLiteRawRepository.description,
+            defaultBranch: updatedLiteRawRepository.defaultBranch,
+            isFork: updatedLiteRawRepository.isFork,
+            isArchived: updatedLiteRawRepository.isArchived,
+            creationDate: updatedLiteRawRepository.creationDate,
+            lastUpdate: updatedLiteRawRepository.lastUpdate,
+            lastModification: updatedLiteRawRepository.lastModification,
+            homepage: updatedLiteRawRepository.homepage,
+            starsCount: updatedLiteRawRepository.starsCount,
+            forksCount: updatedLiteRawRepository.forksCount,
+            license: updatedLiteRawRepository.license,
+            openIssuesCount: updatedLiteRawRepository.openIssuesCount,
+            language: updatedLiteRawRepository.language,
+            topics: updatedLiteRawRepository.topics,
+            softwareHeritageExists: updatedLiteRawRepository.softwareHeritageExists,
+            softwareHeritageUrl: updatedLiteRawRepository.softwareHeritageUrl,
+            repositoryDomain: parsedRepositoryUrl.hostname,
+            lastUpdateAttemptWithReachabilityError: null,
+            lastUpdateAttemptReachabilityError: null,
+            // Recompute some generated values since it was based on above values
+            updateInferredMetadata: true,
+            updateMainSimilarRepository: true,
+          },
+          select: {
+            RawRepositoriesOnInitiativeMaps: {
+              select: {
+                initiativeMapId: true,
               },
+            },
+          },
+        });
+
+        if (updatedRawRepository.RawRepositoriesOnInitiativeMaps) {
+          await tx.initiativeMap.update({
+            where: {
+              id: updatedRawRepository.RawRepositoriesOnInitiativeMaps.initiativeMapId,
             },
             data: {
-              mainSimilarRepositoryId: null,
-              updateMainSimilarRepository: true,
-            },
-          });
-
-          const deletedRawDomain = await tx.rawRepository.delete({
-            where: {
-              repositoryUrl: liteRawRepository.repositoryUrl,
+              update: true,
             },
             select: {
-              RawRepositoriesOnInitiativeMaps: {
-                select: {
-                  initiativeMapId: true,
-                },
-              },
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
             },
           });
-
-          if (deletedRawDomain.RawRepositoriesOnInitiativeMaps) {
-            await tx.initiativeMap.update({
-              where: {
-                id: deletedRawDomain.RawRepositoriesOnInitiativeMaps.initiativeMapId,
-              },
-              data: {
-                update: true,
-              },
-              select: {
-                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-              },
-            });
-          }
-        } else if (diffItem.status === 'updated') {
-          const liteRawRepository = diffItem.value as LiteRawRepositorySchemaType;
-
-          const parsedRepositoryUrl = new URL(liteRawRepository.repositoryUrl); // Helps standardizing format with ending slash
-
-          const updatedRawRepository = await tx.rawRepository.update({
-            where: {
-              repositoryUrl: liteRawRepository.repositoryUrl,
-            },
-            data: {
-              name: liteRawRepository.name,
-              organizationName: liteRawRepository.organizationName,
-              platform: liteRawRepository.platform,
-              repositoryUrl: parsedRepositoryUrl.toString(),
-              description: liteRawRepository.description,
-              defaultBranch: liteRawRepository.defaultBranch,
-              isFork: liteRawRepository.isFork,
-              isArchived: liteRawRepository.isArchived,
-              creationDate: liteRawRepository.creationDate,
-              lastUpdate: liteRawRepository.lastUpdate,
-              lastModification: liteRawRepository.lastModification,
-              homepage: liteRawRepository.homepage,
-              starsCount: liteRawRepository.starsCount,
-              forksCount: liteRawRepository.forksCount,
-              license: liteRawRepository.license,
-              openIssuesCount: liteRawRepository.openIssuesCount,
-              language: liteRawRepository.language,
-              topics: liteRawRepository.topics,
-              softwareHeritageExists: liteRawRepository.softwareHeritageExists,
-              softwareHeritageUrl: liteRawRepository.softwareHeritageUrl,
-              repositoryDomain: parsedRepositoryUrl.hostname,
-              lastUpdateAttemptWithReachabilityError: null,
-              lastUpdateAttemptReachabilityError: null,
-              // Recompute some generated values since it was based on above values
-              updateInferredMetadata: true,
-              updateMainSimilarRepository: true,
-            },
-            select: {
-              RawRepositoriesOnInitiativeMaps: {
-                select: {
-                  initiativeMapId: true,
-                },
-              },
-            },
-          });
-
-          if (updatedRawRepository.RawRepositoriesOnInitiativeMaps) {
-            await tx.initiativeMap.update({
-              where: {
-                id: updatedRawRepository.RawRepositoriesOnInitiativeMaps.initiativeMapId,
-              },
-              data: {
-                update: true,
-              },
-              select: {
-                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-              },
-            });
-          }
         }
       }
     },

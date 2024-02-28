@@ -11,7 +11,7 @@ import { LiteToolSchema, LiteToolSchemaType, ToolCategorySchema } from '@etabli/
 import { toolTypeCsvToModel } from '@etabli/src/models/mappers/tool';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
-import { getListDiff } from '@etabli/src/utils/comparaison';
+import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { emptyStringtoNullPreprocessor } from '@etabli/src/utils/validation';
 
 const __root_dirname = process.cwd();
@@ -100,92 +100,88 @@ export async function formatToolsIntoDatabase() {
       });
 
       // To make the diff we compare only meaningful properties
-      const storedLiteTools = storedTools.map((tool) =>
-        LiteToolSchema.parse({
-          name: tool.name,
-          title: tool.title,
-          description: tool.description,
-          category: tool.category,
-        })
-      );
-      const csvLiteTools = csvTools.map((csvTool) =>
-        LiteToolSchema.parse({
-          name: csvTool.name,
-          title: csvTool.title,
-          description: csvTool.description,
-          category: toolTypeCsvToModel(csvTool.category),
-        })
-      );
+      const storedLiteTools = new Map<LiteToolSchemaType['name'], LiteToolSchemaType>();
+      storedTools.forEach((tool) => {
+        storedLiteTools.set(
+          tool.name,
+          LiteToolSchema.parse({
+            name: tool.name,
+            title: tool.title,
+            description: tool.description,
+            category: tool.category,
+          })
+        );
+      });
+
+      const csvLiteTools: typeof storedLiteTools = new Map();
+      csvTools.forEach((csvTool) => {
+        csvLiteTools.set(
+          csvTool.name,
+          LiteToolSchema.parse({
+            name: csvTool.name,
+            title: csvTool.title,
+            description: csvTool.description,
+            category: toolTypeCsvToModel(csvTool.category),
+          })
+        );
+      });
 
       // We add a few extra tools that are common to public french initiatives (but not enough to be listed on StackShare)
-      csvLiteTools.push(
+      const dsfrName = 'DSFR';
+      csvLiteTools.set(
+        dsfrName,
         LiteToolSchema.parse({
-          name: 'DSFR',
+          name: dsfrName,
           title: "Official french government's design system (Système de Design de l'État)",
           description: `Le Système de Design de l'État (ci-après, le DSFR) est un ensemble de composants web HTML, CSS et Javascript pour faciliter le travail des équipes projets des sites Internet publics, et créer des interfaces numériques de qualité et accessibles.`,
           category: ToolCategorySchema.Values.LANGUAGES_AND_FRAMEWORKS,
         })
       );
 
-      const diffResult = getListDiff(storedLiteTools, csvLiteTools, {
-        referenceProperty: 'name',
+      const diffResult = getDiff(storedLiteTools, csvLiteTools);
+
+      console.log(`synchronizing tools into the database (${formatDiffResultLog(diffResult)})`);
+
+      await tx.tool.createMany({
+        data: diffResult.added.map((addedLiteTool) => ({
+          name: addedLiteTool.name,
+          title: addedLiteTool.title,
+          description: addedLiteTool.description,
+          category: addedLiteTool.category,
+        })),
+        skipDuplicates: true,
       });
 
-      let anyChange = false;
-      for (const diffItem of diffResult.diff) {
+      await tx.tool.deleteMany({
+        where: {
+          name: {
+            in: diffResult.removed.map((deletedLiteTool) => deletedLiteTool.name),
+          },
+        },
+      });
+
+      for (const updatedLiteTool of diffResult.updated) {
         watchGracefulExitInLoop();
 
-        if (diffItem.status === 'added') {
-          const liteTool = diffItem.value as LiteToolSchemaType;
-          anyChange = true;
-
-          await tx.tool.create({
-            data: {
-              name: liteTool.name,
-              title: liteTool.title,
-              description: liteTool.description,
-              category: liteTool.category,
-            },
-            select: {
-              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-            },
-          });
-        } else if (diffItem.status === 'deleted') {
-          const liteTool = diffItem.value as LiteToolSchemaType;
-          anyChange = true;
-
-          const deletedTool = await tx.tool.delete({
-            where: {
-              name: liteTool.name,
-            },
-            select: {
-              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-            },
-          });
-        } else if (diffItem.status === 'updated') {
-          const liteTool = diffItem.value as LiteToolSchemaType;
-          anyChange = true;
-
-          const updatedTool = await tx.tool.update({
-            where: {
-              name: liteTool.name,
-            },
-            data: {
-              name: liteTool.name,
-              title: liteTool.title,
-              description: liteTool.description,
-              category: liteTool.category,
-            },
-            select: {
-              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-            },
-          });
-        }
+        const updatedTool = await tx.tool.update({
+          where: {
+            name: updatedLiteTool.name,
+          },
+          data: {
+            name: updatedLiteTool.name,
+            title: updatedLiteTool.title,
+            description: updatedLiteTool.description,
+            category: updatedLiteTool.category,
+          },
+          select: {
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+          },
+        });
       }
 
-      if (anyChange) {
+      if (diffResult.added.length > 0 || diffResult.removed.length > 0 || diffResult.updated.length > 0) {
         // There is a modification so on the next job we should tell the LLM system about new updates
-        await prisma.settings.update({
+        await tx.settings.update({
           where: {
             onlyTrueAsId: true,
           },

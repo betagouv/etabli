@@ -1,53 +1,49 @@
-import { getListDiff as libraryGetListDiff } from '@donedeal0/superdiff';
+import diff from 'microdiff';
 
-type LibraryListOptions = Parameters<typeof libraryGetListDiff>[2];
-type ListOptions = LibraryListOptions & {
-  referenceProperty: string;
-};
+export interface GetDiffResult<Model> {
+  added: Model[];
+  removed: Model[];
+  updated: Model[];
+  unchanged: Model[];
+}
 
-type GetListDiffFunc = (
-  prevList: any[] | null | undefined,
-  nextList: any[] | null | undefined,
-  options?: ListOptions | undefined
-) => ReturnType<typeof libraryGetListDiff>;
+export function getDiff<Model extends Record<ReferenceProperty, any>, ReferenceProperty extends string | number | symbol>(
+  before: Map<ReferenceProperty, Model>,
+  after: Map<ReferenceProperty, Model>
+): GetDiffResult<Model> {
+  const result: GetDiffResult<Model> = {
+    added: [],
+    removed: [],
+    unchanged: [],
+    updated: [],
+  };
 
-// This is a custom implementation to fix specific needs (ref: https://github.com/DoneDeal0/superdiff/issues/14)
-export const getListDiff: GetListDiffFunc = (prevList, nextList, options) => {
-  const results = libraryGetListDiff(prevList, nextList, options);
+  for (const [afterModelReference, afterModel] of after) {
+    const sameBeforeReferenceModel = before.get(afterModelReference);
 
-  let deletedDiffItems = results.diff.filter((diffItem) => {
-    return diffItem.status === 'deleted';
-  });
+    if (sameBeforeReferenceModel) {
+      const beforeAfterModelDiff = diff(sameBeforeReferenceModel, afterModel);
 
-  // Simulate `ignoreArrayOrder` as for some other of the library methods
-  // Also infer `updated` status for items
-  let tmpDiffItems: typeof deletedDiffItems = [];
-  for (const diffItem of results.diff) {
-    if (diffItem.status === 'moved') {
-      diffItem.status = 'equal';
-    } else if (diffItem.status === 'added' && !!options?.referenceProperty) {
-      // If also deleted we change it to `updated` while removing it from the final `deleted` list
-      const correspondingDeletedItemIndex = deletedDiffItems.findIndex((deletedDiffItem) => {
-        return (
-          !!deletedDiffItem.value[options.referenceProperty] &&
-          deletedDiffItem.value[options.referenceProperty] === diffItem.value[options.referenceProperty]
-        );
-      });
-
-      if (correspondingDeletedItemIndex !== -1) {
-        diffItem.status = 'updated';
-
-        deletedDiffItems.splice(correspondingDeletedItemIndex, 1);
+      // `microdiff` won't return if unchange, so we can rely on the diff length to detect any change
+      if (beforeAfterModelDiff.length > 0) {
+        result.updated.push(afterModel);
+      } else {
+        result.unchanged.push(afterModel);
       }
-    } else if (diffItem.status === 'deleted') {
-      // We add remaining deleted items at the end
-      continue;
+    } else {
+      result.added.push(afterModel);
     }
-
-    tmpDiffItems.push(diffItem);
   }
 
-  results.diff = [...tmpDiffItems, ...deletedDiffItems];
+  for (const [beforeModelReference, beforeModel] of before) {
+    if (!after.has(beforeModelReference)) {
+      result.removed.push(beforeModel);
+    }
+  }
 
-  return results;
-};
+  return result;
+}
+
+export function formatDiffResultLog<Model>(result: GetDiffResult<Model>): string {
+  return `added: ${result.added.length} | removed: ${result.removed.length} | updated: ${result.updated.length} | unchanged: ${result.unchanged.length}`;
+}

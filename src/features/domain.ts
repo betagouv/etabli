@@ -25,7 +25,7 @@ import { rawDomainTypeCsvToModel } from '@etabli/src/models/mappers/raw-domain';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { bitsFor } from '@etabli/src/utils/bits';
-import { getListDiff } from '@etabli/src/utils/comparaison';
+import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { formatArrayProgress } from '@etabli/src/utils/format';
 import { containsHtml } from '@etabli/src/utils/html';
 import { handlePrismaErrorDueToContent, handleReachabilityError } from '@etabli/src/utils/request';
@@ -174,144 +174,147 @@ export async function formatDomainsIntoDatabase() {
       });
 
       // To make the diff we compare only meaningful properties
-      const storedLiteRawDomains = storedRawDomains.map((rawDomain) =>
-        LiteRawDomainSchema.parse({
-          name: rawDomain.name,
-          siren: rawDomain.siren,
-          type: rawDomain.type,
-          sources: rawDomain.sources,
-        })
-      );
-      const csvLiteDomains = csvDomains.map((csvDomain) =>
-        LiteRawDomainSchema.parse({
-          name: csvDomain.name,
-          siren: csvDomain.SIREN,
-          type: rawDomainTypeCsvToModel(csvDomain.type),
-          sources: csvDomain.sources,
-        })
+      const storedLiteRawDomains = new Map<LiteRawDomainSchemaType['name'], LiteRawDomainSchemaType>();
+      storedRawDomains.forEach((rawDomain) =>
+        storedLiteRawDomains.set(
+          rawDomain.name,
+          LiteRawDomainSchema.parse({
+            name: rawDomain.name,
+            siren: rawDomain.siren,
+            type: rawDomain.type,
+            sources: rawDomain.sources,
+          })
+        )
       );
 
-      const diffResult = getListDiff(storedLiteRawDomains, csvLiteDomains, {
-        referenceProperty: 'name',
+      const csvLiteDomains: typeof storedLiteRawDomains = new Map();
+      csvDomains.forEach((csvDomain) =>
+        csvLiteDomains.set(
+          csvDomain.name,
+          LiteRawDomainSchema.parse({
+            name: csvDomain.name,
+            siren: csvDomain.SIREN,
+            type: rawDomainTypeCsvToModel(csvDomain.type),
+            sources: csvDomain.sources,
+          })
+        )
+      );
+
+      const diffResult = getDiff(storedLiteRawDomains, csvLiteDomains);
+
+      console.log(`synchronizing raw domains into the database (${formatDiffResultLog(diffResult)})`);
+
+      await tx.rawDomain.createMany({
+        data: diffResult.added.map((addedLiteRawDomain) => ({
+          name: addedLiteRawDomain.name,
+          siren: addedLiteRawDomain.siren,
+          type: addedLiteRawDomain.type,
+          sources: addedLiteRawDomain.sources,
+          indexableFromRobotsTxt: null,
+          updateIndexableFromRobotsTxt: true,
+          robotsTxtContent: null,
+          wildcardCertificate: null,
+          updateWildcardCertificate: true,
+          certificateContent: null,
+          websiteRawContent: null,
+          websiteTitle: null,
+          websiteAnotherPageTitle: null,
+          websiteInferredName: null,
+          websiteHasContent: null,
+          websiteHasStyle: null,
+          websiteContentIndexable: null,
+          websitePseudoFingerprint: null,
+          updateWebsiteData: true,
+          updateMainSimilarDomain: true,
+          lastUpdateAttemptWithReachabilityError: null,
+          lastUpdateAttemptReachabilityError: null,
+        })),
+        skipDuplicates: true,
       });
 
-      for (const diffItem of diffResult.diff) {
+      for (const deletedLiteRawDomain of diffResult.removed) {
         watchGracefulExitInLoop();
 
-        if (diffItem.status === 'added') {
-          const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
+        // If it was considered as a main raw domain for some others, we mark those ones to be reprocessed
+        await tx.rawDomain.updateMany({
+          where: {
+            name: {
+              not: deletedLiteRawDomain.name,
+            },
+            mainSimilarDomain: {
+              is: {
+                name: deletedLiteRawDomain.name,
+              },
+            },
+          },
+          data: {
+            mainSimilarDomainId: null,
+            updateMainSimilarDomain: true,
+          },
+        });
 
-          await tx.rawDomain.create({
+        const deletedRawDomain = await tx.rawDomain.delete({
+          where: {
+            name: deletedLiteRawDomain.name,
+          },
+          select: {
+            RawDomainsOnInitiativeMaps: {
+              select: {
+                initiativeMapId: true,
+              },
+            },
+          },
+        });
+
+        if (deletedRawDomain.RawDomainsOnInitiativeMaps) {
+          await tx.initiativeMap.update({
+            where: {
+              id: deletedRawDomain.RawDomainsOnInitiativeMaps.initiativeMapId,
+            },
             data: {
-              name: liteRawDomain.name,
-              siren: liteRawDomain.siren,
-              type: liteRawDomain.type,
-              sources: liteRawDomain.sources,
-              indexableFromRobotsTxt: null,
-              updateIndexableFromRobotsTxt: true,
-              robotsTxtContent: null,
-              wildcardCertificate: null,
-              updateWildcardCertificate: true,
-              certificateContent: null,
-              websiteRawContent: null,
-              websiteTitle: null,
-              websiteAnotherPageTitle: null,
-              websiteInferredName: null,
-              websiteHasContent: null,
-              websiteHasStyle: null,
-              websiteContentIndexable: null,
-              websitePseudoFingerprint: null,
-              updateWebsiteData: true,
-              updateMainSimilarDomain: true,
-              lastUpdateAttemptWithReachabilityError: null,
-              lastUpdateAttemptReachabilityError: null,
+              update: true,
             },
             select: {
               id: true, // Ref: https://github.com/prisma/prisma/issues/6252
             },
           });
-        } else if (diffItem.status === 'deleted') {
-          const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
+        }
+      }
 
-          // If it was considered as a main raw domain for some others, we mark those ones to be reprocessed
-          await tx.rawDomain.updateMany({
+      for (const updatedLiteRawDomain of diffResult.updated) {
+        watchGracefulExitInLoop();
+
+        const updatedRawDomain = await tx.rawDomain.update({
+          where: {
+            name: updatedLiteRawDomain.name,
+          },
+          data: {
+            name: updatedLiteRawDomain.name,
+            siren: updatedLiteRawDomain.siren,
+            type: updatedLiteRawDomain.type,
+            sources: updatedLiteRawDomain.sources,
+          },
+          select: {
+            RawDomainsOnInitiativeMaps: {
+              select: {
+                initiativeMapId: true,
+              },
+            },
+          },
+        });
+
+        if (updatedRawDomain.RawDomainsOnInitiativeMaps) {
+          await tx.initiativeMap.update({
             where: {
-              name: {
-                not: liteRawDomain.name,
-              },
-              mainSimilarDomain: {
-                is: {
-                  name: liteRawDomain.name,
-                },
-              },
+              id: updatedRawDomain.RawDomainsOnInitiativeMaps.initiativeMapId,
             },
             data: {
-              mainSimilarDomainId: null,
-              updateMainSimilarDomain: true,
-            },
-          });
-
-          const deletedRawDomain = await tx.rawDomain.delete({
-            where: {
-              name: liteRawDomain.name,
+              update: true,
             },
             select: {
-              RawDomainsOnInitiativeMaps: {
-                select: {
-                  initiativeMapId: true,
-                },
-              },
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
             },
           });
-
-          if (deletedRawDomain.RawDomainsOnInitiativeMaps) {
-            await tx.initiativeMap.update({
-              where: {
-                id: deletedRawDomain.RawDomainsOnInitiativeMaps.initiativeMapId,
-              },
-              data: {
-                update: true,
-              },
-              select: {
-                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-              },
-            });
-          }
-        } else if (diffItem.status === 'updated') {
-          const liteRawDomain = diffItem.value as LiteRawDomainSchemaType;
-
-          const updatedRawDomain = await tx.rawDomain.update({
-            where: {
-              name: liteRawDomain.name,
-            },
-            data: {
-              name: liteRawDomain.name,
-              siren: liteRawDomain.siren,
-              type: liteRawDomain.type,
-              sources: liteRawDomain.sources,
-            },
-            select: {
-              RawDomainsOnInitiativeMaps: {
-                select: {
-                  initiativeMapId: true,
-                },
-              },
-            },
-          });
-
-          if (updatedRawDomain.RawDomainsOnInitiativeMaps) {
-            await tx.initiativeMap.update({
-              where: {
-                id: updatedRawDomain.RawDomainsOnInitiativeMaps.initiativeMapId,
-              },
-              data: {
-                update: true,
-              },
-              select: {
-                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-              },
-            });
-          }
         }
       }
     },

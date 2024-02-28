@@ -38,7 +38,7 @@ import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/sr
 import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
-import { getListDiff } from '@etabli/src/utils/comparaison';
+import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { languagesExtensions } from '@etabli/src/utils/languages';
 import { sleep } from '@etabli/src/utils/sleep';
@@ -261,7 +261,7 @@ export async function inferInitiativesFromDatabase() {
     async (tx) => {
       const storedInitiativeMaps = await tx.initiativeMap.findMany({
         where: {
-          deletedAt: null,
+          deletedAt: null, // This is important for the following comparaison (since there is no real "removal")
         },
         select: {
           id: true,
@@ -280,14 +280,20 @@ export async function inferInitiativesFromDatabase() {
       });
 
       // To make the diff we compare only meaningful properties
-      const storedLiteInitiativeMaps = storedInitiativeMaps.map((initiativeMap) =>
-        LiteInitiativeMapSchema.parse({
-          mainItemIdentifier: initiativeMap.mainItemIdentifier,
-          rawDomainsIds: initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => rawDomainOnIMap.rawDomainId),
-          rawRepositoriesIds: initiativeMap.RawRepositoriesOnInitiativeMaps.map((rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepositoryId),
-        })
+      const storedLiteInitiativeMaps = new Map<LiteInitiativeMapSchemaType['mainItemIdentifier'], LiteInitiativeMapSchemaType>();
+      storedInitiativeMaps.forEach((initiativeMap) =>
+        storedLiteInitiativeMaps.set(
+          initiativeMap.mainItemIdentifier,
+          LiteInitiativeMapSchema.parse({
+            mainItemIdentifier: initiativeMap.mainItemIdentifier,
+            rawDomainsIds: initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => rawDomainOnIMap.rawDomainId),
+            rawRepositoriesIds: initiativeMap.RawRepositoriesOnInitiativeMaps.map((rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepositoryId),
+          })
+        )
       );
-      const computedLiteInitiativeMaps = initiativeMapsWithLabels.map((initiativeMapWithLabels) => {
+
+      const computedLiteInitiativeMaps: typeof storedLiteInitiativeMaps = new Map();
+      initiativeMapsWithLabels.forEach((initiativeMapWithLabels) => {
         const rawDomainsIds: string[] = [];
         const rawRepositoriesIds: string[] = [];
 
@@ -299,176 +305,174 @@ export async function inferInitiativesFromDatabase() {
           }
         }
 
-        return LiteInitiativeMapSchema.parse({
-          mainItemIdentifier: initiativeMapWithLabels.mainItem.entity.id,
-          rawDomainsIds: rawDomainsIds,
-          rawRepositoriesIds: rawRepositoriesIds,
-        });
+        computedLiteInitiativeMaps.set(
+          initiativeMapWithLabels.mainItem.entity.id,
+          LiteInitiativeMapSchema.parse({
+            mainItemIdentifier: initiativeMapWithLabels.mainItem.entity.id,
+            rawDomainsIds: rawDomainsIds,
+            rawRepositoriesIds: rawRepositoriesIds,
+          })
+        );
       });
 
-      console.log(`${computedLiteInitiativeMaps.length} initiative maps remain after grouping the nodes`);
+      console.log(`${computedLiteInitiativeMaps.size} initiative maps remain after grouping the nodes`);
 
-      const diffResult = getListDiff(storedLiteInitiativeMaps, computedLiteInitiativeMaps, {
-        referenceProperty: 'mainItemIdentifier',
-      });
+      const diffResult = getDiff(storedLiteInitiativeMaps, computedLiteInitiativeMaps);
 
-      let anyChange = false;
-      for (const diffItem of diffResult.diff) {
+      console.log(`synchronizing initiative maps into the database (${formatDiffResultLog(diffResult)})`);
+
+      for (const addedLiteRawDomain of diffResult.added) {
         watchGracefulExitInLoop();
 
-        if (diffItem.status === 'added') {
-          const liteInitiativeMap = diffItem.value as LiteInitiativeMapSchemaType;
-          anyChange = true;
-
-          await tx.initiativeMap.create({
-            data: {
-              mainItemIdentifier: liteInitiativeMap.mainItemIdentifier,
-              update: true,
-              lastUpdateAttemptWithReachabilityError: null,
-              lastUpdateAttemptReachabilityError: null,
-              RawDomainsOnInitiativeMaps: {
-                createMany: {
-                  skipDuplicates: true,
-                  data: liteInitiativeMap.rawDomainsIds.map((rawDomainId) => {
-                    return {
-                      rawDomainId: rawDomainId,
-                      main: liteInitiativeMap.mainItemIdentifier === rawDomainId,
-                    };
-                  }),
-                },
-              },
-              RawRepositoriesOnInitiativeMaps: {
-                createMany: {
-                  skipDuplicates: true,
-                  data: liteInitiativeMap.rawRepositoriesIds.map((rawRepositoryId) => {
-                    return {
-                      rawRepositoryId: rawRepositoryId,
-                      main: liteInitiativeMap.mainItemIdentifier === rawRepositoryId,
-                    };
-                  }),
-                },
-              },
-            },
-            select: {
-              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-            },
-          });
-        } else if (diffItem.status === 'deleted') {
-          const liteInitiativeMap = diffItem.value as LiteInitiativeMapSchemaType;
-          anyChange = true;
-
-          // We do not delete to keep a bit of history for debug
-          const deletedInitiativeMap = await tx.initiativeMap.updateMany({
-            where: {
-              mainItemIdentifier: liteInitiativeMap.mainItemIdentifier,
-              deletedAt: null,
-            },
-            data: {
-              deletedAt: new Date(),
-            },
-          });
-        } else if (diffItem.status === 'updated') {
-          const liteInitiativeMap = diffItem.value as LiteInitiativeMapSchemaType;
-          anyChange = true;
-
-          // Since we cannot make a unique tuple with `deletedAt` we have a hack a bit and take the last one first
-          const initiativeMapToUpdate = await tx.initiativeMap.findFirstOrThrow({
-            where: {
-              mainItemIdentifier: liteInitiativeMap.mainItemIdentifier,
-              deletedAt: null,
-            },
-            select: {
-              id: true,
-            },
-            orderBy: {
-              updatedAt: 'desc',
-            },
-          });
-
-          const updatedInitiativeMap = await tx.initiativeMap.update({
-            where: {
-              id: initiativeMapToUpdate.id,
-            },
-            data: {
-              update: true,
-              RawDomainsOnInitiativeMaps: {
-                set: liteInitiativeMap.rawDomainsIds.map((rawDomainId) => {
+        // `createMany` cannot be used due to nested many creations (ref: https://github.com/prisma/prisma/issues/5455)
+        await tx.initiativeMap.create({
+          data: {
+            mainItemIdentifier: addedLiteRawDomain.mainItemIdentifier,
+            update: true,
+            lastUpdateAttemptWithReachabilityError: null,
+            lastUpdateAttemptReachabilityError: null,
+            RawDomainsOnInitiativeMaps: {
+              createMany: {
+                skipDuplicates: true,
+                data: addedLiteRawDomain.rawDomainsIds.map((rawDomainId) => {
                   return {
                     rawDomainId: rawDomainId,
+                    main: addedLiteRawDomain.mainItemIdentifier === rawDomainId,
                   };
                 }),
               },
-              RawRepositoriesOnInitiativeMaps: {
-                set: liteInitiativeMap.rawRepositoriesIds.map((rawRepositoryId) => {
+            },
+            RawRepositoriesOnInitiativeMaps: {
+              createMany: {
+                skipDuplicates: true,
+                data: addedLiteRawDomain.rawRepositoriesIds.map((rawRepositoryId) => {
                   return {
                     rawRepositoryId: rawRepositoryId,
+                    main: addedLiteRawDomain.mainItemIdentifier === rawRepositoryId,
                   };
                 }),
               },
             },
-            select: {
-              mainItemIdentifier: true,
-              RawDomainsOnInitiativeMaps: {
-                select: {
-                  rawDomainId: true,
-                },
-              },
-              RawRepositoriesOnInitiativeMaps: {
-                select: {
-                  rawRepositoryId: true,
-                },
-              },
-            },
-          });
+          },
+          select: {
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+          },
+        });
+      }
 
-          // Since we were not able to update the `main` property with `.set` property, we do it in a second time
-          await tx.initiativeMap.update({
-            where: {
-              id: initiativeMapToUpdate.id,
-            },
-            data: {
-              RawDomainsOnInitiativeMaps: {
-                updateMany: updatedInitiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => {
-                  return {
-                    where: {
-                      rawDomainId: rawDomainOnIMap.rawDomainId,
-                    },
-                    data: {
-                      main: rawDomainOnIMap.rawDomainId === updatedInitiativeMap.mainItemIdentifier,
-                    },
-                  };
-                }),
-              },
-              RawRepositoriesOnInitiativeMaps: {
-                updateMany: updatedInitiativeMap.RawRepositoriesOnInitiativeMaps.map((rawRepositoryOnIMap) => {
-                  return {
-                    where: {
-                      rawRepositoryId: rawRepositoryOnIMap.rawRepositoryId,
-                    },
-                    data: {
-                      main: rawRepositoryOnIMap.rawRepositoryId === updatedInitiativeMap.mainItemIdentifier,
-                    },
-                  };
-                }),
-              },
-            },
-            select: {
-              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-            },
-          });
-        }
+      // We do not delete to keep a bit of history for debug
+      await tx.initiativeMap.updateMany({
+        where: {
+          mainItemIdentifier: {
+            in: diffResult.removed.map((deletedLiteInitiativeMap) => deletedLiteInitiativeMap.mainItemIdentifier),
+          },
+          deletedAt: null,
+        },
+        data: {
+          deletedAt: new Date(),
+        },
+      });
 
-        if (anyChange) {
-          // There is a modification so on the next job we should tell the LLM system about new updates
-          await prisma.settings.update({
-            where: {
-              onlyTrueAsId: true,
+      for (const updatedLiteInitiativeMap of diffResult.updated) {
+        watchGracefulExitInLoop();
+
+        // Since we cannot make a unique tuple with `deletedAt` we have a hack a bit and take the last one first
+        const initiativeMapToUpdate = await tx.initiativeMap.findFirstOrThrow({
+          where: {
+            mainItemIdentifier: updatedLiteInitiativeMap.mainItemIdentifier,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+          },
+          orderBy: {
+            updatedAt: 'desc',
+          },
+        });
+
+        const updatedInitiativeMap = await tx.initiativeMap.update({
+          where: {
+            id: initiativeMapToUpdate.id,
+          },
+          data: {
+            update: true,
+            RawDomainsOnInitiativeMaps: {
+              set: updatedLiteInitiativeMap.rawDomainsIds.map((rawDomainId) => {
+                return {
+                  rawDomainId: rawDomainId,
+                };
+              }),
             },
-            data: {
-              updateIngestedInitiatives: true,
+            RawRepositoriesOnInitiativeMaps: {
+              set: updatedLiteInitiativeMap.rawRepositoriesIds.map((rawRepositoryId) => {
+                return {
+                  rawRepositoryId: rawRepositoryId,
+                };
+              }),
             },
-          });
-        }
+          },
+          select: {
+            mainItemIdentifier: true,
+            RawDomainsOnInitiativeMaps: {
+              select: {
+                rawDomainId: true,
+              },
+            },
+            RawRepositoriesOnInitiativeMaps: {
+              select: {
+                rawRepositoryId: true,
+              },
+            },
+          },
+        });
+
+        // Since we were not able to update the `main` property with `.set` property, we do it in a second time
+        await tx.initiativeMap.update({
+          where: {
+            id: initiativeMapToUpdate.id,
+          },
+          data: {
+            RawDomainsOnInitiativeMaps: {
+              updateMany: updatedInitiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => {
+                return {
+                  where: {
+                    rawDomainId: rawDomainOnIMap.rawDomainId,
+                  },
+                  data: {
+                    main: rawDomainOnIMap.rawDomainId === updatedInitiativeMap.mainItemIdentifier,
+                  },
+                };
+              }),
+            },
+            RawRepositoriesOnInitiativeMaps: {
+              updateMany: updatedInitiativeMap.RawRepositoriesOnInitiativeMaps.map((rawRepositoryOnIMap) => {
+                return {
+                  where: {
+                    rawRepositoryId: rawRepositoryOnIMap.rawRepositoryId,
+                  },
+                  data: {
+                    main: rawRepositoryOnIMap.rawRepositoryId === updatedInitiativeMap.mainItemIdentifier,
+                  },
+                };
+              }),
+            },
+          },
+          select: {
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+          },
+        });
+      }
+
+      if (diffResult.added.length > 0 || diffResult.removed.length > 0 || diffResult.updated.length > 0) {
+        // There is a modification so on the next job we should tell the LLM system about new updates
+        await tx.settings.update({
+          where: {
+            onlyTrueAsId: true,
+          },
+          data: {
+            updateIngestedInitiatives: true,
+          },
+        });
       }
     },
     {

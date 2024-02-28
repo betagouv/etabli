@@ -554,6 +554,10 @@ export async function feedInitiativesFromDatabase() {
   try {
     await wappalyzer.init();
 
+    // [WORKAROUND] In case we call `wappalyzer.destroy()` too quickly (errors or no loop iteration) it will hang forever
+    // We figured out waiting a bit will prevent this, which is necessary when the process is deployed in a server without cancelation possibility
+    await sleep(500);
+
     // Prepare the message template used to ask GPT about the initiative
     const initiativeGptTemplateContent = await fs.readFile(path.resolve(__root_dirname, './src/gpt/templates/initiative.md'), 'utf-8');
     const websiteGptTemplateContent = await fs.readFile(path.resolve(__root_dirname, './src/gpt/templates/website.md'), 'utf-8');

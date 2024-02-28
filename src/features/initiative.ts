@@ -899,12 +899,34 @@ export async function feedInitiativesFromDatabase() {
 
         try {
           // Process the message if it fits into the LLM limits
-          let answerData: ResultSchemaType = await llmManagerInstance.computeInitiative(
-            settings,
-            projectDirectory,
-            finalGptContent,
-            mixedInitiativeTools
-          );
+          let answerData: ResultSchemaType;
+          try {
+            answerData = await llmManagerInstance.computeInitiative(settings, projectDirectory, finalGptContent, mixedInitiativeTools);
+          } catch (error) {
+            // We tried to detect network errors but the original issue is written in the console but not spreaded to here
+            // So using the replacement error, hoping it's always this one for network erros (ref: https://github.com/langchain-ai/langchainjs/issues/4570)
+            if (error instanceof TypeError && error.message === "Cannot read properties of undefined (reading 'text')") {
+              await prisma.initiativeMap.update({
+                where: {
+                  id: initiativeMap.id,
+                },
+                data: {
+                  lastUpdateAttemptWithReachabilityError: new Date(),
+                  lastUpdateAttemptReachabilityError: error.message,
+                },
+                select: {
+                  id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                },
+              });
+
+              console.error(`skip processing ${initiativeMap.id} due to an error while computing its sheet`);
+              console.error(error.message);
+
+              continue initiativeMapLoop;
+            } else {
+              throw error;
+            }
+          }
 
           // Sanitize a bit free entry fields
           answerData.businessUseCases = answerData.businessUseCases.map((businessUseCaseName) => capitalizeFirstLetter(businessUseCaseName.trim()));

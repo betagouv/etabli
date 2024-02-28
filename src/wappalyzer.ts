@@ -25,6 +25,7 @@ export const WappalyzerResultSchema = z.object({
   urls: z.record(
     z.object({
       status: z.number(),
+      error: z.string().nullish(),
     })
   ),
   technologies: z.array(TechnologySchema),

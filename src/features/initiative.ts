@@ -66,17 +66,18 @@ const extractMetaDescriptionFilterPath = path.resolve(__root_dirname, './src/pan
 
 const wappalyzer = new Wappalyzer({
   debug: false,
-  delay: 1000,
   headers: {},
+  delay: 0, // Since not analysing multiple pages we are fine with no delay
   maxDepth: 1,
-  maxUrls: 10,
-  maxWait: 10000,
+  maxUrls: 1,
+  noRedirect: true,
+  maxWait: 5000, // Per page
   recursive: true,
   probe: true,
-  userAgent: 'Wappalyzer',
+  userAgent:
+    'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/W.X.Y.Z Safari/537.36', // Use an user agent that will be ignored by tracking analytics to not polute (https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers#googlebot-desktop)
   htmlMaxCols: 2000,
-  htmlMaxRows: 2000,
-  noRedirect: true,
+  htmlMaxRows: 10000, // Is necessary if limiting the columns (cf. `node_modules/wappalyzer/driver.js`)
 });
 
 export type NodeLabel =
@@ -569,7 +570,7 @@ export async function feedInitiativesFromDatabase() {
     const initiativeGptTemplate = handlebars.compile(initiativeGptTemplateContent);
 
     // To debug easily we write each result on disk (also, since using lot of CLIs we have no other choice :D)
-    for (const [initiativeMapIndex, initiativeMap] of Object.entries(initiativeMaps)) {
+    initiativeMapLoop: for (const [initiativeMapIndex, initiativeMap] of Object.entries(initiativeMaps)) {
       watchGracefulExitInLoop();
 
       console.log(`feed initiative ${initiativeMap.id} ${formatArrayProgress(initiativeMapIndex, initiativeMaps.length)}`);
@@ -650,9 +651,47 @@ export async function feedInitiativesFromDatabase() {
             local: {},
             session: {},
           };
+
+          // This is a default from Wappalyzer but they use `acceptInsecureCerts: true` with puppeteer
+          // meaning the certificate is no longer checked. It's mitigated by the fact we checked it when enhancing
+          // the raw domain metadata, but is still a risk it has changed since then
           const site = await wappalyzer.open(`https://${rawDomain.name}`, headers, storage);
 
           const results = await site.analyze();
+          const parsedResults = WappalyzerResultSchema.parse(results);
+
+          // If we fetched at least a page with an eligible status code we continue
+          const requestMetadataPerUrl = Object.values(parsedResults.urls);
+          if (requestMetadataPerUrl.some((metadata) => metadata.status >= 200 && metadata.status < 300)) {
+            // It's good to go further into the process
+          } else {
+            // No page for this website is reachable, it can comes from either:
+            // - a network error (net::ERR_CONNECTION_REFUSED... like for our Playwright calls) with a status code of 0
+            // - a server error with a status code of 404, 500...
+            //
+            // We skip this initiative calculation due to a network error, until a fix if done to remove the erroring website or until the website is parsable again
+
+            // To debug easily since errors could be into multiple URLs, we just gather each URL request metadata
+            const errorMessage = JSON.stringify(parsedResults.urls);
+
+            await prisma.initiativeMap.update({
+              where: {
+                id: initiativeMap.id,
+              },
+              data: {
+                lastUpdateAttemptWithReachabilityError: new Date(),
+                lastUpdateAttemptReachabilityError: errorMessage,
+              },
+              select: {
+                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+              },
+            });
+
+            console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its websites`);
+            console.error(errorMessage);
+
+            continue initiativeMapLoop;
+          }
 
           await fs.mkdir(path.dirname(wappalyzerAnalysisPath), { recursive: true });
           await fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));

@@ -21,6 +21,8 @@ export async function getWebsiteData(browser: Browser, url: string, timeoutForDo
     extraHTTPHeaders: {
       'Cache-Control': 'no-cache', // Tell the websites servers to not respond with a 304 status code that would use the local Chromium cache (we didn't find a simple way to disable it from Playwright settings)
     },
+    userAgent:
+      'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/W.X.Y.Z Safari/537.36', // Use an user agent that will be ignored by tracking analytics to not pollute (https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers#googlebot-desktop)
   });
   try {
     const response = await new Promise<Response | null>((resolve, reject) => {

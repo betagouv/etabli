@@ -66,7 +66,9 @@ const extractMetaDescriptionFilterPath = path.resolve(__root_dirname, './src/pan
 
 const wappalyzer = new Wappalyzer({
   debug: false,
-  headers: {},
+  headers: {
+    'Cache-Control': 'no-cache', // Tell the websites servers to not respond with a 304 status code that would use the local Chromium cache (the local Puppeteer cache cannot be disabled from Wappalyzer settings)
+  },
   delay: 0, // Since not analysing multiple pages we are fine with no delay
   maxDepth: 1,
   maxUrls: 1,

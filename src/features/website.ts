@@ -17,7 +17,11 @@ export interface getWebsiteDataResponse {
 export async function getWebsiteData(browser: Browser, url: string, timeoutForDomContentLoaded?: number): Promise<getWebsiteDataResponse> {
   console.log(`getting the page content of ${url}`);
 
-  const page: Page = await browser.newPage();
+  const page: Page = await browser.newPage({
+    extraHTTPHeaders: {
+      'Cache-Control': 'no-cache', // Tell the websites servers to not respond with a 304 status code that would use the local Chromium cache (we didn't find a simple way to disable it from Playwright settings)
+    },
+  });
   try {
     const response = await new Promise<Response | null>((resolve, reject) => {
       let errorWithDetailsIntoListener: Error | null = null;

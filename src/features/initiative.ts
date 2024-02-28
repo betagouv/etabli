@@ -825,7 +825,13 @@ export async function feedInitiativesFromDatabase() {
             });
 
             if (filesToRemove.length > 0) {
-              await projectGit.rm(filesToRemove);
+              // We cannot pass the array directly to `projectGit.rm` because if there are too many paths
+              // it will throw the error `spawn E2BIG`, meaning the command line is too long for the host system
+              // So instead we pass the list through a file (that will get deleted as the rest of unecessary files)
+              const filesToDeleteFilePath = path.resolve(codeFolderPath, `./.git/.filestodelete`);
+
+              await fs.writeFile(filesToDeleteFilePath, filesToRemove.join('\n'));
+              await projectGit.raw(['rm', '--pathspec-from-file', filesToDeleteFilePath]);
             }
           }
 

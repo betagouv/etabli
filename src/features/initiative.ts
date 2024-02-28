@@ -762,11 +762,37 @@ export async function feedInitiativesFromDatabase() {
           // * `--single-branch`: do not look for information of other branches (it should use the default branch)
           // * `--depth=1`: retrieve only information about the latest commit state (not having history will save space)
           // * `--filter=blob:limit=${SIZE}`: should not download blob objects over $SIZE size (we estimated a size to get big text file for code, while excluding big assets). In fact, it seems not working well because I do see some images fetched... just keeping this parameter in case it may work
-          await git.clone(rawRepository.repositoryUrl, codeFolderPath, {
-            '--single-branch': null,
-            '--depth': 1,
-            '--filter': 'blob:limit=200k',
-          });
+          try {
+            await git.clone(rawRepository.repositoryUrl, codeFolderPath, {
+              '--single-branch': null,
+              '--depth': 1,
+              '--filter': 'blob:limit=200k',
+            });
+          } catch (error) {
+            if (error instanceof Error) {
+              // `simple-git` does not forward the error code and it would be a bit hard to maintain all possible cases
+              // so for now considering a `git clone` failure like a temporary network issue that we could recover during a future attempt
+              await prisma.initiativeMap.update({
+                where: {
+                  id: initiativeMap.id,
+                },
+                data: {
+                  lastUpdateAttemptWithReachabilityError: new Date(),
+                  lastUpdateAttemptReachabilityError: error.message,
+                },
+                select: {
+                  id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                },
+              });
+
+              console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its repositories`);
+              console.error(error.message);
+
+              continue initiativeMapLoop;
+            } else {
+              throw error;
+            }
+          }
 
           // Do not flood network (tiny delay since it seems GitHub has only limitations on the API requests, no the Git operations)
           // Ref: https://github.com/orgs/community/discussions/44515#discussioncomment-4795475

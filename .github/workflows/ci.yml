@@ -179,6 +179,7 @@ jobs:
       - name: Deploy to Clever Cloud
         if: ${{ !github.event.act && (github.ref_name == 'dev' || github.ref_name == 'main') }}
         uses: 47ng/actions-clever-cloud@v1.3.1
+        timeout-minutes: 15 # Needed to avoid randomly hanging forever (ref: https://github.com/47ng/actions-clever-cloud/issues/206)
         with:
           appID: ${{ env.CLEVER_APP_ID }}
           force: true

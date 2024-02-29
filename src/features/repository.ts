@@ -389,6 +389,7 @@ export async function updateInferredMetadataOnRepositories() {
       organizationName: true,
       name: true,
       description: true,
+      repositoryUrl: true,
       homepage: true,
     },
   });
@@ -397,9 +398,10 @@ export async function updateInferredMetadataOnRepositories() {
     watchGracefulExitInLoop();
 
     console.log(
-      `try to locally infer metadata for repository {${rawRepository.platform}} ${rawRepository.organizationName}/${rawRepository.name} (${
-        rawRepository.id
-      }) ${formatArrayProgress(rawRepositoryIndex, rawRepositories.length)}`
+      `try to locally infer metadata for repository ${rawRepository.repositoryUrl} (${rawRepository.id}) ${formatArrayProgress(
+        rawRepositoryIndex,
+        rawRepositories.length
+      )}`
     );
 
     // If there is a declared URL, take it as it comes
@@ -514,6 +516,7 @@ export async function matchRepositories() {
       platform: true,
       organizationName: true,
       name: true,
+      repositoryUrl: true,
       probableWebsiteDomain: true,
       probableWebsiteUrl: true,
     },
@@ -523,9 +526,10 @@ export async function matchRepositories() {
     watchGracefulExitInLoop();
 
     console.log(
-      `try to bind similar repositories to repository {${rawRepositoryToUpdate.platform}} ${rawRepositoryToUpdate.organizationName}/${
-        rawRepositoryToUpdate.name
-      } (${rawRepositoryToUpdate.id}) ${formatArrayProgress(rawRepositoryToUpdateIndex, rawRepositoriesToUpdate.length)}`
+      `try to bind similar repositories to repository ${rawRepositoryToUpdate.repositoryUrl} (${rawRepositoryToUpdate.id}) ${formatArrayProgress(
+        rawRepositoryToUpdateIndex,
+        rawRepositoriesToUpdate.length
+      )}`
     );
 
     // The repositories to look for should be under the same platform and organization (unlikely people would set code for the same application at multiple locations)

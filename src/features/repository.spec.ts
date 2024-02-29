@@ -22,9 +22,7 @@ describe('stripMultirepositoriesPatterns()', () => {
 
 describe('getRepositoryNameWithSubgroups()', () => {
   it('should return the right part', async () => {
-    expect(getRepositoryNameWithSubgroups('https://github.com/organization-a/project-b', 'organization-a')).toBe('project-b');
-    expect(getRepositoryNameWithSubgroups('https://gitlab.com/organization-b/mysubgroup/hello-backend', 'organization-b')).toBe(
-      'mysubgroup/hello-backend'
-    );
+    expect(getRepositoryNameWithSubgroups('https://github.com/organization-a/project-b')).toBe('project-b');
+    expect(getRepositoryNameWithSubgroups('https://gitlab.com/organization-b/mysubgroup/hello-backend')).toBe('mysubgroup/hello-backend');
   });
 });

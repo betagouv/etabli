@@ -506,20 +506,18 @@ export function stripMultirepositoriesPatterns(name: string): string {
   );
 }
 
-export function getRepositoryNameWithSubgroups(repositoryUrl: string, organizationName: string): string {
+export function getRepositoryNameWithSubgroups(repositoryUrl: string): string {
+  // Since is mainly due to the provided repository from the CSV does not include subgroups so we have to retrieve them from the full URL
+  // Note: at start we removed the organization name from the pathname... but it appears the CSV gives sometimes wrong organization like (`ikats` as organization whereas the full URL is `https://gricad-gitlab.univ-grenoble-alpes.fr/marinesj/ls_translator`)
+  // so we consider stripping the first piece of the pathname (hopping it won't do weird things for the matching)
   const url = new URL(repositoryUrl);
   const fullName = url.pathname;
 
-  const patternToRemove = `/${organizationName}/`;
-  const patternStartIndex = fullName.indexOf(patternToRemove);
+  const parts = fullName.split('/');
+  parts.shift(); // this is for the leading pathname "/" that produces an empty string
+  parts.shift(); // this is for the organization name
 
-  // We did not make the assumption of splitting with the first `/` because maybe on some source code forges their logic is different
-  if (patternStartIndex !== 0) {
-    // If not found or not at start, something is wrong
-    throw new Error('organization pattern should be at the start of the pathname');
-  }
-
-  return fullName.slice(patternStartIndex + patternToRemove.length);
+  return parts.join('/');
 }
 
 export async function matchRepositories() {
@@ -573,13 +571,13 @@ export async function matchRepositories() {
       ],
     });
 
-    const rawRepositoryNameWithGroups = getRepositoryNameWithSubgroups(rawRepositoryToUpdate.repositoryUrl, rawRepositoryToUpdate.organizationName);
+    const rawRepositoryNameWithGroups = getRepositoryNameWithSubgroups(rawRepositoryToUpdate.repositoryUrl);
     const strippedNameToLookFor = stripMultirepositoriesPatterns(rawRepositoryNameWithGroups);
     const isRepositoryMainOneFromStrippedName = rawRepositoryNameWithGroups !== strippedNameToLookFor;
 
     // Only keep repositories having the exact same stripped name
     const sameRepositories = otherOrganizationRepositories.filter((repository) => {
-      const repositoryNameWithGroups = getRepositoryNameWithSubgroups(repository.repositoryUrl, repository.organizationName);
+      const repositoryNameWithGroups = getRepositoryNameWithSubgroups(repository.repositoryUrl);
 
       return stripMultirepositoriesPatterns(repositoryNameWithGroups) === strippedNameToLookFor;
     });
@@ -590,7 +588,7 @@ export async function matchRepositories() {
       // If any of them has the stripped name equivalent to the name, we can consider as main one since no additional word
       mainReposistoryFromStrippedName =
         sameRepositories.find((repository) => {
-          const repositoryNameWithGroups = getRepositoryNameWithSubgroups(repository.repositoryUrl, repository.organizationName);
+          const repositoryNameWithGroups = getRepositoryNameWithSubgroups(repository.repositoryUrl);
 
           return repositoryNameWithGroups === strippedNameToLookFor;
         }) || null;

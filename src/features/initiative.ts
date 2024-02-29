@@ -42,6 +42,7 @@ import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
+import { getClosestSinkNode } from '@etabli/src/utils/graph';
 import { languagesExtensions } from '@etabli/src/utils/languages';
 import { sleep } from '@etabli/src/utils/sleep';
 import { WappalyzerResultSchema } from '@etabli/src/wappalyzer';
@@ -170,8 +171,11 @@ export async function inferInitiativesFromDatabase() {
     } as NodeLabel);
 
     // If will create the node with only "id" if not existing, and over next iterations it will put details onto it
+    // Note: we avoid having loops between 2 nodes of the same type (complicating the logic to calculate the path then)
     for (const similarDomain of rawDomain.similarDomains) {
-      graph.setEdge(similarDomain.id, rawDomain.id, 1 / 1);
+      if (!graph.edge(rawDomain.id, similarDomain.id)) {
+        graph.setEdge(similarDomain.id, rawDomain.id, 1 / 1);
+      }
     }
   }
 
@@ -182,8 +186,11 @@ export async function inferInitiativesFromDatabase() {
     } as NodeLabel);
 
     // If will create the node with only "id" if not existing, and over next iterations it will put details onto it
+    // Note: we avoid having loops between 2 nodes of the same type (complicating the logic to calculate the path then)
     for (const similarRepository of rawRepository.similarRepositories) {
-      graph.setEdge(similarRepository.id, rawRepository.id, 1 / 1);
+      if (!graph.edge(rawRepository.id, similarRepository.id)) {
+        graph.setEdge(similarRepository.id, rawRepository.id, 1 / 1);
+      }
     }
   }
 
@@ -209,25 +216,15 @@ export async function inferInitiativesFromDatabase() {
 
   console.log(`building initiative map groups by using a graph of nodes`);
 
-  // Each initiative map is defined by a ending node (corresponding to the top parent)
-  const sinkNodesIds = graph.sinks();
-  const initiativeMapsWithLabels = graph.sinks().map((endingNodeId) => {
-    const endingNode = graph.node(endingNodeId) as NodeLabel;
-    assert(endingNode);
-
-    return {
-      mainItem: endingNode,
-      items: [endingNode],
-    };
-  });
-
   const nodes = graph.nodes();
-  const nodesToBind = nodes.filter((nodeId) => !sinkNodesIds.includes(nodeId));
 
-  console.log(`${nodesToBind.length} of ${nodes.length} nodes need a calculation to be bound to a parent`);
+  console.log(`${nodes.length} nodes need a calculation`);
 
   // To debug it may be useful to have the graph preview
   if (!!false) {
+    const displayNodeWithNoEdge = true;
+    const workaroundToFixHtmlDisplayWhenTooManyNodes = false;
+
     // Create a Graphviz instance
     const G = new Digraph(undefined, {
       fontname: 'Verdana',
@@ -235,12 +232,12 @@ export async function inferInitiativesFromDatabase() {
     });
 
     const A = G.createSubgraph('A', {});
-    const workaroundToFixHtmlDisplayWhenTooManyNodes = false;
 
     // Add nodes and edges to the Graphviz instance
     graph.nodes().forEach((nodeId) => {
       // If it's a sink with no edge there is no reason to display it on the graph (it would only overload it)
-      if (sinkNodesIds.includes(nodeId) && graph.nodeEdges(nodeId)?.length === 0) {
+      // `graph.sinks()` should be what we do after, but here it's an approximation because it would not be exact in case of loop with edges...
+      if (!displayNodeWithNoEdge && graph.sinks().includes(nodeId) && graph.nodeEdges(nodeId)?.length === 0) {
         return;
       }
 
@@ -296,34 +293,44 @@ export async function inferInitiativesFromDatabase() {
     // - The solution to manage both is to use Chrome as a browser (except the zoom in/out can only be managed by modifying the style of the `scale()` value on the `#graph0` element)
     await toFile(dot, path.resolve(__root_dirname, './data/graph.svg'), { format: 'svg' });
     // await fs.writeFile(path.resolve(__root_dirname, './data/graph.dot'), dot);
+
+    console.log(`the graph has been saved`);
   }
 
+  // Each initiative map is defined by a ending node (corresponding to the top parent)
+  const initiativeMapsWithLabels: Map<
+    string,
+    {
+      mainItem: NodeLabel;
+      items: NodeLabel[];
+    }
+  > = new Map();
+
   // Each node must be associated with the closest sink (closest top parent)
-  for (const [nodeIdIndex, nodeId] of Object.entries(nodesToBind)) {
+  for (const [nodeIdIndex, nodeId] of Object.entries(nodes)) {
     watchGracefulExitInLoop();
 
-    console.log(`looking for the closest parent node for the entity ${nodeId} ${formatArrayProgress(nodeIdIndex, nodesToBind.length)}`);
+    console.log(`looking for the closest parent node for the entity ${nodeId} ${formatArrayProgress(nodeIdIndex, nodes.length)}`);
 
-    const destinationPaths = graphlib.alg.dijkstra(graph, nodeId);
+    const closestSinkNodeId = getClosestSinkNode(graph, nodeId);
 
-    const sortedFinalPaths = Object.entries(destinationPaths)
-      .filter(([destinationNodeId]) => {
-        return sinkNodesIds.includes(destinationNodeId); // Only consider ending nodes
-      })
-      .sort(([, destinationMetricsA], [, destinationMetricsB]) => {
-        return destinationMetricsA.distance - destinationMetricsB.distance; // Ascending
-      });
+    const node = graph.node(nodeId) as NodeLabel;
+    assert(node);
 
-    if (sortedFinalPaths.length > 0) {
-      const [closestSinkNodeId] = sortedFinalPaths[0];
-      const initiativeMapWithLabels = initiativeMapsWithLabels.find((iMap) => {
-        return iMap.mainItem.entity.id === closestSinkNodeId;
-      });
-      assert(initiativeMapWithLabels);
+    let initiativeMapWithLabels = initiativeMapsWithLabels.get(closestSinkNodeId);
 
-      const node = graph.node(nodeId) as NodeLabel;
-      assert(node);
+    if (!initiativeMapWithLabels) {
+      const closestNode = graph.node(closestSinkNodeId) as NodeLabel;
+      assert(closestNode);
 
+      initiativeMapWithLabels = {
+        mainItem: closestNode,
+        items: [closestNode],
+      };
+      initiativeMapsWithLabels.set(closestNode.entity.id, initiativeMapWithLabels);
+    }
+
+    if (nodeId !== closestSinkNodeId) {
       initiativeMapWithLabels.items.push(node);
     }
   }

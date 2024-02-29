@@ -506,6 +506,22 @@ export function stripMultirepositoriesPatterns(name: string): string {
   );
 }
 
+export function getRepositoryNameWithSubgroups(repositoryUrl: string, organizationName: string): string {
+  const url = new URL(repositoryUrl);
+  const fullName = url.pathname;
+
+  const patternToRemove = `/${organizationName}/`;
+  const patternStartIndex = fullName.indexOf(patternToRemove);
+
+  // We did not make the assumption of splitting with the first `/` because maybe on some source code forges their logic is different
+  if (patternStartIndex !== 0) {
+    // If not found or not at start, something is wrong
+    throw new Error('organization pattern should be at the start of the pathname');
+  }
+
+  return fullName.slice(patternStartIndex + patternToRemove.length);
+}
+
 export async function matchRepositories() {
   const rawRepositoriesToUpdate = await prisma.rawRepository.findMany({
     where: {
@@ -541,7 +557,9 @@ export async function matchRepositories() {
       },
       select: {
         id: true,
+        organizationName: true,
         name: true,
+        repositoryUrl: true,
       },
       orderBy: [
         // If there is a matching we try to consider the main one based on naming pattern (root name would be the main one since other pattern is hard to say it has more value than others),
@@ -555,12 +573,15 @@ export async function matchRepositories() {
       ],
     });
 
-    const strippedNameToLookFor = stripMultirepositoriesPatterns(rawRepositoryToUpdate.name);
-    const isRepositoryMainOneFromStrippedName = rawRepositoryToUpdate.name !== strippedNameToLookFor;
+    const rawRepositoryNameWithGroups = getRepositoryNameWithSubgroups(rawRepositoryToUpdate.repositoryUrl, rawRepositoryToUpdate.organizationName);
+    const strippedNameToLookFor = stripMultirepositoriesPatterns(rawRepositoryNameWithGroups);
+    const isRepositoryMainOneFromStrippedName = rawRepositoryNameWithGroups !== strippedNameToLookFor;
 
     // Only keep repositories having the exact same stripped name
     const sameRepositories = otherOrganizationRepositories.filter((repository) => {
-      return stripMultirepositoriesPatterns(repository.name) === strippedNameToLookFor;
+      const repositoryNameWithGroups = getRepositoryNameWithSubgroups(repository.repositoryUrl, repository.organizationName);
+
+      return stripMultirepositoriesPatterns(repositoryNameWithGroups) === strippedNameToLookFor;
     });
 
     // Only look for main repository through naming if the current one is not equal "to our root name"
@@ -569,7 +590,9 @@ export async function matchRepositories() {
       // If any of them has the stripped name equivalent to the name, we can consider as main one since no additional word
       mainReposistoryFromStrippedName =
         sameRepositories.find((repository) => {
-          return repository.name === strippedNameToLookFor;
+          const repositoryNameWithGroups = getRepositoryNameWithSubgroups(repository.repositoryUrl, repository.organizationName);
+
+          return repositoryNameWithGroups === strippedNameToLookFor;
         }) || null;
 
       // Otherwise take the first of the list
@@ -611,7 +634,9 @@ export async function matchRepositories() {
         },
         select: {
           id: true,
+          organizationName: true,
           name: true,
+          repositoryUrl: true,
         },
         orderBy: [
           // Keep always the same order so for next occurences they would be linked to the same

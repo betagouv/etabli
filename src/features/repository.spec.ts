@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { stripMultirepositoriesPatterns } from '@etabli/src/features/repository';
+import { getRepositoryNameWithSubgroups, stripMultirepositoriesPatterns } from '@etabli/src/features/repository';
 
 describe('stripMultirepositoriesPatterns()', () => {
   it('should confirm it can be indexed', async () => {
@@ -17,5 +17,14 @@ describe('stripMultirepositoriesPatterns()', () => {
     expect(stripMultirepositoriesPatterns('api-project-name')).toBe('project-name');
     expect(stripMultirepositoriesPatterns('project-name/api')).toBe('project-name/');
     expect(stripMultirepositoriesPatterns('subproject/backend-project-name/api')).toBe('subproject/project-name/');
+  });
+});
+
+describe('getRepositoryNameWithSubgroups()', () => {
+  it('should return the right part', async () => {
+    expect(getRepositoryNameWithSubgroups('https://github.com/organization-a/project-b', 'organization-a')).toBe('project-b');
+    expect(getRepositoryNameWithSubgroups('https://gitlab.com/organization-b/mysubgroup/hello-backend', 'organization-b')).toBe(
+      'mysubgroup/hello-backend'
+    );
   });
 });

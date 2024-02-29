@@ -207,14 +207,6 @@ export async function inferInitiativesFromDatabase() {
     }
   }
 
-  // To debug it may be useful to print a global JSON representation
-  if (!!false) {
-    const jsonContent = graphlib.json.write(graph);
-    const jsonPath = path.resolve(__root_dirname, './data/graph.json');
-
-    await fs.writeFile(jsonPath, JSON.stringify(jsonContent, null, 2));
-  }
-
   console.log(`building initiative map groups by using a graph of nodes`);
 
   // Each initiative map is defined by a ending node (corresponding to the top parent)

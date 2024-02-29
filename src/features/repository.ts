@@ -608,13 +608,18 @@ export async function matchRepositories() {
     // Note: at start we wanted to look for same probable domains but since websites may be hosted by same websites we added an hardcoded condition
     let hasGenericDomain = false;
     if (
-      // For repositories targeting a repository, looking at domain is not helpful
-      ['github.com', 'gitlab.com', 'bitbucket.org'].includes(rawRepositoryToUpdate.probableWebsiteDomain || '') ||
+      // For repositories targeting a repository or its package, looking at domain is not helpful
+      ['github.com', 'gitlab.com', 'bitbucket.org', 'npmjs.com'].includes(rawRepositoryToUpdate.probableWebsiteDomain || '') ||
       // Some publish their website on a specific shared with many other projects of their organization (some excluding this case and relying on URLs instead)
       rawRepositoryToUpdate.probableWebsiteDomain?.endsWith('.github.io') ||
       rawRepositoryToUpdate.probableWebsiteDomain?.endsWith('.gitbooks.io') ||
-      // [WORKAROUND] Some beta.gouv.fr projects target their own product sheet instead of their product (this workaround should be removed once Établi is adopted so they adjust their description)
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startup/')
+      // Some beta.gouv.fr projects target their own product sheet instead of their product (this workaround should be removed once Établi is adopted so they adjust their description)
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startup/') ||
+      // Some projects put their project publication on a dedicated platform
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.science/') ||
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://inria.hal.science/') ||
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.inria.fr/') ||
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.archives-ouvertes.fr/')
     ) {
       hasGenericDomain = true;
     }

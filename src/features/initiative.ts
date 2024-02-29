@@ -254,18 +254,24 @@ export async function inferInitiativesFromDatabase() {
 
       const node = graph.node(nodeId) as NodeLabel;
 
+      // At start we used HTML-like with basic elements like `<B>` and `<BR>` but there is no way to put a link not being the whole box
+      // So using tables to hack it while respecting a strict format so it's no failing
       let boxColor: string;
       let label: string;
       if (node.type === 'domain') {
         boxColor = '#dcdcfc';
         label = workaroundToFixHtmlDisplayWhenTooManyNodes
           ? `${node.entity.name}\n${node.entity.id}`
-          : `<<B>${node.entity.name}</B><BR/><FONT POINT-SIZE="12">${node.entity.id}</FONT>>`;
+          : `<<TABLE BORDER="0" CELLPADDING="0" CELLSPACING="0"><TR><TD HREF="https://${node.entity.name}" TARGET="_blank"><B>${node.entity.name}</B></TD></TR><TR><TD><FONT POINT-SIZE="12">${node.entity.id}</FONT></TD></TR></TABLE>>`;
       } else {
         boxColor = '#ffc5c5';
         label = workaroundToFixHtmlDisplayWhenTooManyNodes
           ? `${node.entity.repositoryUrl.replace('https://', '')}\n${node.entity.id}`
-          : `<<B>${node.entity.repositoryUrl.replace('https://', '')}</B><BR/><FONT POINT-SIZE="12">${node.entity.id}</FONT>>`;
+          : `<<TABLE BORDER="0" CELLPADDING="0" CELLSPACING="0"><TR><TD HREF="${
+              node.entity.repositoryUrl
+            }" TARGET="_blank"><B>${node.entity.repositoryUrl.replace('https://', '')}</B></TD></TR><TR><TD><FONT POINT-SIZE="12">${
+              node.entity.id
+            }</FONT></TD></TR></TABLE>>`;
       }
 
       A.createNode(nodeId, {

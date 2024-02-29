@@ -18,6 +18,8 @@ import OpenAI from 'openai';
 import path from 'path';
 import prettyBytes from 'pretty-bytes';
 import { simpleGit } from 'simple-git';
+import { Digraph, toDot } from 'ts-graphviz';
+import { toFile } from 'ts-graphviz/adapter';
 import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 import Wappalyzer from 'wappalyzer';
@@ -231,6 +233,72 @@ export async function inferInitiativesFromDatabase() {
   const nodesToBind = nodes.filter((nodeId) => !sinkNodesIds.includes(nodeId));
 
   console.log(`${nodesToBind.length} of ${nodes.length} nodes need a calculation to be bound to a parent`);
+
+  // To debug it may be useful to have the graph preview
+  if (!!false) {
+    // Create a Graphviz instance
+    const G = new Digraph(undefined, {
+      fontname: 'Verdana',
+      margin: '3.0,3.0', // Not working (nor `pad` nor `area`)
+    });
+
+    const A = G.createSubgraph('A', {});
+    const workaroundToFixHtmlDisplayWhenTooManyNodes = false;
+
+    // Add nodes and edges to the Graphviz instance
+    graph.nodes().forEach((nodeId) => {
+      // If it's a sink with no edge there is no reason to display it on the graph (it would only overload it)
+      if (sinkNodesIds.includes(nodeId) && graph.nodeEdges(nodeId)?.length === 0) {
+        return;
+      }
+
+      const node = graph.node(nodeId) as NodeLabel;
+
+      let boxColor: string;
+      let label: string;
+      if (node.type === 'domain') {
+        boxColor = '#dcdcfc';
+        label = workaroundToFixHtmlDisplayWhenTooManyNodes
+          ? `${node.entity.name}\n${node.entity.id}`
+          : `<<B>${node.entity.name}</B><BR/><FONT POINT-SIZE="12">${node.entity.id}</FONT>>`;
+      } else {
+        boxColor = '#ffc5c5';
+        label = workaroundToFixHtmlDisplayWhenTooManyNodes
+          ? `${node.entity.repositoryUrl.replace('https://', '')}\n${node.entity.id}`
+          : `<<B>${node.entity.repositoryUrl.replace('https://', '')}</B><BR/><FONT POINT-SIZE="12">${node.entity.id}</FONT>>`;
+      }
+
+      A.createNode(nodeId, {
+        shape: 'box',
+        style: 'filled,rounded',
+        margin: '0.4,0.3',
+        fontcolor: '#161616',
+        label: label,
+        fillcolor: boxColor,
+        color: boxColor,
+      });
+    });
+
+    graph.edges().forEach((edge) => {
+      const edgeValue = graph.edge(edge.v, edge.w) as number;
+
+      A.createEdge([edge.v, edge.w], {
+        label: `<${edgeValue}>`,
+        labeldistance: 2.0, // Not working but that's fine
+        color: '#161616',
+        arrowsize: 1.0,
+        penwidth: 3,
+      });
+    });
+
+    const dot = toDot(G);
+
+    // - We wanted at start to rely on the `.dot` file through the `vscode` extension `Graphviz Interactive Preview` which has search feature and enables interactions but it was crashing due to too many nodes
+    // - Using the SVG preview inside `vscode` is good enough to navigate... but we cannot select/search text
+    // - The solution to manage both is to use Chrome as a browser (except the zoom in/out can only be managed by modifying the style of the `scale()` value on the `#graph0` element)
+    await toFile(dot, path.resolve(__root_dirname, './data/graph.svg'), { format: 'svg' });
+    // await fs.writeFile(path.resolve(__root_dirname, './data/graph.dot'), dot);
+  }
 
   // Each node must be associated with the closest sink (closest top parent)
   for (const [nodeIdIndex, nodeId] of Object.entries(nodesToBind)) {

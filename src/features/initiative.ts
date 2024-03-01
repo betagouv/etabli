@@ -470,39 +470,36 @@ export async function inferInitiativesFromDatabase() {
           },
         });
 
-        const updatedInitiativeMap = await tx.initiativeMap.update({
+        // [WORKAROUND] Before we were using `set` to create/update/delete m:n relations on initiative map but it was always throwing
+        // "The change you are trying to make would violate the required relation 'InitiativeMapToRawRepositoriesOnInitiativeMaps' between the `RawRepositoriesOnInitiativeMaps` and `InitiativeMap` models."
+        //
+        // Since we never figured out a way to use the `set`, we just remove m:n relations temporarly to bind them after (it's fine since in a transaction)
+        await tx.rawDomainsOnInitiativeMaps.deleteMany({
           where: {
-            id: initiativeMapToUpdate.id,
-          },
-          data: {
-            update: true,
-            RawDomainsOnInitiativeMaps: {
-              set: updatedLiteInitiativeMap.rawDomainsIds.map((rawDomainId) => {
-                return {
-                  rawDomainId: rawDomainId,
-                };
-              }),
-            },
-            RawRepositoriesOnInitiativeMaps: {
-              set: updatedLiteInitiativeMap.rawRepositoriesIds.map((rawRepositoryId) => {
-                return {
-                  rawRepositoryId: rawRepositoryId,
-                };
-              }),
-            },
-          },
-          select: {
-            mainItemIdentifier: true,
-            RawDomainsOnInitiativeMaps: {
-              select: {
-                rawDomainId: true,
+            OR: [
+              {
+                rawDomainId: {
+                  in: updatedLiteInitiativeMap.rawDomainsIds,
+                },
               },
-            },
-            RawRepositoriesOnInitiativeMaps: {
-              select: {
-                rawRepositoryId: true,
+              {
+                initiativeMapId: initiativeMapToUpdate.id,
               },
-            },
+            ],
+          },
+        });
+        await tx.rawRepositoriesOnInitiativeMaps.deleteMany({
+          where: {
+            OR: [
+              {
+                rawRepositoryId: {
+                  in: updatedLiteInitiativeMap.rawRepositoriesIds,
+                },
+              },
+              {
+                initiativeMapId: initiativeMapToUpdate.id,
+              },
+            ],
           },
         });
 
@@ -513,26 +510,18 @@ export async function inferInitiativesFromDatabase() {
           },
           data: {
             RawDomainsOnInitiativeMaps: {
-              updateMany: updatedInitiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => {
+              create: updatedLiteInitiativeMap.rawDomainsIds.map((rawDomainId) => {
                 return {
-                  where: {
-                    rawDomainId: rawDomainOnIMap.rawDomainId,
-                  },
-                  data: {
-                    main: rawDomainOnIMap.rawDomainId === updatedInitiativeMap.mainItemIdentifier,
-                  },
+                  rawDomainId: rawDomainId,
+                  main: rawDomainId === updatedLiteInitiativeMap.mainItemIdentifier,
                 };
               }),
             },
             RawRepositoriesOnInitiativeMaps: {
-              updateMany: updatedInitiativeMap.RawRepositoriesOnInitiativeMaps.map((rawRepositoryOnIMap) => {
+              create: updatedLiteInitiativeMap.rawRepositoriesIds.map((rawRepositoryId) => {
                 return {
-                  where: {
-                    rawRepositoryId: rawRepositoryOnIMap.rawRepositoryId,
-                  },
-                  data: {
-                    main: rawRepositoryOnIMap.rawRepositoryId === updatedInitiativeMap.mainItemIdentifier,
-                  },
+                  rawRepositoryId: rawRepositoryId,
+                  main: rawRepositoryId === updatedLiteInitiativeMap.mainItemIdentifier,
                 };
               }),
             },

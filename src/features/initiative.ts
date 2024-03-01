@@ -407,45 +407,6 @@ export async function inferInitiativesFromDatabase() {
 
       console.log(`synchronizing initiative maps into the database (${formatDiffResultLog(diffResult)})`);
 
-      for (const addedLiteRawDomain of diffResult.added) {
-        watchGracefulExitInLoop();
-
-        // `createMany` cannot be used due to nested many creations (ref: https://github.com/prisma/prisma/issues/5455)
-        await tx.initiativeMap.create({
-          data: {
-            mainItemIdentifier: addedLiteRawDomain.mainItemIdentifier,
-            update: true,
-            lastUpdateAttemptWithReachabilityError: null,
-            lastUpdateAttemptReachabilityError: null,
-            RawDomainsOnInitiativeMaps: {
-              createMany: {
-                skipDuplicates: true,
-                data: addedLiteRawDomain.rawDomainsIds.map((rawDomainId) => {
-                  return {
-                    rawDomainId: rawDomainId,
-                    main: addedLiteRawDomain.mainItemIdentifier === rawDomainId,
-                  };
-                }),
-              },
-            },
-            RawRepositoriesOnInitiativeMaps: {
-              createMany: {
-                skipDuplicates: true,
-                data: addedLiteRawDomain.rawRepositoriesIds.map((rawRepositoryId) => {
-                  return {
-                    rawRepositoryId: rawRepositoryId,
-                    main: addedLiteRawDomain.mainItemIdentifier === rawRepositoryId,
-                  };
-                }),
-              },
-            },
-          },
-          select: {
-            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-          },
-        });
-      }
-
       await tx.initiativeMap.deleteMany({
         where: {
           mainItemIdentifier: {
@@ -524,6 +485,45 @@ export async function inferInitiativesFromDatabase() {
                   main: rawRepositoryId === updatedLiteInitiativeMap.mainItemIdentifier,
                 };
               }),
+            },
+          },
+          select: {
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+          },
+        });
+      }
+
+      for (const addedLiteRawDomain of diffResult.added) {
+        watchGracefulExitInLoop();
+
+        // `createMany` cannot be used due to nested many creations (ref: https://github.com/prisma/prisma/issues/5455)
+        await tx.initiativeMap.create({
+          data: {
+            mainItemIdentifier: addedLiteRawDomain.mainItemIdentifier,
+            update: true,
+            lastUpdateAttemptWithReachabilityError: null,
+            lastUpdateAttemptReachabilityError: null,
+            RawDomainsOnInitiativeMaps: {
+              createMany: {
+                skipDuplicates: true,
+                data: addedLiteRawDomain.rawDomainsIds.map((rawDomainId) => {
+                  return {
+                    rawDomainId: rawDomainId,
+                    main: addedLiteRawDomain.mainItemIdentifier === rawDomainId,
+                  };
+                }),
+              },
+            },
+            RawRepositoriesOnInitiativeMaps: {
+              createMany: {
+                skipDuplicates: true,
+                data: addedLiteRawDomain.rawRepositoriesIds.map((rawRepositoryId) => {
+                  return {
+                    rawRepositoryId: rawRepositoryId,
+                    main: addedLiteRawDomain.mainItemIdentifier === rawRepositoryId,
+                  };
+                }),
+              },
             },
           },
           select: {

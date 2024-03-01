@@ -23,8 +23,20 @@ export function getClosestSinkNode(g: Graph, source: string): string {
 
     if (successors && successors?.length > 0) {
       for (const successor of successors) {
-        if (pathNodes.includes(successor)) {
-          // We avoid looping to a previous node
+        const existingSuccessorInThePathIndex = pathNodes.findIndex((nodeId) => nodeId === successor);
+        if (existingSuccessorInThePathIndex !== -1) {
+          // Due to our different maching strategies it's possible with have loops into our graph (see an example at `src/assets/docs/graph_loop.png`)
+          // We cannot just skip it because some source would have no closest sink, so we made the choice of taking the ending node
+          // the first one by ordering the looping nodes by their name. Like that it guarantees no matter where you start, inside/outside the loop, at which node inside the loop... you will always have the same answer
+          const loopingNodes = pathNodes.slice(existingSuccessorInThePathIndex);
+          const orderedLoopingNodes = loopingNodes.sort();
+          const chosenEndingNode = orderedLoopingNodes[0];
+
+          // We use the distance from the current node of nested calls (whereas the `chosenEndingNode` may be another one)
+          // Maybe we should "get back on track" to subtract the distance from the current node to `chosenEndingNode` so the distance passed to `handleEndingNode` would make more sense
+          // But for now after some tests it seems to work without it with the loops we have... so leaving it like that (if it becomes needed, use a `pathEdgesDistances` like we do for `pathNodes` and its recursive logic)
+          handleEndingNode(chosenEndingNode, distanceFromStart);
+
           continue;
         }
 

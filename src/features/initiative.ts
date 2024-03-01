@@ -40,6 +40,7 @@ import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/sr
 import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
+import { bitsFor } from '@etabli/src/utils/bits';
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
@@ -832,6 +833,8 @@ export async function feedInitiativesFromDatabase() {
           if (!codeFolderExists) {
             console.log('downloading the repository code');
 
+            const gitFileSizeLimitInKb: number = 200;
+
             const projectGit: SimpleGit = simpleGit({
               baseDir: codeFolderPath,
               progress: (event: SimpleGitProgressEvent) => {
@@ -853,7 +856,7 @@ export async function feedInitiativesFromDatabase() {
               await projectGit.clone(rawRepository.repositoryUrl, '.', {
                 '--single-branch': null,
                 '--depth': 1,
-                '--filter': 'blob:limit=200k',
+                '--filter': `blob:limit=${gitFileSizeLimitInKb}k`,
               });
             } catch (error) {
               if (error instanceof Error) {
@@ -896,16 +899,34 @@ export async function feedInitiativesFromDatabase() {
             const lsResult = await projectGit.raw(['ls-files', '-z']);
 
             if (lsResult !== '') {
-              const filesToRemove = lsResult.split('\0').filter((filePath) => {
+              const filesToRemove: string[] = [];
+
+              for (const filePath of lsResult.split('\0')) {
                 // There is an empty line in the output result that cannot be used by `git rm`
                 if (filePath.trim() === '') {
-                  return false;
+                  continue;
                 }
 
-                return !filesToKeepGitEndingPatterns.some((endingPattern) => {
-                  return filePath.endsWith(endingPattern);
-                });
-              });
+                // Keep files having an allowed pattern (since they should have meaningful content to analyze)
+                if (
+                  filesToKeepGitEndingPatterns.some((endingPattern) => {
+                    return filePath.endsWith(endingPattern);
+                  })
+                ) {
+                  continue;
+                }
+
+                // Since the `git clone --filter=blob:limit=XXX` seems to only filter specific uploaded assets (not filtering all files over the size limit)
+                // we do a manual cleaning of files too big, otherwise since they have an allowed file pattern they would be analzyed and it could take some
+                // time in case it's bundled files, minified files... and it would be meaningless to us (even if we may have bundled files with size lower than the limit we set)
+                const fileStat = await fs.stat(path.resolve(codeFolderPath, filePath));
+                if (fileStat.size <= gitFileSizeLimitInKb * bitsFor.KiB) {
+                  continue;
+                }
+
+                // Otherwise, remove
+                filesToRemove.push(filePath);
+              }
 
               if (filesToRemove.length > 0) {
                 // We cannot pass the array directly to `projectGit.rm` because if there are too many paths

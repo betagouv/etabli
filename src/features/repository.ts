@@ -621,11 +621,12 @@ export async function matchRepositories() {
       rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startup/') ||
       rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startups/') ||
       // Some projects put their project publication on a dedicated platform
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.science/') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://inria.hal.science/') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.inria.fr/') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.archives-ouvertes.fr/') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://arxiv.org/')
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.science/hal-') ||
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://inria.hal.science/hal-') ||
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.inria.fr/hal-') ||
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.archives-ouvertes.fr/hal-') ||
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://arxiv.org/abs/') ||
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://arxiv.org/pdf/')
     ) {
       hasGenericDomain = true;
     }

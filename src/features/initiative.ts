@@ -242,11 +242,13 @@ export async function inferInitiativesFromDatabase() {
 
     const A = G.createSubgraph('A', {});
 
+    const sinkNodes = graph.sinks();
+
     // Add nodes and edges to the Graphviz instance
     graph.nodes().forEach((nodeId) => {
       // If it's a sink with no edge there is no reason to display it on the graph (it would only overload it)
       // `graph.sinks()` should be what we do after, but here it's an approximation because it would not be exact in case of loop with edges...
-      if (!displayNodeWithNoEdge && graph.sinks().includes(nodeId) && graph.nodeEdges(nodeId)?.length === 0) {
+      if (!displayNodeWithNoEdge && sinkNodes.includes(nodeId) && graph.nodeEdges(nodeId)?.length === 0) {
         return;
       }
 

@@ -17,7 +17,7 @@ import handlebars from 'handlebars';
 import OpenAI from 'openai';
 import path from 'path';
 import prettyBytes from 'pretty-bytes';
-import { simpleGit } from 'simple-git';
+import { SimpleGit, SimpleGitProgressEvent, simpleGit } from 'simple-git';
 import { Digraph, toDot } from 'ts-graphviz';
 import { toFile } from 'ts-graphviz/adapter';
 import { promisify } from 'util';
@@ -52,7 +52,6 @@ const __root_dirname = process.cwd();
 const fastFolderSizeAsync = promisify(fastFolderSize);
 const useLocalFileCache = true; // Switch it when testing locally to prevent multiplying network request whereas the remote content has probably no change since then
 
-const git = simpleGit();
 const filesToKeepGitEndingPatterns: string[] = [
   // This is used to reduce size of the repository once downloaded
   // Notes:
@@ -832,13 +831,25 @@ export async function feedInitiativesFromDatabase() {
         if (!codeFolderExists) {
           console.log('downloading the repository code');
 
+          const projectGit: SimpleGit = simpleGit({
+            baseDir: codeFolderPath,
+            progress: (event: SimpleGitProgressEvent) => {
+              // To not flood we only log a few to notice some progress
+              if (event.progress % 10 === 0) {
+                console.log(
+                  `[${rawRepository.id}] git.${event.method} ${event.stage} stage ${event.progress}% complete (${event.processed}/${event.total})`
+                );
+              }
+            },
+          });
+
           // We use `git clone` since there is no common pattern to download an archive between all forges (GitHub, GitLab...)
           // We added some parameters to reduce a bit what needs to be downloaded:
           // * `--single-branch`: do not look for information of other branches (it should use the default branch)
           // * `--depth=1`: retrieve only information about the latest commit state (not having history will save space)
           // * `--filter=blob:limit=${SIZE}`: should not download blob objects over $SIZE size (we estimated a size to get big text file for code, while excluding big assets). In fact, it seems not working well because I do see some images fetched... just keeping this parameter in case it may work
           try {
-            await git.clone(rawRepository.repositoryUrl, codeFolderPath, {
+            await projectGit.clone(rawRepository.repositoryUrl, '.', {
               '--single-branch': null,
               '--depth': 1,
               '--filter': 'blob:limit=200k',
@@ -878,8 +889,6 @@ export async function feedInitiativesFromDatabase() {
           // Note: the list of patterns must be updated each time new kinds of files to analyze are added
           const folderSizeBeforeClean = await fastFolderSizeAsync(codeFolderPath);
           assert(folderSizeBeforeClean !== undefined);
-
-          const projectGit = git.cwd({ path: codeFolderPath });
 
           // `git ls-files` was returning non-UT8 encoding if it has the default config `core.quotePath = true` (for example `vidéo_48_bicolore.svg` was returned as `vid\303\251o_48_bicolore.svg`)
           // so forcing displaying verbatim paths with `-z`. We did not change `core.quotePath` because it would modify the host git config resulting a side-effects potentially

@@ -9,6 +9,7 @@ import { CronJob } from 'cron';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { subHours } from 'date-fns/subHours';
 import fs from 'fs/promises';
+import jsonic from 'jsonic';
 import { LLMChain } from 'langchain/chains';
 import { createStuffDocumentsChain } from 'langchain/chains/combine_documents';
 import { createRetrievalChain } from 'langchain/chains/retrieval';
@@ -17,7 +18,12 @@ import mistralTokenizer from 'mistral-tokenizer-js';
 import path from 'path';
 import { z } from 'zod';
 
-import { ChunkEventEmitter, LlmManager, extractFirstJsonCodeContentFromMarkdown } from '@etabli/src/features/llm';
+import {
+  ChunkEventEmitter,
+  LlmManager,
+  extractFirstJsonCodeContentFromMarkdown,
+  extractFirstTypescriptCodeContentFromMarkdown,
+} from '@etabli/src/features/llm';
 import { gptInstances, gptSeed } from '@etabli/src/gpt';
 import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
 import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
@@ -470,6 +476,20 @@ CONTEXT:
 
         throw new Error(`the json code block is not present in the answer or the answer has been truncated while saying it's complete`);
       }
+    } else if (answer.text.includes('```ts')) {
+      const typescriptCode = extractFirstTypescriptCodeContentFromMarkdown(answer.text);
+
+      if (!typescriptCode) {
+        console.log(answer.text);
+
+        throw new Error(`the typescript code block is not present in the answer or the answer has been truncated while saying it's complete`);
+      }
+
+      // That's the pattern MistralAI seems to always provide when returning TypeScript format
+      const jsonStringNotStrict = typescriptCode.replace('type ResultSchemaType =', '').trim();
+
+      // A JSON object in TypeScript cannot be parsed due to missing quotes on properties, ending comma... so using a helper for this
+      jsonString = JSON.stringify(jsonic(jsonStringNotStrict));
     }
 
     if (!jsonString) {

@@ -34,6 +34,13 @@ export function extractFirstJsonCodeContentFromMarkdown(markdown: string): strin
   return !!regexResult ? regexResult[1] : null;
 }
 
+export function extractFirstTypescriptCodeContentFromMarkdown(markdown: string): string | null {
+  const regex = /```ts\n([\s\S]+?)\n```/;
+  const regexResult = regex.exec(markdown);
+
+  return !!regexResult ? regexResult[1] : null;
+}
+
 export async function initLlmSystem() {
   // Note: Prisma does not implement yet locking table though it should help not messing with requesting the LLM system while replacing sensitive components of it
   // This race condition should remain rare and having error thrown should be fine since replayed on the next iteration

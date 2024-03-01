@@ -226,11 +226,6 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
     const initiativeLlmDocumentsToCalculate = await prisma.$transaction(
       async (tx) => {
         const initiatives = await tx.initiative.findMany({
-          where: {
-            origin: {
-              deletedAt: null,
-            },
-          },
           select: {
             id: true,
             name: true,

@@ -349,9 +349,6 @@ export async function inferInitiativesFromDatabase() {
   await prisma.$transaction(
     async (tx) => {
       const storedInitiativeMaps = await tx.initiativeMap.findMany({
-        where: {
-          deletedAt: null, // This is important for the following comparaison (since there is no real "removal")
-        },
         select: {
           id: true,
           mainItemIdentifier: true,
@@ -449,16 +446,11 @@ export async function inferInitiativesFromDatabase() {
         });
       }
 
-      // We do not delete to keep a bit of history for debug
-      await tx.initiativeMap.updateMany({
+      await tx.initiativeMap.deleteMany({
         where: {
           mainItemIdentifier: {
             in: diffResult.removed.map((deletedLiteInitiativeMap) => deletedLiteInitiativeMap.mainItemIdentifier),
           },
-          deletedAt: null,
-        },
-        data: {
-          deletedAt: new Date(),
         },
       });
 
@@ -469,7 +461,6 @@ export async function inferInitiativesFromDatabase() {
         const initiativeMapToUpdate = await tx.initiativeMap.findFirstOrThrow({
           where: {
             mainItemIdentifier: updatedLiteInitiativeMap.mainItemIdentifier,
-            deletedAt: null,
           },
           select: {
             id: true,
@@ -592,7 +583,6 @@ export async function feedInitiativesFromDatabase() {
   const initiativeMaps = await prisma.initiativeMap.findMany({
     where: {
       update: true,
-      deletedAt: null,
       AND: {
         OR: [
           {
@@ -1276,6 +1266,18 @@ export async function feedInitiativesFromDatabase() {
         }
       }
     });
+
+    // After computing the new or updated sheets, we make sure to delete the older ones that were kept to make the bridge
+    // between the time new initiative maps were calculated, and the time to compute modified groups (otherwise in the meantime there is a risk the product is not indexed on the platform)
+    await prisma.initiative.deleteMany({
+      where: {
+        origin: {
+          is: null,
+        },
+      },
+    });
+
+    console.log(`the old initiatives no longer part of newly computed initiative maps have been deleted`);
   } catch (error) {
     if (error instanceof OpenAI.APIError) {
       console.log(error.status);

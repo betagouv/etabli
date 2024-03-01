@@ -278,7 +278,7 @@ model InitiativeMap {
 
 model Initiative {
   id                 String              @id @default(uuid()) @db.Uuid
-  originId           String              @unique @db.Uuid
+  originId           String?             @unique @db.Uuid
   name               String
   description        String
   websites           String[]
@@ -289,7 +289,7 @@ model Initiative {
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 
-  origin                        InitiativeMap                   @relation(fields: [originId], references: [id])
+  origin                        InitiativeMap?                  @relation(fields: [originId], references: [id], onDelete: SetNull)
   ToolsOnInitiatives            ToolsOnInitiatives[]
   BusinessUseCasesOnInitiatives BusinessUseCasesOnInitiatives[]
   InitiativeLlmDocument         InitiativeLlmDocument?

@@ -263,11 +263,6 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     }
 
     const initiatives = await prisma.initiative.findMany({
-      where: {
-        origin: {
-          deletedAt: null,
-        },
-      },
       select: {
         id: true,
         name: true,

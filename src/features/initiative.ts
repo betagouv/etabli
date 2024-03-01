@@ -702,7 +702,7 @@ export async function feedInitiativesFromDatabase() {
           assert(rawDomain);
 
           console.log(
-            `domain ${rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomain.id}) ${formatArrayProgress(
+            `[${initiativeMap.id}] domain ${rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomain.id}) ${formatArrayProgress(
               rawDomainOnIMapIndex,
               initiativeMap.RawDomainsOnInitiativeMaps.length
             )}`
@@ -812,7 +812,7 @@ export async function feedInitiativesFromDatabase() {
           watchGracefulExitInLoop();
 
           console.log(
-            `repository ${rawRepositoryOnIMap.rawRepository.repositoryUrl} ${rawRepositoryOnIMap.main ? '(main)' : ''} (${
+            `[${initiativeMap.id}] repository ${rawRepositoryOnIMap.rawRepository.repositoryUrl} ${rawRepositoryOnIMap.main ? '(main)' : ''} (${
               rawRepositoryOnIMap.rawRepository.id
             }) ${formatArrayProgress(rawRepositoryOnIMapIndex, initiativeMap.RawRepositoriesOnInitiativeMaps.length)}`
           );
@@ -837,7 +837,7 @@ export async function feedInitiativesFromDatabase() {
           }
 
           if (!codeFolderExists) {
-            console.log('downloading the repository code');
+            console.log(`[${initiativeMap.id}] downloading the repository code`);
 
             const gitFileSizeLimitInKb: number = 200;
 
@@ -850,7 +850,7 @@ export async function feedInitiativesFromDatabase() {
                 // To not flood we only log a few to notice some progress
                 if (event.progress % 10 === 0) {
                   console.log(
-                    `[${rawRepository.id}] git.${event.method} ${event.stage} stage ${event.progress}% complete (${event.processed}/${event.total})`
+                    `[${initiativeMap.id}][${rawRepository.id}] git.${event.method} ${event.stage} stage ${event.progress}% complete (${event.processed}/${event.total})`
                   );
                 }
               },
@@ -954,7 +954,9 @@ export async function feedInitiativesFromDatabase() {
             assert(folderSizeAfterClean !== undefined);
 
             console.log(
-              `the repository code has been cleaned (before ${prettyBytes(folderSizeBeforeClean)} | after ${prettyBytes(folderSizeAfterClean)})`
+              `[${initiativeMap.id}] the repository code has been cleaned (before ${prettyBytes(folderSizeBeforeClean)} | after ${prettyBytes(
+                folderSizeAfterClean
+              )})`
             );
           }
 
@@ -1057,9 +1059,7 @@ export async function feedInitiativesFromDatabase() {
             await fs.mkdir(path.dirname(sanitizedGptResultPath), { recursive: true });
             await fs.writeFile(sanitizedGptResultPath, beautifiedAnswerData);
 
-            console.log(`the JSON sanitized result has been written to: ${sanitizedGptResultPath}`);
-            console.log('\n');
-            console.log('\n');
+            console.log(`[${initiativeMap.id}] the JSON sanitized result has been written to: ${sanitizedGptResultPath}`);
 
             // Now prepare and save the results
             const websites = initiativeMapRawDomains.map((rawDomain) => `https://${rawDomain.name}`);
@@ -1236,7 +1236,7 @@ export async function feedInitiativesFromDatabase() {
                 );
               }
 
-              console.log('retrying with less information');
+              console.log(`[${initiativeMap.id}] retrying with less information`);
 
               continue;
             } else {

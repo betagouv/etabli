@@ -1,5 +1,5 @@
 {{#if repository.functions}}
-Here is the list of functions in the source code of the repository number {{repositoryNumber}}:
+La liste des fonctions dans le code source du dépôt numéro {{repositoryNumber}} :
 
 ```
 {{#each repository.functions}}
@@ -10,7 +10,7 @@ Here is the list of functions in the source code of the repository number {{repo
 {{/if}}
 
 {{#if repository.dependencies}}
-Here is the list of dependencies listed in the source code of the repository number {{repositoryNumber}}:
+La liste des dépendances listés dans le code source du dépôt numéro {{repositoryNumber}} :
 
 ```
 {{#each repository.dependencies}}
@@ -21,7 +21,7 @@ Here is the list of dependencies listed in the source code of the repository num
 {{/if}}
 
 {{#if repository.readme}}
-Here is the content of the `README.md` of the repository number {{repositoryNumber}}:
+La liste du contenu du fichier `README.md` du dépôt numéro {{repositoryNumber}} :
 
 ```
 {{{repository.readme}}}

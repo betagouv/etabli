@@ -1,34 +1,34 @@
 ## {{name}}
 
-Unique ID: {{id}}
-Description:
+Identifiant unique : {{id}}
+Description :
 
 ```
 {{description}}
 ```
 
 {{#if websites}}
-Websites:
+Sites internet :
 {{#each websites}}- {{{this}}}
 {{/each}}
 {{/if}}
 {{#if repositories}}
-Repositories:
+Dépôts de code :
 {{#each repositories}}- {{{this}}}
 {{/each}}
 {{/if}}
 {{#if businessUseCases}}
-Business use cases:
+Cas d'utilisation métiers :
 {{#each businessUseCases}}- {{{this}}}
 {{/each}}
 {{/if}}
 {{#if functionalUseCases}}
-Functional use cases:
+Cas d'utilisation fonctionnels :
 {{#each functionalUseCases}}- {{{this}}}
 {{/each}}
 {{/if}}
 {{#if tools}}
-Tools used:
+Outils utilisés :
 {{#each tools}}- {{{this}}}
 {{/each}}
 {{/if}}

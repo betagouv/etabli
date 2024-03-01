@@ -1,5 +1,5 @@
 {{#if website.deducedTools}}
-Here is the list of tools deduced with Wappalyzer from the frontend of the public website number {{websiteNumber}}:
+La liste des outils déduits avec Wappalyzer depuis le site internet du site public numéro {{websiteNumber}} :
 
 ```
 {{#each website.deducedTools}}
@@ -10,7 +10,7 @@ Here is the list of tools deduced with Wappalyzer from the frontend of the publi
 {{/if}}
 
 {{#if website.content}}
-Here is the resume from the public website number {{websiteNumber}}:
+Le résumé du site public numéro {{websiteNumber}} :
 
 ```
 {{{website.content}}}

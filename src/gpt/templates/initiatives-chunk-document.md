@@ -1,6 +1,6 @@
-Here the list of initiatives sheets to use when a user is looking for retrieving one:
+Voici la liste des fiches d'initiatives à analyser quand un utilisateur essaie d'en retrouver une :
 
-# Chunk ({{currentChunkNumber}} of {{chunksTotal}})
+# Partie ({{currentChunkNumber}} sur {{chunksTotal}})
 
 {{#each formattedInitiatives as |initiative|}}
 

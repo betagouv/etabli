@@ -1,4 +1,4 @@
-Here the list of tools an initiative can be bound to:
+La liste des outils auquels une initiative peut être reliée :
 
 ```
 {{#each tools}}

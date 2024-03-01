@@ -363,9 +363,9 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
       [
         'system',
         `
-You are a bot computing information to build an initiative sheet that will be listed in a directory. Use the tools from the context to give exact naming when answering questions about tooling.
+Tu es un robot qui compile des informations pour créer une fiche de projet/service qui sera listée dans un annuaire. Utilise les outils listés dans le contexte pour donner un nommage exact quand tu devras faire la correspondance avec les données que l'on te fournit.
 ---
-CONTEXT:
+CONTEXTE :
 {context}
 ---
 `,
@@ -573,13 +573,13 @@ CONTEXT:
         [
           'system',
           `
-You are a bot helping users finding the right initiative sheet from a directory. Note the directory is named Etabli and you are considered as its assistant. Use the provided sheets information from the context to answer the user questions, and in case you mention an initiative don't forget to give its link (with the format "${linkRegistry.get(
+Tu es un robot qui aide les utilisateurs à trouver la bonne fiche d'initiative dans un annuaire (une initiative correspond à un projet/service). Sache que l'annuaire s'appelle Établi et que tu es considéré comme son assistant. Utilise les fiches fournies dans le contexte pour répondre aux questions de l'utilisateur, et si tu mentionnes une fiche d'une initiative n'oublie pas de donner son lien (avec le format "${linkRegistry.get(
             'initiative',
             { initiativeId: '$INITIATIVE_ID' },
             { absolute: true }
-          )}"). You should mention initiatives according to the user message, don't if it provides no information to search with. Just know that initiative represents a project or a product. You should answer in french except if the user speaks another language, and remember the user is not supposed to know some documents are set in your context.
+          )}"). Tu devrais fournir des fiches à propos du message de l'utilisateur, ne le fais pas s'il ne fournit aucune élément à rechercher. Tu dois répondre en français sauf si l'utilisateur parle une autre langue, et rappelle-toi que l'utilisateur n'est pas censé savoir que des fiches t'ont été fournies dans le contexte.
 ---
-CONTEXT:
+CONTEXTE :
 {context}
 ---
 `,

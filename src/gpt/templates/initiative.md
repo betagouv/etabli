@@ -1,21 +1,21 @@
-I describe below a project composed of {{websites.length}} websites and {{repositories.length}} repositories, and I want you to output some information:
+Je décris ci-dessous un projet composé de {{websites.length}} sites internet et de {{repositories.length}} dépôt de code source (repository), et je veux que tu m'en déduises certaines informations :
 
-1. business use cases of what the project does (not functional things like sending emails), try to reuse those from the provided list `definedBusinessUseCases` when valid, otherwise if it's a new one use simple words to keep it clear (10 words maximum)
-2. a description of 100 words maximum of what the project does (business words, not about technical stuff)
-3. all tools that are frameworks or services through an API. First, you find them and find their main commercial name while skipping those that seem tiny libraries, protocol standards, or font libraries. Once you have the list to output, if some items have their correspondance in the context list, use correspondance name instead
-4. to know if yes/no the project checkes those cases:
-   - has virtual email inboxes
-   - sends emails
-   - ability to build a PDF document
+1. les cas d'utilisation métiers de ce que fait le projet (pas les choses fonctionnelles comme envoyer un email), utilise des mots simples pour garder cela compréhensible (10 mots maximum)
+2. une description de 100 mots maximum de ce que fait le projet (des mots métiers, ne pas aborder des choses techniques)
+3. tous les outils qui sont des frameworks ou des services utilisables par une API. D'abord, déduis-les et trouve leur nom commercial tout en omettant celles qui semblent être des petites librairies, des protocoles, ou des polices d'écriture. Une fois que tu as la liste, si certains correspondent à la liste des outils passée dans le contexte, utilise le nom du contexte
+4. savoir si "oui" ou "non" le projet répond à ces cas d'utilisation fonctionnels :
+   - avoir des boîtes emails de réception virtuelles (générées à la volée par le projet)
+   - envoie des emails
+   - a la capacité à générer des fichiers PDF
 
-You must answer by respecting the following types, but you have to format them in a strict JSON format using "\`\`\`json ... \`\`\`" (and do not add comments to the JSON, it's invalid). Please you must write the values in french. TU DOIS ÉCRIRE LES VALEURS EN FRANÇAIS :
+Tu dois répondre en respectant les types suivants, mais tu dois les formatter au format JSON strict en utilisant "\`\`\`json ... \`\`\`" (et surtout, n'ajoute pas de commentaires au JSON, c'est invalide). S'il te plaît écrit les valeurs en français, mais garde les mots-clés comme ils sont :
 
 ```ts
 {{! this Handlebars comment is needed so Prettier will not format weirdily the injection of the definition }}
 {{{resultSchemaDefinition}}}
 ```
 
-**Do not include any explanation. Below all the information to analyze:**
+**N'inclus pas d'explication dans ta réponse. Ci-dessous tu trouveras toutes les informations à analyser :**
 
 {{#each websites as |website|}}
 

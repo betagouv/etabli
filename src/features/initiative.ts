@@ -54,7 +54,10 @@ import { WappalyzerResultSchema } from '@etabli/src/wappalyzer';
 const __root_dirname = process.cwd();
 
 const fastFolderSizeAsync = promisify(fastFolderSize);
-const useLocalFileCache = true; // Switch it when testing locally to prevent multiplying network request whereas the remote content has probably no change since then
+
+// Switch it when testing locally to prevent multiplying network request whereas the remote content has probably no change since then
+// ... but be warned that for now if there is an error with Git, the cache will be misleading since it matches only the existence of folders (we could improve that by using try/catch/finally around git steps)
+const useLocalFileCache = false;
 
 const filesToKeepGitEndingPatterns: string[] = [
   // This is used to reduce size of the repository once downloaded

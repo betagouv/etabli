@@ -653,572 +653,580 @@ export async function feedInitiativesFromDatabase() {
 
       const projectDirectory = path.resolve(__root_dirname, './data/initiatives/', initiativeMap.id);
 
-      // As explained into the `findMany.select.RawDomainsOnInitiativeMaps` comment, due to saturation reason we get raw domains from here to have the memory freed up at the end of the iteration
-      const initiativeMapRawDomains = await prisma.rawDomain.findMany({
-        where: {
-          id: {
-            in: initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => rawDomainOnIMap.rawDomainId),
-          },
-        },
-        select: {
-          id: true,
-          name: true,
-          websiteRawContent: true,
-          websiteInferredName: true,
-        },
-      });
-      assert(initiativeMapRawDomains.length === initiativeMap.RawDomainsOnInitiativeMaps.length);
-
-      const websitesTemplates: WebsiteTemplateSchemaType[] = [];
-      const repositoriesTemplates: RepositoryTemplateSchemaType[] = [];
-
-      // Define the name of the initiative
-      // Note: website inferred name in priority since it should better reflect the reality (not the technical name), we should end on the `main` since sorting them in the `.findMany()`
-      let initiativeName: string;
-      if (initiativeMap.RawDomainsOnInitiativeMaps.length > 0 && initiativeMap.RawDomainsOnInitiativeMaps[0].main) {
-        const mainRawDomain = initiativeMapRawDomains.find((rd) => rd.id === initiativeMap.RawDomainsOnInitiativeMaps[0].rawDomainId);
-        assert(mainRawDomain);
-
-        initiativeName = mainRawDomain.websiteInferredName || mainRawDomain.name;
-      } else if (initiativeMap.RawRepositoriesOnInitiativeMaps.length > 0 && initiativeMap.RawRepositoriesOnInitiativeMaps[0].main) {
-        initiativeName = initiativeMap.RawRepositoriesOnInitiativeMaps[0].rawRepository.name;
-      } else {
-        throw new Error('initiative name cannot be inferred');
-      }
-
-      let mixedInitiativeTools: string[] = [];
-      for (const [rawDomainOnIMapIndex, rawDomainOnIMap] of Object.entries(initiativeMap.RawDomainsOnInitiativeMaps)) {
-        watchGracefulExitInLoop();
-
-        const rawDomain = initiativeMapRawDomains.find((rd) => rd.id === rawDomainOnIMap.rawDomainId);
-        assert(rawDomain);
-
-        console.log(
-          `domain ${rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomain.id}) ${formatArrayProgress(
-            rawDomainOnIMapIndex,
-            initiativeMap.RawDomainsOnInitiativeMaps.length
-          )}`
-        );
-
-        // Transform website HTML content into markdown to save tokens on GPT since HTML tags would increase the cost
-        let websiteMarkdownContent: string | null = null;
-        if (rawDomain.websiteRawContent) {
-          const htmlPath = path.resolve(projectDirectory, `websites/${rawDomain.id}.html`);
-          const markdownPath = path.resolve(projectDirectory, `websites/${rawDomain.id}.md`);
-
-          if (!useLocalFileCache || !fsSync.existsSync(htmlPath)) {
-            await fs.mkdir(path.dirname(htmlPath), { recursive: true });
-            await fs.writeFile(htmlPath, rawDomain.websiteRawContent, {});
-          }
-
-          if (!useLocalFileCache || !fsSync.existsSync(markdownPath)) {
-            await $`pandoc ${htmlPath} --lua-filter ${noImgAndSvgFilterPath} --lua-filter ${extractMetaDescriptionFilterPath} -t gfm-raw_html -o ${markdownPath}`;
-          }
-
-          websiteMarkdownContent = await fs.readFile(markdownPath, 'utf-8');
-        }
-
-        // Try to deduce tools used from the frontend
-        const wappalyzerAnalysisPath = path.resolve(projectDirectory, 'wappalyzer-analysis.json');
-
-        if (!useLocalFileCache || !fsSync.existsSync(wappalyzerAnalysisPath)) {
-          const headers = {};
-          const storage = {
-            local: {},
-            session: {},
-          };
-
-          // This is a default from Wappalyzer but they use `acceptInsecureCerts: true` with puppeteer
-          // meaning the certificate is no longer checked. It's mitigated by the fact we checked it when enhancing
-          // the raw domain metadata, but is still a risk it has changed since then
-          const site = await wappalyzer.open(`https://${rawDomain.name}`, headers, storage);
-
-          const results = await site.analyze();
-          const parsedResults = WappalyzerResultSchema.parse(results);
-
-          // If we fetched at least a page with an eligible status code we continue
-          const requestMetadataPerUrl = Object.values(parsedResults.urls);
-          if (requestMetadataPerUrl.some((metadata) => metadata.status >= 200 && metadata.status < 300)) {
-            // It's good to go further into the process
-          } else {
-            // No page for this website is reachable, it can comes from either:
-            // - a network error (net::ERR_CONNECTION_REFUSED... like for our Playwright calls) with a status code of 0
-            // - a server error with a status code of 404, 500...
-            //
-            // We skip this initiative calculation due to a network error, until a fix if done to remove the erroring website or until the website is parsable again
-
-            // To debug easily since errors could be into multiple URLs, we just gather each URL request metadata
-            const errorMessage = JSON.stringify(parsedResults.urls);
-
-            await prisma.initiativeMap.update({
-              where: {
-                id: initiativeMap.id,
-              },
-              data: {
-                lastUpdateAttemptWithReachabilityError: new Date(),
-                lastUpdateAttemptReachabilityError: errorMessage,
-              },
-              select: {
-                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-              },
-            });
-
-            console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its websites`);
-            console.error(errorMessage);
-
-            continue initiativeMapLoop;
-          }
-
-          await fs.mkdir(path.dirname(wappalyzerAnalysisPath), { recursive: true });
-          await fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
-
-          // Wait a bit in case websites from this initiative are on the same servers (tiny delay in this loop because)
-          await sleep(50);
-        }
-
-        const wappalyzerAnalysisDataString = await fs.readFile(wappalyzerAnalysisPath, 'utf-8');
-        const wappalyzerAnalysisDataObject = JSON.parse(wappalyzerAnalysisDataString);
-        const wappalyzerAnalysisData = WappalyzerResultSchema.parse(wappalyzerAnalysisDataObject);
-
-        const deducedTools: string[] = wappalyzerAnalysisData.technologies
-          .filter((technology) => {
-            // Set a minimum so uncertain tools like backend ones for compilation are ignored
-            return technology.confidence >= 75;
-          })
-          .map((technology) => technology.name);
-
-        mixedInitiativeTools.push(...deducedTools);
-
-        // Register for analysis if valid
-        if (websiteMarkdownContent) {
-          const websiteTemplate = WebsiteTemplateSchema.parse({
-            deducedTools: deducedTools.length > 0 ? deducedTools : null,
-            content: websiteMarkdownContent,
-          });
-
-          websitesTemplates.push(websiteTemplate);
-        }
-      }
-
-      for (const [rawRepositoryOnIMapIndex, rawRepositoryOnIMap] of Object.entries(initiativeMap.RawRepositoriesOnInitiativeMaps)) {
-        watchGracefulExitInLoop();
-
-        console.log(
-          `repository ${rawRepositoryOnIMap.rawRepository.repositoryUrl} ${rawRepositoryOnIMap.main ? '(main)' : ''} (${
-            rawRepositoryOnIMap.rawRepository.id
-          }) ${formatArrayProgress(rawRepositoryOnIMapIndex, initiativeMap.RawRepositoriesOnInitiativeMaps.length)}`
-        );
-
-        const rawRepository = rawRepositoryOnIMap.rawRepository;
-
-        // Get the soure code if not present or "expired"
-        const codeFolderPath = path.resolve(projectDirectory, `repositories/${rawRepository.id}/`);
-        let codeFolderExists = fsSync.existsSync(codeFolderPath);
-
-        // If the folder is considered too old, we fetch it again
-        if (codeFolderExists) {
-          const folderInformation = await fs.stat(codeFolderPath);
-          const currentDate = new Date();
-
-          if (!useLocalFileCache || differenceInDays(currentDate, folderInformation.birthtime) > 30) {
-            // `git clone` cannot be done on an existing folder, so removing it
-            await fs.rm(codeFolderPath, { recursive: true, force: true });
-
-            codeFolderExists = false;
-          }
-        }
-
-        if (!codeFolderExists) {
-          console.log('downloading the repository code');
-
-          const projectGit: SimpleGit = simpleGit({
-            baseDir: codeFolderPath,
-            progress: (event: SimpleGitProgressEvent) => {
-              // To not flood we only log a few to notice some progress
-              if (event.progress % 10 === 0) {
-                console.log(
-                  `[${rawRepository.id}] git.${event.method} ${event.stage} stage ${event.progress}% complete (${event.processed}/${event.total})`
-                );
-              }
+      try {
+        // As explained into the `findMany.select.RawDomainsOnInitiativeMaps` comment, due to saturation reason we get raw domains from here to have the memory freed up at the end of the iteration
+        const initiativeMapRawDomains = await prisma.rawDomain.findMany({
+          where: {
+            id: {
+              in: initiativeMap.RawDomainsOnInitiativeMaps.map((rawDomainOnIMap) => rawDomainOnIMap.rawDomainId),
             },
-          });
+          },
+          select: {
+            id: true,
+            name: true,
+            websiteRawContent: true,
+            websiteInferredName: true,
+          },
+        });
+        assert(initiativeMapRawDomains.length === initiativeMap.RawDomainsOnInitiativeMaps.length);
 
-          // We use `git clone` since there is no common pattern to download an archive between all forges (GitHub, GitLab...)
-          // We added some parameters to reduce a bit what needs to be downloaded:
-          // * `--single-branch`: do not look for information of other branches (it should use the default branch)
-          // * `--depth=1`: retrieve only information about the latest commit state (not having history will save space)
-          // * `--filter=blob:limit=${SIZE}`: should not download blob objects over $SIZE size (we estimated a size to get big text file for code, while excluding big assets). In fact, it seems not working well because I do see some images fetched... just keeping this parameter in case it may work
-          try {
-            await projectGit.clone(rawRepository.repositoryUrl, '.', {
-              '--single-branch': null,
-              '--depth': 1,
-              '--filter': 'blob:limit=200k',
-            });
-          } catch (error) {
-            if (error instanceof Error) {
-              // `simple-git` does not forward the error code and it would be a bit hard to maintain all possible cases
-              // so for now considering a `git clone` failure like a temporary network issue that we could recover during a future attempt
-              await prisma.initiativeMap.update({
-                where: {
-                  id: initiativeMap.id,
-                },
-                data: {
-                  lastUpdateAttemptWithReachabilityError: new Date(),
-                  lastUpdateAttemptReachabilityError: error.message,
-                },
-                select: {
-                  id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-                },
-              });
+        const websitesTemplates: WebsiteTemplateSchemaType[] = [];
+        const repositoriesTemplates: RepositoryTemplateSchemaType[] = [];
 
-              console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its repositories`);
-              console.error(error.message);
+        // Define the name of the initiative
+        // Note: website inferred name in priority since it should better reflect the reality (not the technical name), we should end on the `main` since sorting them in the `.findMany()`
+        let initiativeName: string;
+        if (initiativeMap.RawDomainsOnInitiativeMaps.length > 0 && initiativeMap.RawDomainsOnInitiativeMaps[0].main) {
+          const mainRawDomain = initiativeMapRawDomains.find((rd) => rd.id === initiativeMap.RawDomainsOnInitiativeMaps[0].rawDomainId);
+          assert(mainRawDomain);
 
-              continue initiativeMapLoop;
-            } else {
-              throw error;
-            }
-          }
+          initiativeName = mainRawDomain.websiteInferredName || mainRawDomain.name;
+        } else if (initiativeMap.RawRepositoriesOnInitiativeMaps.length > 0 && initiativeMap.RawRepositoriesOnInitiativeMaps[0].main) {
+          initiativeName = initiativeMap.RawRepositoriesOnInitiativeMaps[0].rawRepository.name;
+        } else {
+          throw new Error('initiative name cannot be inferred');
+        }
 
-          // Do not flood network (tiny delay since it seems GitHub has only limitations on the API requests, no the Git operations)
-          // Ref: https://github.com/orgs/community/discussions/44515#discussioncomment-4795475
-          await sleep(50);
+        let mixedInitiativeTools: string[] = [];
+        for (const [rawDomainOnIMapIndex, rawDomainOnIMap] of Object.entries(initiativeMap.RawDomainsOnInitiativeMaps)) {
+          watchGracefulExitInLoop();
 
-          // Since Git does not allow using patterns to download only specific files, we just clean the folder after (to have a local disk cache for the next initiative compute before any erase of the data (container restart or manual delete))
-          // We remove all files not used during the analysis + `git` data since not used at all
-          // Note: the list of patterns must be updated each time new kinds of files to analyze are added
-          const folderSizeBeforeClean = await fastFolderSizeAsync(codeFolderPath);
-          assert(folderSizeBeforeClean !== undefined);
-
-          // `git ls-files` was returning non-UT8 encoding if it has the default config `core.quotePath = true` (for example `vidéo_48_bicolore.svg` was returned as `vid\303\251o_48_bicolore.svg`)
-          // so forcing displaying verbatim paths with `-z`. We did not change `core.quotePath` because it would modify the host git config resulting a side-effects potentially
-          const lsResult = await projectGit.raw(['ls-files', '-z']);
-
-          if (lsResult !== '') {
-            const filesToRemove = lsResult.split('\0').filter((filePath) => {
-              // There is an empty line in the output result that cannot be used by `git rm`
-              if (filePath.trim() === '') {
-                return false;
-              }
-
-              return !filesToKeepGitEndingPatterns.some((endingPattern) => {
-                return filePath.endsWith(endingPattern);
-              });
-            });
-
-            if (filesToRemove.length > 0) {
-              // We cannot pass the array directly to `projectGit.rm` because if there are too many paths
-              // it will throw the error `spawn E2BIG`, meaning the command line is too long for the host system
-              // So instead we pass the list through a file (that will get deleted as the rest of unecessary files)
-              const filesToDeleteFilePath = path.resolve(codeFolderPath, `./.git/.filestodelete`);
-
-              await fs.writeFile(filesToDeleteFilePath, filesToRemove.join('\n'));
-              await projectGit.raw(['rm', '--pathspec-from-file', filesToDeleteFilePath]);
-            }
-          }
-
-          await $`rm -rf ${path.resolve(codeFolderPath, `./.git/`)}`;
-
-          const folderSizeAfterClean = await fastFolderSizeAsync(codeFolderPath);
-          assert(folderSizeAfterClean !== undefined);
+          const rawDomain = initiativeMapRawDomains.find((rd) => rd.id === rawDomainOnIMap.rawDomainId);
+          assert(rawDomain);
 
           console.log(
-            `the repository code has been cleaned (before ${prettyBytes(folderSizeBeforeClean)} | after ${prettyBytes(folderSizeAfterClean)})`
+            `domain ${rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomain.id}) ${formatArrayProgress(
+              rawDomainOnIMapIndex,
+              initiativeMap.RawDomainsOnInitiativeMaps.length
+            )}`
           );
-        }
 
-        // Extract information from the source code
-        const codeAnalysisPath = path.resolve(projectDirectory, 'code-analysis.json');
+          // Transform website HTML content into markdown to save tokens on GPT since HTML tags would increase the cost
+          let websiteMarkdownContent: string | null = null;
+          if (rawDomain.websiteRawContent) {
+            const htmlPath = path.resolve(projectDirectory, `websites/${rawDomain.id}.html`);
+            const markdownPath = path.resolve(projectDirectory, `websites/${rawDomain.id}.md`);
 
-        const { functions, dependencies } = await analyzeWithSemgrep(codeFolderPath, codeAnalysisPath);
+            if (!useLocalFileCache || !fsSync.existsSync(htmlPath)) {
+              await fs.mkdir(path.dirname(htmlPath), { recursive: true });
+              await fs.writeFile(htmlPath, rawDomain.websiteRawContent, {});
+            }
 
-        mixedInitiativeTools.push(...dependencies);
+            if (!useLocalFileCache || !fsSync.existsSync(markdownPath)) {
+              await $`pandoc ${htmlPath} --lua-filter ${noImgAndSvgFilterPath} --lua-filter ${extractMetaDescriptionFilterPath} -t gfm-raw_html -o ${markdownPath}`;
+            }
 
-        // Get README in case it exists
-        const readmeEntries = await glob(path.resolve(codeFolderPath, '{README.md,README.txt,README}'));
-        let readmeContent: string | null = null;
-        for (const entry of readmeEntries) {
-          const entryContent = await fs.readFile(entry, 'utf-8');
-
-          if (entryContent.trim() !== '') {
-            readmeContent = entryContent;
+            websiteMarkdownContent = await fs.readFile(markdownPath, 'utf-8');
           }
-        }
 
-        // Register for analysis if valid
-        const repositoryTemplate = RepositoryTemplateSchema.parse({
-          functions: functions.length > 0 ? functions : null,
-          dependencies: dependencies.length > 0 ? dependencies : null,
-          readme: readmeContent || rawRepository.description, // This is rare but if no `README` file we fallback on the description hoping for some context
-        });
+          // Try to deduce tools used from the frontend
+          const wappalyzerAnalysisPath = path.resolve(projectDirectory, 'wappalyzer-analysis.json');
 
-        repositoriesTemplates.push(repositoryTemplate);
-      }
+          if (!useLocalFileCache || !fsSync.existsSync(wappalyzerAnalysisPath)) {
+            const headers = {};
+            const storage = {
+              local: {},
+              session: {},
+            };
 
-      if (websitesTemplates.length === 0 && repositoriesTemplates.length === 0) {
-        throw new Error('this initiative must have items');
-      }
+            // This is a default from Wappalyzer but they use `acceptInsecureCerts: true` with puppeteer
+            // meaning the certificate is no longer checked. It's mitigated by the fact we checked it when enhancing
+            // the raw domain metadata, but is still a risk it has changed since then
+            const site = await wappalyzer.open(`https://${rawDomain.name}`, headers, storage);
 
-      // Unique ones
-      mixedInitiativeTools = [...new Set(mixedInitiativeTools)];
+            const results = await site.analyze();
+            const parsedResults = WappalyzerResultSchema.parse(results);
 
-      // Since properties for websites and repositories are variable in length, and since GPT accepts a maximum of tokens in the context
-      // We try with all information and if it's above, we retry with less content until it passes (if it can) because since sorted by main website/repository
-      // The algorithm should extract interesting information even without having the whole bunch of information
-      while (true) {
-        // Prepare the content for GPT
-        const finalGptContent = initiativeGptTemplate(
-          InitiativeTemplateSchema.parse({
-            resultSchemaDefinition: resultSchemaDefinition,
-            websites: websitesTemplates,
-            repositories: repositoriesTemplates.map((repositoryTemplate) => {
-              // Note: we give priority to website content over repository `README` to not end with meaningless technical things into the initiative description (which should be business-oriented since there is a website)
-              return websitesTemplates.length > 0
-                ? RepositoryTemplateSchema.parse({
-                    // We make a deepcopy to not mess in case of a next iteration on this initiative
-                    functions: repositoryTemplate.functions,
-                    dependencies: repositoryTemplate.dependencies,
-                    readme: null,
-                  })
-                : repositoryTemplate;
-            }),
-          })
-        );
+            // If we fetched at least a page with an eligible status code we continue
+            const requestMetadataPerUrl = Object.values(parsedResults.urls);
+            if (requestMetadataPerUrl.some((metadata) => metadata.status >= 200 && metadata.status < 300)) {
+              // It's good to go further into the process
+            } else {
+              // No page for this website is reachable, it can comes from either:
+              // - a network error (net::ERR_CONNECTION_REFUSED... like for our Playwright calls) with a status code of 0
+              // - a server error with a status code of 404, 500...
+              //
+              // We skip this initiative calculation due to a network error, until a fix if done to remove the erroring website or until the website is parsable again
 
-        try {
-          // Process the message if it fits into the LLM limits
-          let answerData: ResultSchemaType;
-          try {
-            answerData = await llmManagerInstance.computeInitiative(settings, projectDirectory, finalGptContent, mixedInitiativeTools);
-          } catch (error) {
-            // We tried to detect network errors but the original issue is written in the console but not spreaded to here
-            // So using the replacement error, hoping it's always this one for network erros (ref: https://github.com/langchain-ai/langchainjs/issues/4570)
-            if (error instanceof TypeError && error.message === "Cannot read properties of undefined (reading 'text')") {
+              // To debug easily since errors could be into multiple URLs, we just gather each URL request metadata
+              const errorMessage = JSON.stringify(parsedResults.urls);
+
               await prisma.initiativeMap.update({
                 where: {
                   id: initiativeMap.id,
                 },
                 data: {
                   lastUpdateAttemptWithReachabilityError: new Date(),
-                  lastUpdateAttemptReachabilityError: error.message,
+                  lastUpdateAttemptReachabilityError: errorMessage,
                 },
                 select: {
                   id: true, // Ref: https://github.com/prisma/prisma/issues/6252
                 },
               });
 
-              console.error(`skip processing ${initiativeMap.id} due to an error while computing its sheet`);
-              console.error(error.message);
+              console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its websites`);
+              console.error(errorMessage);
 
               continue initiativeMapLoop;
+            }
+
+            await fs.mkdir(path.dirname(wappalyzerAnalysisPath), { recursive: true });
+            await fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
+
+            // Wait a bit in case websites from this initiative are on the same servers (tiny delay in this loop because)
+            await sleep(50);
+          }
+
+          const wappalyzerAnalysisDataString = await fs.readFile(wappalyzerAnalysisPath, 'utf-8');
+          const wappalyzerAnalysisDataObject = JSON.parse(wappalyzerAnalysisDataString);
+          const wappalyzerAnalysisData = WappalyzerResultSchema.parse(wappalyzerAnalysisDataObject);
+
+          const deducedTools: string[] = wappalyzerAnalysisData.technologies
+            .filter((technology) => {
+              // Set a minimum so uncertain tools like backend ones for compilation are ignored
+              return technology.confidence >= 75;
+            })
+            .map((technology) => technology.name);
+
+          mixedInitiativeTools.push(...deducedTools);
+
+          // Register for analysis if valid
+          if (websiteMarkdownContent) {
+            const websiteTemplate = WebsiteTemplateSchema.parse({
+              deducedTools: deducedTools.length > 0 ? deducedTools : null,
+              content: websiteMarkdownContent,
+            });
+
+            websitesTemplates.push(websiteTemplate);
+          }
+        }
+
+        for (const [rawRepositoryOnIMapIndex, rawRepositoryOnIMap] of Object.entries(initiativeMap.RawRepositoriesOnInitiativeMaps)) {
+          watchGracefulExitInLoop();
+
+          console.log(
+            `repository ${rawRepositoryOnIMap.rawRepository.repositoryUrl} ${rawRepositoryOnIMap.main ? '(main)' : ''} (${
+              rawRepositoryOnIMap.rawRepository.id
+            }) ${formatArrayProgress(rawRepositoryOnIMapIndex, initiativeMap.RawRepositoriesOnInitiativeMaps.length)}`
+          );
+
+          const rawRepository = rawRepositoryOnIMap.rawRepository;
+
+          // Get the soure code if not present or "expired"
+          const codeFolderPath = path.resolve(projectDirectory, `repositories/${rawRepository.id}/`);
+          let codeFolderExists = fsSync.existsSync(codeFolderPath);
+
+          // If the folder is considered too old, we fetch it again
+          if (codeFolderExists) {
+            const folderInformation = await fs.stat(codeFolderPath);
+            const currentDate = new Date();
+
+            if (!useLocalFileCache || differenceInDays(currentDate, folderInformation.birthtime) > 30) {
+              // `git clone` cannot be done on an existing folder, so removing it
+              await fs.rm(codeFolderPath, { recursive: true, force: true });
+
+              codeFolderExists = false;
+            }
+          }
+
+          if (!codeFolderExists) {
+            console.log('downloading the repository code');
+
+            const projectGit: SimpleGit = simpleGit({
+              baseDir: codeFolderPath,
+              progress: (event: SimpleGitProgressEvent) => {
+                // To not flood we only log a few to notice some progress
+                if (event.progress % 10 === 0) {
+                  console.log(
+                    `[${rawRepository.id}] git.${event.method} ${event.stage} stage ${event.progress}% complete (${event.processed}/${event.total})`
+                  );
+                }
+              },
+            });
+
+            // We use `git clone` since there is no common pattern to download an archive between all forges (GitHub, GitLab...)
+            // We added some parameters to reduce a bit what needs to be downloaded:
+            // * `--single-branch`: do not look for information of other branches (it should use the default branch)
+            // * `--depth=1`: retrieve only information about the latest commit state (not having history will save space)
+            // * `--filter=blob:limit=${SIZE}`: should not download blob objects over $SIZE size (we estimated a size to get big text file for code, while excluding big assets). In fact, it seems not working well because I do see some images fetched... just keeping this parameter in case it may work
+            try {
+              await projectGit.clone(rawRepository.repositoryUrl, '.', {
+                '--single-branch': null,
+                '--depth': 1,
+                '--filter': 'blob:limit=200k',
+              });
+            } catch (error) {
+              if (error instanceof Error) {
+                // `simple-git` does not forward the error code and it would be a bit hard to maintain all possible cases
+                // so for now considering a `git clone` failure like a temporary network issue that we could recover during a future attempt
+                await prisma.initiativeMap.update({
+                  where: {
+                    id: initiativeMap.id,
+                  },
+                  data: {
+                    lastUpdateAttemptWithReachabilityError: new Date(),
+                    lastUpdateAttemptReachabilityError: error.message,
+                  },
+                  select: {
+                    id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  },
+                });
+
+                console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its repositories`);
+                console.error(error.message);
+
+                continue initiativeMapLoop;
+              } else {
+                throw error;
+              }
+            }
+
+            // Do not flood network (tiny delay since it seems GitHub has only limitations on the API requests, no the Git operations)
+            // Ref: https://github.com/orgs/community/discussions/44515#discussioncomment-4795475
+            await sleep(50);
+
+            // Since Git does not allow using patterns to download only specific files, we just clean the folder after (to have a local disk cache for the next initiative compute before any erase of the data (container restart or manual delete))
+            // We remove all files not used during the analysis + `git` data since not used at all
+            // Note: the list of patterns must be updated each time new kinds of files to analyze are added
+            const folderSizeBeforeClean = await fastFolderSizeAsync(codeFolderPath);
+            assert(folderSizeBeforeClean !== undefined);
+
+            // `git ls-files` was returning non-UT8 encoding if it has the default config `core.quotePath = true` (for example `vidéo_48_bicolore.svg` was returned as `vid\303\251o_48_bicolore.svg`)
+            // so forcing displaying verbatim paths with `-z`. We did not change `core.quotePath` because it would modify the host git config resulting a side-effects potentially
+            const lsResult = await projectGit.raw(['ls-files', '-z']);
+
+            if (lsResult !== '') {
+              const filesToRemove = lsResult.split('\0').filter((filePath) => {
+                // There is an empty line in the output result that cannot be used by `git rm`
+                if (filePath.trim() === '') {
+                  return false;
+                }
+
+                return !filesToKeepGitEndingPatterns.some((endingPattern) => {
+                  return filePath.endsWith(endingPattern);
+                });
+              });
+
+              if (filesToRemove.length > 0) {
+                // We cannot pass the array directly to `projectGit.rm` because if there are too many paths
+                // it will throw the error `spawn E2BIG`, meaning the command line is too long for the host system
+                // So instead we pass the list through a file (that will get deleted as the rest of unecessary files)
+                const filesToDeleteFilePath = path.resolve(codeFolderPath, `./.git/.filestodelete`);
+
+                await fs.writeFile(filesToDeleteFilePath, filesToRemove.join('\n'));
+                await projectGit.raw(['rm', '--pathspec-from-file', filesToDeleteFilePath]);
+              }
+            }
+
+            await $`rm -rf ${path.resolve(codeFolderPath, `./.git/`)}`;
+
+            const folderSizeAfterClean = await fastFolderSizeAsync(codeFolderPath);
+            assert(folderSizeAfterClean !== undefined);
+
+            console.log(
+              `the repository code has been cleaned (before ${prettyBytes(folderSizeBeforeClean)} | after ${prettyBytes(folderSizeAfterClean)})`
+            );
+          }
+
+          // Extract information from the source code
+          const codeAnalysisPath = path.resolve(projectDirectory, 'code-analysis.json');
+
+          const { functions, dependencies } = await analyzeWithSemgrep(codeFolderPath, codeAnalysisPath);
+
+          mixedInitiativeTools.push(...dependencies);
+
+          // Get README in case it exists
+          const readmeEntries = await glob(path.resolve(codeFolderPath, '{README.md,README.txt,README}'));
+          let readmeContent: string | null = null;
+          for (const entry of readmeEntries) {
+            const entryContent = await fs.readFile(entry, 'utf-8');
+
+            if (entryContent.trim() !== '') {
+              readmeContent = entryContent;
+            }
+          }
+
+          // Register for analysis if valid
+          const repositoryTemplate = RepositoryTemplateSchema.parse({
+            functions: functions.length > 0 ? functions : null,
+            dependencies: dependencies.length > 0 ? dependencies : null,
+            readme: readmeContent || rawRepository.description, // This is rare but if no `README` file we fallback on the description hoping for some context
+          });
+
+          repositoriesTemplates.push(repositoryTemplate);
+        }
+
+        if (websitesTemplates.length === 0 && repositoriesTemplates.length === 0) {
+          throw new Error('this initiative must have items');
+        }
+
+        // Unique ones
+        mixedInitiativeTools = [...new Set(mixedInitiativeTools)];
+
+        // Since properties for websites and repositories are variable in length, and since GPT accepts a maximum of tokens in the context
+        // We try with all information and if it's above, we retry with less content until it passes (if it can) because since sorted by main website/repository
+        // The algorithm should extract interesting information even without having the whole bunch of information
+        while (true) {
+          // Prepare the content for GPT
+          const finalGptContent = initiativeGptTemplate(
+            InitiativeTemplateSchema.parse({
+              resultSchemaDefinition: resultSchemaDefinition,
+              websites: websitesTemplates,
+              repositories: repositoriesTemplates.map((repositoryTemplate) => {
+                // Note: we give priority to website content over repository `README` to not end with meaningless technical things into the initiative description (which should be business-oriented since there is a website)
+                return websitesTemplates.length > 0
+                  ? RepositoryTemplateSchema.parse({
+                      // We make a deepcopy to not mess in case of a next iteration on this initiative
+                      functions: repositoryTemplate.functions,
+                      dependencies: repositoryTemplate.dependencies,
+                      readme: null,
+                    })
+                  : repositoryTemplate;
+              }),
+            })
+          );
+
+          try {
+            // Process the message if it fits into the LLM limits
+            let answerData: ResultSchemaType;
+            try {
+              answerData = await llmManagerInstance.computeInitiative(settings, projectDirectory, finalGptContent, mixedInitiativeTools);
+            } catch (error) {
+              // We tried to detect network errors but the original issue is written in the console but not spreaded to here
+              // So using the replacement error, hoping it's always this one for network erros (ref: https://github.com/langchain-ai/langchainjs/issues/4570)
+              if (error instanceof TypeError && error.message === "Cannot read properties of undefined (reading 'text')") {
+                await prisma.initiativeMap.update({
+                  where: {
+                    id: initiativeMap.id,
+                  },
+                  data: {
+                    lastUpdateAttemptWithReachabilityError: new Date(),
+                    lastUpdateAttemptReachabilityError: error.message,
+                  },
+                  select: {
+                    id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  },
+                });
+
+                console.error(`skip processing ${initiativeMap.id} due to an error while computing its sheet`);
+                console.error(error.message);
+
+                continue initiativeMapLoop;
+              } else {
+                throw error;
+              }
+            }
+
+            // Sanitize a bit free entry fields
+            answerData.businessUseCases = answerData.businessUseCases.map((businessUseCaseName) => capitalizeFirstLetter(businessUseCaseName.trim()));
+            answerData.description = capitalizeFirstLetter(answerData.description.trim());
+
+            const sanitizedGptResultPath = path.resolve(projectDirectory, 'sanitized-gpt-result.json');
+
+            const beautifiedAnswerData = JSON.stringify(answerData, null, 2);
+            await fs.mkdir(path.dirname(sanitizedGptResultPath), { recursive: true });
+            await fs.writeFile(sanitizedGptResultPath, beautifiedAnswerData);
+
+            console.log(`the JSON sanitized result has been written to: ${sanitizedGptResultPath}`);
+            console.log('\n');
+            console.log('\n');
+
+            // Now prepare and save the results
+            const websites = initiativeMapRawDomains.map((rawDomain) => `https://${rawDomain.name}`);
+            const repositories = initiativeMap.RawRepositoriesOnInitiativeMaps.map(
+              (rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepository.repositoryUrl
+            );
+            const functionalUseCases: FunctionalUseCase[] = [];
+
+            if (answerData.functionalUseCases.generatesPDF) {
+              functionalUseCases.push(FunctionalUseCase.GENERATES_PDF);
+            }
+            if (answerData.functionalUseCases.hasVirtualEmailInboxes) {
+              functionalUseCases.push(FunctionalUseCase.HAS_VIRTUAL_EMAIL_INBOXES);
+            }
+            if (answerData.functionalUseCases.sendsEmails) {
+              functionalUseCases.push(FunctionalUseCase.SENDS_EMAILS);
+            }
+
+            await prisma.$transaction(
+              async (tx) => {
+                // To simplify logic between create/update we retrieve associations to use IDs directly
+                const existingToolsInTheDatabase = await tx.tool.findMany({
+                  where: {
+                    name: {
+                      in: answerData.tools,
+                      mode: 'insensitive',
+                    },
+                  },
+                  select: {
+                    id: true,
+                  },
+                });
+
+                const existingBusinessUseCasesInTheDatabase = await tx.businessUseCase.findMany({
+                  where: {
+                    name: {
+                      in: answerData.businessUseCases,
+                    },
+                  },
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                });
+
+                const newBusinessUseCases = answerData.businessUseCases.filter(
+                  (element) => !existingBusinessUseCasesInTheDatabase.map((bUC) => bUC.name).includes(element)
+                );
+
+                const existingInitiative = await tx.initiative.findUnique({
+                  where: {
+                    originId: initiativeMap.id,
+                  },
+                  select: {
+                    id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  },
+                });
+
+                await tx.initiative.upsert({
+                  where: {
+                    originId: initiativeMap.id,
+                  },
+                  update: {
+                    name: initiativeName,
+                    description: answerData.description,
+                    websites: websites,
+                    repositories: repositories,
+                    functionalUseCases: functionalUseCases,
+                    ToolsOnInitiatives: {
+                      deleteMany: !!existingInitiative
+                        ? {
+                            initiativeId: existingInitiative.id,
+                            NOT: existingToolsInTheDatabase.map((tool) => ({ toolId: tool.id })),
+                          }
+                        : undefined,
+                      upsert: !!existingInitiative
+                        ? existingToolsInTheDatabase.map((tool) => ({
+                            where: { toolId_initiativeId: { initiativeId: existingInitiative.id, toolId: tool.id } },
+                            update: { toolId: tool.id },
+                            create: { toolId: tool.id },
+                          }))
+                        : undefined,
+                    },
+                    BusinessUseCasesOnInitiatives: {
+                      deleteMany: !!existingInitiative
+                        ? {
+                            initiativeId: existingInitiative.id,
+                            NOT: existingBusinessUseCasesInTheDatabase.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
+                          }
+                        : undefined,
+                      upsert: !!existingInitiative
+                        ? existingBusinessUseCasesInTheDatabase.map((businessUseCase) => ({
+                            where: { businessUseCaseId_initiativeId: { initiativeId: existingInitiative.id, businessUseCaseId: businessUseCase.id } },
+                            update: { businessUseCaseId: businessUseCase.id },
+                            create: {
+                              businessUseCase: {
+                                connectOrCreate: {
+                                  where: { name: businessUseCase.name },
+                                  create: { name: businessUseCase.name },
+                                },
+                              },
+                            },
+                          }))
+                        : undefined,
+                      create: newBusinessUseCases.map((businessUseCaseName) => ({
+                        businessUseCase: {
+                          connectOrCreate: {
+                            where: { name: businessUseCaseName },
+                            create: { name: businessUseCaseName },
+                          },
+                        },
+                      })),
+                    },
+                  },
+                  create: {
+                    origin: {
+                      connect: {
+                        id: initiativeMap.id,
+                      },
+                    },
+                    name: initiativeName,
+                    description: answerData.description,
+                    websites: websites,
+                    repositories: repositories,
+                    functionalUseCases: functionalUseCases,
+                    ToolsOnInitiatives: {
+                      create: existingToolsInTheDatabase.map((tool) => ({ toolId: tool.id })),
+                    },
+                    BusinessUseCasesOnInitiatives: {
+                      create: answerData.businessUseCases.map((businessUseCaseName) => ({
+                        businessUseCase: {
+                          connectOrCreate: {
+                            where: { name: businessUseCaseName },
+                            create: { name: businessUseCaseName },
+                          },
+                        },
+                      })),
+                    },
+                  },
+                });
+
+                await prisma.initiativeMap.update({
+                  where: {
+                    id: initiativeMap.id,
+                  },
+                  data: {
+                    update: false,
+                    lastUpdateAttemptWithReachabilityError: null,
+                    lastUpdateAttemptReachabilityError: null,
+                  },
+                  select: {
+                    id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  },
+                });
+              },
+              {
+                timeout: secondsToMilliseconds(30), // Since dealing with a lot of data, prevent closing whereas everything is alright
+                isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+              }
+            );
+          } catch (error) {
+            if (error === tokensReachTheLimitError) {
+              // We try with less information if possible
+              // (we try to remove 1 by 1 on each, but the main last one important is the website for business context on the initiative)
+              if (repositoriesTemplates.length >= websitesTemplates.length) {
+                repositoriesTemplates.pop();
+              } else {
+                websitesTemplates.pop();
+              }
+
+              if (repositoriesTemplates.length === 0 && websitesTemplates.length === 0) {
+                throw new Error(
+                  'initative with only a website should pass in the context, this case has not been handled yet, maybe we could truncate the website content so it passes?'
+                );
+              }
+
+              console.log('retrying with less information');
+
+              continue;
             } else {
               throw error;
             }
           }
 
-          // Sanitize a bit free entry fields
-          answerData.businessUseCases = answerData.businessUseCases.map((businessUseCaseName) => capitalizeFirstLetter(businessUseCaseName.trim()));
-          answerData.description = capitalizeFirstLetter(answerData.description.trim());
-
-          const sanitizedGptResultPath = path.resolve(projectDirectory, 'sanitized-gpt-result.json');
-
-          const beautifiedAnswerData = JSON.stringify(answerData, null, 2);
-          await fs.mkdir(path.dirname(sanitizedGptResultPath), { recursive: true });
-          await fs.writeFile(sanitizedGptResultPath, beautifiedAnswerData);
-
-          console.log(`the JSON sanitized result has been written to: ${sanitizedGptResultPath}`);
-          console.log('\n');
-          console.log('\n');
-
-          // Now prepare and save the results
-          const websites = initiativeMapRawDomains.map((rawDomain) => `https://${rawDomain.name}`);
-          const repositories = initiativeMap.RawRepositoriesOnInitiativeMaps.map(
-            (rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepository.repositoryUrl
-          );
-          const functionalUseCases: FunctionalUseCase[] = [];
-
-          if (answerData.functionalUseCases.generatesPDF) {
-            functionalUseCases.push(FunctionalUseCase.GENERATES_PDF);
-          }
-          if (answerData.functionalUseCases.hasVirtualEmailInboxes) {
-            functionalUseCases.push(FunctionalUseCase.HAS_VIRTUAL_EMAIL_INBOXES);
-          }
-          if (answerData.functionalUseCases.sendsEmails) {
-            functionalUseCases.push(FunctionalUseCase.SENDS_EMAILS);
-          }
-
-          await prisma.$transaction(
-            async (tx) => {
-              // To simplify logic between create/update we retrieve associations to use IDs directly
-              const existingToolsInTheDatabase = await tx.tool.findMany({
-                where: {
-                  name: {
-                    in: answerData.tools,
-                    mode: 'insensitive',
-                  },
-                },
-                select: {
-                  id: true,
-                },
-              });
-
-              const existingBusinessUseCasesInTheDatabase = await tx.businessUseCase.findMany({
-                where: {
-                  name: {
-                    in: answerData.businessUseCases,
-                  },
-                },
-                select: {
-                  id: true,
-                  name: true,
-                },
-              });
-
-              const newBusinessUseCases = answerData.businessUseCases.filter(
-                (element) => !existingBusinessUseCasesInTheDatabase.map((bUC) => bUC.name).includes(element)
-              );
-
-              const existingInitiative = await tx.initiative.findUnique({
-                where: {
-                  originId: initiativeMap.id,
-                },
-                select: {
-                  id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-                },
-              });
-
-              await tx.initiative.upsert({
-                where: {
-                  originId: initiativeMap.id,
-                },
-                update: {
-                  name: initiativeName,
-                  description: answerData.description,
-                  websites: websites,
-                  repositories: repositories,
-                  functionalUseCases: functionalUseCases,
-                  ToolsOnInitiatives: {
-                    deleteMany: !!existingInitiative
-                      ? {
-                          initiativeId: existingInitiative.id,
-                          NOT: existingToolsInTheDatabase.map((tool) => ({ toolId: tool.id })),
-                        }
-                      : undefined,
-                    upsert: !!existingInitiative
-                      ? existingToolsInTheDatabase.map((tool) => ({
-                          where: { toolId_initiativeId: { initiativeId: existingInitiative.id, toolId: tool.id } },
-                          update: { toolId: tool.id },
-                          create: { toolId: tool.id },
-                        }))
-                      : undefined,
-                  },
-                  BusinessUseCasesOnInitiatives: {
-                    deleteMany: !!existingInitiative
-                      ? {
-                          initiativeId: existingInitiative.id,
-                          NOT: existingBusinessUseCasesInTheDatabase.map((businessUseCase) => ({ businessUseCaseId: businessUseCase.id })),
-                        }
-                      : undefined,
-                    upsert: !!existingInitiative
-                      ? existingBusinessUseCasesInTheDatabase.map((businessUseCase) => ({
-                          where: { businessUseCaseId_initiativeId: { initiativeId: existingInitiative.id, businessUseCaseId: businessUseCase.id } },
-                          update: { businessUseCaseId: businessUseCase.id },
-                          create: {
-                            businessUseCase: {
-                              connectOrCreate: {
-                                where: { name: businessUseCase.name },
-                                create: { name: businessUseCase.name },
-                              },
-                            },
-                          },
-                        }))
-                      : undefined,
-                    create: newBusinessUseCases.map((businessUseCaseName) => ({
-                      businessUseCase: {
-                        connectOrCreate: {
-                          where: { name: businessUseCaseName },
-                          create: { name: businessUseCaseName },
-                        },
-                      },
-                    })),
-                  },
-                },
-                create: {
-                  origin: {
-                    connect: {
-                      id: initiativeMap.id,
-                    },
-                  },
-                  name: initiativeName,
-                  description: answerData.description,
-                  websites: websites,
-                  repositories: repositories,
-                  functionalUseCases: functionalUseCases,
-                  ToolsOnInitiatives: {
-                    create: existingToolsInTheDatabase.map((tool) => ({ toolId: tool.id })),
-                  },
-                  BusinessUseCasesOnInitiatives: {
-                    create: answerData.businessUseCases.map((businessUseCaseName) => ({
-                      businessUseCase: {
-                        connectOrCreate: {
-                          where: { name: businessUseCaseName },
-                          create: { name: businessUseCaseName },
-                        },
-                      },
-                    })),
-                  },
-                },
-              });
-
-              await prisma.initiativeMap.update({
-                where: {
-                  id: initiativeMap.id,
-                },
-                data: {
-                  update: false,
-                  lastUpdateAttemptWithReachabilityError: null,
-                  lastUpdateAttemptReachabilityError: null,
-                },
-                select: {
-                  id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-                },
-              });
-            },
-            {
-              timeout: secondsToMilliseconds(30), // Since dealing with a lot of data, prevent closing whereas everything is alright
-              isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
-            }
-          );
-        } catch (error) {
-          if (error === tokensReachTheLimitError) {
-            // We try with less information if possible
-            // (we try to remove 1 by 1 on each, but the main last one important is the website for business context on the initiative)
-            if (repositoriesTemplates.length >= websitesTemplates.length) {
-              repositoriesTemplates.pop();
-            } else {
-              websitesTemplates.pop();
-            }
-
-            if (repositoriesTemplates.length === 0 && websitesTemplates.length === 0) {
-              throw new Error(
-                'initative with only a website should pass in the context, this case has not been handled yet, maybe we could truncate the website content so it passes?'
-              );
-            }
-
-            console.log('retrying with less information');
-
-            continue;
-          } else {
-            throw error;
-          }
+          break; // When successful break the infinite loop
         }
 
-        break; // When successful break the infinite loop
+        // Do not flood network (tiny since MistralAI limits us to 5req/s but since the generation usually takes more than a second we are fine)
+        // (if needed in the future we could look at their rate limit information in headers to wait the appropriate amount of time to retry)
+        await sleep(50);
+      } finally {
+        // [WORKAROUND] The first idea was to keep everything local but even after cleaning the repositories it seems some are still
+        // huge enough to fill the storage, and since the provider does not provide the clear available storage, we make sure to not be killed due to that (set to false to debug)
+        if (!!true) {
+          await $`rm -rf ${path.resolve(projectDirectory, `./`)}`;
+        }
       }
-
-      // Do not flood network (tiny since MistralAI limits us to 5req/s but since the generation usually takes more than a second we are fine)
-      // (if needed in the future we could look at their rate limit information in headers to wait the appropriate amount of time to retry)
-      await sleep(50);
     }
   } catch (error) {
     if (error instanceof OpenAI.APIError) {

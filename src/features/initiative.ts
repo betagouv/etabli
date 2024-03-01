@@ -841,6 +841,9 @@ export async function feedInitiativesFromDatabase() {
 
             const gitFileSizeLimitInKb: number = 200;
 
+            // `simpleGit` expects the folder to exists already
+            await fs.mkdir(codeFolderPath, { recursive: true });
+
             const projectGit: SimpleGit = simpleGit({
               baseDir: codeFolderPath,
               progress: (event: SimpleGitProgressEvent) => {

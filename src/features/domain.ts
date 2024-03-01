@@ -426,6 +426,27 @@ export async function updateRobotsTxtOnDomains() {
             id: true, // Ref: https://github.com/prisma/prisma/issues/6252
           },
         });
+      } else if (result.status === 404) {
+        // If the robots.txt does not exist it means no restriction has been applied, so we consider it as indexable
+        await prisma.rawDomain.update({
+          where: {
+            id: rawDomain.id,
+          },
+          data: {
+            indexableFromRobotsTxt: true,
+            updateIndexableFromRobotsTxt: false,
+            robotsTxtContent: null,
+            redirectDomainTargetName: null,
+            redirectDomainTarget: {
+              disconnect: true,
+            },
+            lastUpdateAttemptWithReachabilityError: null,
+            lastUpdateAttemptReachabilityError: null,
+          },
+          select: {
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+          },
+        });
       } else if (result.status > 500) {
         // Website not reachable yet, hope to have it on next attempt
       } else {

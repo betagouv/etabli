@@ -476,8 +476,17 @@ CONTEXT:
       jsonString = answer.text;
     }
 
-    const answerObject = JSON.parse(jsonString);
-    const result = ResultSchema.parse(answerObject);
+    let answerObject: any;
+    let result: ResultSchemaType;
+    try {
+      answerObject = JSON.parse(jsonString);
+      result = ResultSchema.parse(answerObject);
+    } catch (error) {
+      console.log(`unable to parse the following content returned by the api`);
+      console.log(jsonString);
+
+      throw error;
+    }
 
     // We add correction to tools in case the LLM processed them poorly and to adjust to our own internal naming
     // Since embeddings are calculated by MistralAI we batch all at once to avoid API rate limiting

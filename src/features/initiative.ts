@@ -1,6 +1,7 @@
 import { input } from '@inquirer/prompts';
 import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@prisma/client';
 import assert from 'assert';
+import { eachOfLimit } from 'async';
 import chalk from 'chalk';
 import { differenceInDays } from 'date-fns/differenceInDays';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
@@ -45,6 +46,7 @@ import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
 import { languagesExtensions } from '@etabli/src/utils/languages';
+import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
 import { WappalyzerResultSchema } from '@etabli/src/wappalyzer';
 
@@ -646,12 +648,28 @@ export async function feedInitiativesFromDatabase() {
 
     const initiativeGptTemplate = handlebars.compile(initiativeGptTemplateContent);
 
-    // To debug easily we write each result on disk (also, since using lot of CLIs we have no other choice :D)
-    initiativeMapLoop: for (const [initiativeMapIndex, initiativeMap] of Object.entries(initiativeMaps)) {
+    // Since the underlying wappalyzer analysis per initiative map can take some time due to being in a Chromium environment
+    // we parallelize hoping to save some time. But still, we take in considerations the LLM API rate limit
+    const iterationLlmManagerApiCalls = 2; // One for the embeddings of the tools, and the other for the computation of the initiative sheet
+    const iterationMinimumDurationInSeconds = 2; // It's maybe not fully exact
+    const iterationLlmManagerApiCallsPerSecond = iterationMinimumDurationInSeconds / iterationLlmManagerApiCalls;
+    const safeCoefficient = 0.8; // Since the LLM manager API will be used by people using the assistant, we do not reach the limit
+    const maximumLlmManagerApiCallsConcurrency = Math.floor(
+      (safeCoefficient * llmManagerMaximumApiRequestsPerSecond) / iterationLlmManagerApiCallsPerSecond
+    );
+
+    // Make sure to also consider the Chromium limits on this system
+    const maxConcurrency = Math.min(maximumLlmManagerApiCallsConcurrency, chomiumMaxConcurrency);
+    assert(maxConcurrency >= 1);
+
+    console.log(`initiative maps will be computed with a maximum concurrency of ${maxConcurrency}`);
+
+    await eachOfLimit(initiativeMaps, maxConcurrency, async function (initiativeMap, initiativeMapIndex) {
       watchGracefulExitInLoop();
 
       console.log(`feed initiative ${initiativeMap.id} ${formatArrayProgress(initiativeMapIndex, initiativeMaps.length)}`);
 
+      // To debug easily we write each result on disk (also, since using lot of CLIs we have no other choice :D)
       const projectDirectory = path.resolve(__root_dirname, './data/initiatives/', initiativeMap.id);
 
       try {
@@ -768,7 +786,7 @@ export async function feedInitiativesFromDatabase() {
               console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its websites`);
               console.error(errorMessage);
 
-              continue initiativeMapLoop;
+              return;
             }
 
             await fs.mkdir(path.dirname(wappalyzerAnalysisPath), { recursive: true });
@@ -878,7 +896,7 @@ export async function feedInitiativesFromDatabase() {
                 console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its repositories`);
                 console.error(error.message);
 
-                continue initiativeMapLoop;
+                return;
               } else {
                 throw error;
               }
@@ -1032,7 +1050,7 @@ export async function feedInitiativesFromDatabase() {
                 console.error(`skip processing ${initiativeMap.id} due to an error while computing its sheet`);
                 console.error(error.message);
 
-                continue initiativeMapLoop;
+                return;
               } else {
                 throw error;
               }
@@ -1248,7 +1266,7 @@ export async function feedInitiativesFromDatabase() {
           await $`rm -rf ${path.resolve(projectDirectory, `./`)}`;
         }
       }
-    }
+    });
   } catch (error) {
     if (error instanceof OpenAI.APIError) {
       console.log(error.status);

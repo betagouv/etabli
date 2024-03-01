@@ -28,7 +28,7 @@ import { bitsFor } from '@etabli/src/utils/bits';
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { formatArrayProgress } from '@etabli/src/utils/format';
 import { containsHtml } from '@etabli/src/utils/html';
-import { handlePrismaErrorDueToContent, handleReachabilityError } from '@etabli/src/utils/request';
+import { chomiumMaxConcurrency, handlePrismaErrorDueToContent, handleReachabilityError } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
 
 const __root_dirname = process.cwd();
@@ -644,9 +644,8 @@ export async function updateWebsiteDataOnDomains() {
   try {
     // Since the underlying content fetching is based on waiting a timeout on the website "to be sure" single page applications (SPA)
     // have rendered their content, it takes some time in the iteration are consecutives. Due to that we allowed the loop batching
-    // Note: for a concurren of 1 in average it was 6 seconds per website (since to 2 pages renderings with an await)
-    const maxConcurrency = !!process.env.CHROMIUM_MAXIMUM_CONCURRENCY ? parseInt(process.env.CHROMIUM_MAXIMUM_CONCURRENCY, 10) : 1;
-    await eachOfLimit(rawDomains, maxConcurrency, async function (rawDomain, rawDomainIndex) {
+    // Note: for a concurrency of 1 in average it was 6 seconds per website (since to 2 pages renderings with an await)
+    await eachOfLimit(rawDomains, chomiumMaxConcurrency, async function (rawDomain, rawDomainIndex) {
       watchGracefulExitInLoop();
 
       console.log(

@@ -1,9 +1,18 @@
 import { RawDomain } from '@prisma/client';
 import { PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nextjs';
+import assert from 'assert';
 import { errors as playwrightErrors } from 'playwright';
 
 import { prisma } from '@etabli/src/prisma';
+
+export const chomiumMaxConcurrency = !!process.env.CHROMIUM_MAXIMUM_CONCURRENCY ? parseInt(process.env.CHROMIUM_MAXIMUM_CONCURRENCY, 10) : 1;
+assert(chomiumMaxConcurrency >= 1);
+
+export const llmManagerMaximumApiRequestsPerSecond = !!process.env.LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND
+  ? parseInt(process.env.LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND, 10)
+  : 5; // 5 is the default when creating an account onto the MistralAI platform
+assert(llmManagerMaximumApiRequestsPerSecond >= 1);
 
 // This should be used close to network calls because it silents errors
 // And in our case of long-running jobs we want the loop to continue despite network errors because it will be fetch again next time

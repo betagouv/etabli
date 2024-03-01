@@ -8,7 +8,7 @@ I describe below a project composed of {{websites.length}} websites and {{reposi
    - sends emails
    - ability to build a PDF document
 
-You must answer by respecting the following types, but you have to format them in a strict JSON format using "`json ... `" (and do not add comments to the JSON, it's invalid). Please you must write the values in french. TU DOIS ÉCRIRE LES VALEURS EN FRANÇAIS :
+You must answer by respecting the following types, but you have to format them in a strict JSON format using "\`\`\`json ... \`\`\`" (and do not add comments to the JSON, it's invalid). Please you must write the values in french. TU DOIS ÉCRIRE LES VALEURS EN FRANÇAIS :
 
 ```ts
 {{! this Handlebars comment is needed so Prettier will not format weirdily the injection of the definition }}

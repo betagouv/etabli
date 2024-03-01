@@ -17,7 +17,7 @@ export type ResultSchemaType = z.infer<typeof ResultSchema>;
 // Inside `vscode` just hover `ResultSchemaType` with your cursor and copy/paste the type
 // It will serve as a result model for the LLM with types
 export const resultSchemaDefinition: string = `
-type ResultSchemaType = {
+interface ResultSchemaType {
   businessUseCases: string[];
   description: string;
   tools: string[];

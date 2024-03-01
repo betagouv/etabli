@@ -27,6 +27,7 @@ import Wappalyzer from 'wappalyzer';
 
 import manifestsEndingPatterns from '@etabli/src/bibliothecary/manifests-patterns.json';
 import { ChunkEventEmitter, llmManagerInstance } from '@etabli/src/features/llm';
+import { hasProbableGenericDomain } from '@etabli/src/features/repository';
 import {
   InitiativeTemplateSchema,
   RepositoryTemplateSchema,
@@ -144,6 +145,7 @@ export async function inferInitiativesFromDatabase() {
       id: true,
       repositoryUrl: true,
       homepage: true,
+      probableWebsiteUrl: true,
       probableWebsiteDomain: true,
       similarRepositories: {
         where: rawRepositoryCriterias, // It avoids redoing the filtering locally to make sure they are eligible (because a similar one may be marked as such without satisfying criterias to be listed)
@@ -200,6 +202,11 @@ export async function inferInitiativesFromDatabase() {
   for (const rawDomain of rawDomains) {
     // Then, to repositories
     for (const rawRepository of rawRepositories) {
+      // Do not match the repository with a probable domain if this domain is a service commonly used by "anyone" and not scoped to the project iself
+      if (hasProbableGenericDomain(rawRepository)) {
+        continue;
+      }
+
       let score: number = 0;
 
       if (!!rawDomain.probableRepositoryUrl && rawDomain.probableRepositoryUrl === rawRepository.homepage) {

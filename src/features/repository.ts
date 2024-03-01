@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, RawRepository } from '@prisma/client';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { subDays } from 'date-fns/subDays';
 import fsSync from 'fs';
@@ -520,6 +520,33 @@ export function getRepositoryNameWithSubgroups(repositoryUrl: string): string {
   return parts.join('/');
 }
 
+export function hasProbableGenericDomain(rawRepository: Pick<RawRepository, 'probableWebsiteDomain' | 'probableWebsiteUrl'>): boolean {
+  if (
+    ['github.com', 'gitlab.com', 'bitbucket.org', 'npmjs.com'].includes(rawRepository.probableWebsiteDomain || '') ||
+    // Some publish their website on a specific shared with many other projects of their organization (some excluding this case and relying on URLs instead)
+    rawRepository.probableWebsiteDomain?.endsWith('.github.io') ||
+    rawRepository.probableWebsiteDomain?.endsWith('.gitbooks.io') ||
+    rawRepository.probableWebsiteDomain?.endsWith('.gitlab.io') ||
+    rawRepository.probableWebsiteUrl?.startsWith('https://pages.gitlab.io/') ||
+    rawRepository.probableWebsiteUrl?.startsWith('https://hub.docker.com/') ||
+    rawRepository.probableWebsiteUrl?.startsWith('https://dockerhub.com/') ||
+    // Some beta.gouv.fr projects target their own product sheet instead of their product (this workaround should be removed once Établi is adopted so they adjust their description)
+    rawRepository.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startup/') ||
+    rawRepository.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startups/') ||
+    // Some projects put their project publication on a dedicated platform
+    rawRepository.probableWebsiteUrl?.startsWith('https://hal.science/hal-') ||
+    rawRepository.probableWebsiteUrl?.startsWith('https://inria.hal.science/hal-') ||
+    rawRepository.probableWebsiteUrl?.startsWith('https://hal.inria.fr/hal-') ||
+    rawRepository.probableWebsiteUrl?.startsWith('https://hal.archives-ouvertes.fr/hal-') ||
+    rawRepository.probableWebsiteUrl?.startsWith('https://arxiv.org/abs/') ||
+    rawRepository.probableWebsiteUrl?.startsWith('https://arxiv.org/pdf/')
+  ) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 export async function matchRepositories() {
   const rawRepositoriesToUpdate = await prisma.rawRepository.findMany({
     where: {
@@ -607,27 +634,7 @@ export async function matchRepositories() {
     // And have a look to repository probably targeting the same domain or exact same URL
     // Note: at start we wanted to look for same probable domains but since websites may be hosted by same websites we added an hardcoded condition
     let hasGenericDomain = false;
-    if (
-      // For repositories targeting a repository or its package, looking at domain is not helpful
-      ['github.com', 'gitlab.com', 'bitbucket.org', 'npmjs.com'].includes(rawRepositoryToUpdate.probableWebsiteDomain || '') ||
-      // Some publish their website on a specific shared with many other projects of their organization (some excluding this case and relying on URLs instead)
-      rawRepositoryToUpdate.probableWebsiteDomain?.endsWith('.github.io') ||
-      rawRepositoryToUpdate.probableWebsiteDomain?.endsWith('.gitbooks.io') ||
-      rawRepositoryToUpdate.probableWebsiteDomain?.endsWith('.gitlab.io') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://pages.gitlab.io/') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hub.docker.com/') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://dockerhub.com/') ||
-      // Some beta.gouv.fr projects target their own product sheet instead of their product (this workaround should be removed once Établi is adopted so they adjust their description)
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startup/') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startups/') ||
-      // Some projects put their project publication on a dedicated platform
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.science/hal-') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://inria.hal.science/hal-') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.inria.fr/hal-') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.archives-ouvertes.fr/hal-') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://arxiv.org/abs/') ||
-      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://arxiv.org/pdf/')
-    ) {
+    if (hasProbableGenericDomain(rawRepositoryToUpdate)) {
       hasGenericDomain = true;
     }
 

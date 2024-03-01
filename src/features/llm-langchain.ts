@@ -503,7 +503,11 @@ CONTEXT:
       result = ResultSchema.parse(answerObject);
     } catch (error) {
       console.log(`unable to parse the following content returned by the api`);
+      console.log('------------');
+      console.log(answer.text);
+      console.log('------------');
       console.log(jsonString);
+      console.log('------------');
 
       throw error;
     }

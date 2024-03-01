@@ -619,6 +619,7 @@ export async function matchRepositories() {
       rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://dockerhub.com/') ||
       // Some beta.gouv.fr projects target their own product sheet instead of their product (this workaround should be removed once Établi is adopted so they adjust their description)
       rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startup/') ||
+      rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://beta.gouv.fr/startups/') ||
       // Some projects put their project publication on a dedicated platform
       rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://hal.science/') ||
       rawRepositoryToUpdate.probableWebsiteUrl?.startsWith('https://inria.hal.science/') ||

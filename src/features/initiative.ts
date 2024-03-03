@@ -72,6 +72,7 @@ const filesToKeepGitEndingPatterns: string[] = [
 
 const noImgAndSvgFilterPath = path.resolve(__root_dirname, './src/pandoc/no-img-and-svg.lua');
 const extractMetaDescriptionFilterPath = path.resolve(__root_dirname, './src/pandoc/extract-meta-description.lua');
+const removeInlineFileContentFilterPath = path.resolve(__root_dirname, './src/pandoc/remove-inline-file-content.lua');
 
 const wappalyzer = new Wappalyzer({
   debug: false,
@@ -723,7 +724,7 @@ export async function feedInitiativesFromDatabase() {
             }
 
             if (!useLocalFileCache || !fsSync.existsSync(markdownPath)) {
-              await $`pandoc ${htmlPath} --lua-filter ${noImgAndSvgFilterPath} --lua-filter ${extractMetaDescriptionFilterPath} -t gfm-raw_html -o ${markdownPath}`;
+              await $`pandoc ${htmlPath} --lua-filter ${noImgAndSvgFilterPath} --lua-filter ${extractMetaDescriptionFilterPath} --lua-filter ${removeInlineFileContentFilterPath} -t gfm-raw_html -o ${markdownPath}`;
             }
 
             websiteMarkdownContent = await fs.readFile(markdownPath, 'utf-8');

@@ -41,6 +41,9 @@ ENV CHROME_PATH="/usr/lib/chromium/"
 
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${CHROME_BIN}"
 
+# This one is required by Wappalyzer to launch the browser (ref: `node_modules/wappalyzer/driver.js`)
+ENV CHROMIUM_BIN="${CHROME_BIN}"
+
 # Restrict the permissions
 
 RUN addgroup --system --gid 1001 nodejs

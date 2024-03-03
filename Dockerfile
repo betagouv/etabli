@@ -8,6 +8,9 @@ ARG PRISMA_VERSION=4.16.2
 ARG APP_HOST=172.17.0.2
 ARG PORT=3000
 
+# Note: the pandoc package version naming is completely different than the official repository so as of now
+# we are not specifying a fixed version (ref: https://pkgs.alpinelinux.org/package/edge/community/x86_64/pandoc-cli)
+
 FROM node:${NODE_VERSION}-alpine
 
 ARG RUBY_VERSION
@@ -24,6 +27,7 @@ RUN apk add \
   "libffi-dev" \
   "libcurl" \
   "curl" \
+  "pandoc-cli" \
   "ruby-dev=${RUBY_VERSION}" \
   "py3-pip=${PIP_VERSION}" \
   # This is the dependencies needed by chromium

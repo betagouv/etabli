@@ -27,6 +27,7 @@ RUN apk add \
   "libffi-dev" \
   "libcurl" \
   "curl" \
+  "git" \
   "pandoc-cli" \
   "ruby-dev=${RUBY_VERSION}" \
   "py3-pip=${PIP_VERSION}" \

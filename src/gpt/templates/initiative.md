@@ -8,7 +8,7 @@ Je décris ci-dessous un projet composé de {{websites.length}} sites internet e
    - envoie des emails
    - a la capacité à générer des fichiers PDF
 
-Tu dois répondre en respectant les types suivants, mais tu dois les formatter au format JSON strict en utilisant `{{!}}``json ... ``{{!}}` (et surtout, n'ajoute pas de commentaires au JSON, c'est invalide). S'il te plaît écrit les valeurs en français, mais garde les mots-clés comme ils sont :
+Tu dois répondre en respectant les types suivants, mais tu dois les formatter au format JSON strict en utilisant `{{!}}``json ... ``{{!}}` (et surtout, n'ajoute pas de commentaires au JSON, c'est invalide, et je ne veux surtout pas un tableau, juste un seul objet de ce type). S'il te plaît écrit les valeurs en français, mais garde les mots-clés comme ils sont :
 
 {{! we use comments in the json delimiter otherwise Prettier autoformats it as inline code with only 1 back quote  }}
 

@@ -19,17 +19,19 @@ export const ErrorItemSchema = z.object({
   level: z.string(),
   message: z.string(),
   path: z.string(),
-  spans: z.array(SpanSchema),
-  type: z.tuple([
-    z.literal('PartialParsing'),
-    z.array(
-      z.object({
-        end: PositionSchema,
-        path: z.string(),
-        start: PositionSchema,
-      })
-    ),
-  ]),
+  spans: z.array(SpanSchema).optional(),
+  type: z.string().or(
+    z.tuple([
+      z.literal('PartialParsing'),
+      z.array(
+        z.object({
+          end: PositionSchema,
+          path: z.string(),
+          start: PositionSchema,
+        })
+      ),
+    ])
+  ),
 });
 export type ErrorItemSchemaType = z.infer<typeof ErrorItemSchema>;
 

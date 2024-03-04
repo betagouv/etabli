@@ -922,10 +922,11 @@ export async function feedInitiativesFromDatabase() {
 
                 // Keep files having an allowed pattern (since they should have meaningful content to analyze)
                 if (
-                  filesToKeepGitEndingPatterns.some((endingPattern) => {
+                  !filesToKeepGitEndingPatterns.some((endingPattern) => {
                     return filePath.endsWith(endingPattern);
                   })
                 ) {
+                  filesToRemove.push(filePath);
                   continue;
                 }
 
@@ -934,12 +935,13 @@ export async function feedInitiativesFromDatabase() {
                 // time in case it's bundled files, minified files... and it would be meaningless to us (even if we may have bundled files with size lower than the limit we set)
                 // Note: if the file is a symbolic link there is a high chance it points to nowhere (probably for libraries...), so skipping them to not break things
                 const fileStat = await fs.lstat(path.resolve(codeFolderPath, filePath));
-                if (!fileStat.isSymbolicLink() && fileStat.size <= gitFileSizeLimitInKb * bitsFor.KiB) {
+                if (fileStat.isSymbolicLink()) {
+                  filesToRemove.push(filePath);
+                  continue;
+                } else if (fileStat.size > gitFileSizeLimitInKb * bitsFor.KiB) {
+                  filesToRemove.push(filePath);
                   continue;
                 }
-
-                // Otherwise, remove
-                filesToRemove.push(filePath);
               }
 
               if (filesToRemove.length > 0) {

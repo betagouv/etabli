@@ -38,14 +38,35 @@ filtered_data = analysis_data.select { |entry|
 }
 
 # In case a parsing is wrong we prefer to be notified to investigate if an adjustment is needed
-failed_entries = filtered_data.select { |entry| entry[:success] == false }
+success_entries = []
+failed_entries = []
+filtered_data.each { |entry|
+  if entry[:success] == true
+    success_entries.push(entry)
+  else
+    failed_entries.push(entry)
+  end
+}
 
 unless failed_entries.empty?
-  raise "some manifest entries have 'success' set to false, which is not wanted"
+  # We do not raise an error since it's a normal bibliothecary error and if multiple manifests some could work
+  # (this is a rare issue, we consider it's like having no manifest or a language we cannot fetch, no need to notify us about this)
+
+  # [IMPORTANT] The following is commented because we analyze raw stdout from our JavaScript application
+  # it's here for debugging purpose when you want to investigate
+  debug = false
+
+  if debug
+    puts "some manifest entries cannot be analyzed:"
+
+    failed_entries.each { |entry|
+      puts "- " + entry[:error_message] + " (" + entry[:error_location] + ")"
+    }
+  end
 end
 
 # Write dependencies to `stdout` so the parent program can parse them easily
-filtered_data.each do |entry|
+success_entries.each do |entry|
   entry[:dependencies].each do |dependency|
     puts dependency[:name]
   end

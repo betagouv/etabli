@@ -922,6 +922,9 @@ export async function feedInitiativesFromDatabase() {
                   continue;
                 }
 
+                // To ease future conditions
+                const fullFilePath = path.resolve(codeFolderPath, filePath);
+
                 // Keep files having an allowed pattern (since they should have meaningful content to analyze)
                 if (
                   !filesToKeepGitEndingPatterns.some((endingPattern) => {
@@ -936,11 +939,18 @@ export async function feedInitiativesFromDatabase() {
                 // we do a manual cleaning of files too big, otherwise since they have an allowed file pattern they would be analzyed and it could take some
                 // time in case it's bundled files, minified files... and it would be meaningless to us (even if we may have bundled files with size lower than the limit we set)
                 // Note: if the file is a symbolic link there is a high chance it points to nowhere (probably for libraries...), so skipping them to not break things
-                const fileStat = await fs.lstat(path.resolve(codeFolderPath, filePath));
+                const fileStat = await fs.lstat(fullFilePath);
                 if (fileStat.isSymbolicLink()) {
                   filesToRemove.push(filePath);
                   continue;
                 } else if (fileStat.size > gitFileSizeLimitInKb * bitsFor.KiB) {
+                  filesToRemove.push(filePath);
+                  continue;
+                }
+
+                // After analyzing many repositories it seems programmatic files placed under a `public` or `assets` folder are always about third-party things, so we don't want to analyze them
+                // Note: we use the full file path to be sure having the leading "/" (our analyses are under `./data/initiatives/xxx/yyy/` so there is no conflicting folders)
+                if (fullFilePath.includes('/public/') || fullFilePath.includes('/assets/')) {
                   filesToRemove.push(filePath);
                   continue;
                 }

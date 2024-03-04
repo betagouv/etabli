@@ -207,7 +207,9 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
 
     if (toolLlmDocumentsToCalculate.length > 0) {
       // `addModels` recalculates the vector so we use it both for created documents and those to update
-      // Note: this is out of the transaction because it could takes time to compute
+      // Notes:
+      // - this is out of the transaction because it could takes time to compute
+      // - contrarly to `ingestInitiatives` calculating all tools together (< 5000 items) won't trigger the LLM tokens limit, so no need to chunk our API calls to MistralAI
       await this.toolsVectorStore.addModels(toolLlmDocumentsToCalculate);
 
       await prisma.toolLlmDocument.updateMany({
@@ -333,19 +335,46 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
 
     if (initiativeLlmDocumentsToCalculate.length > 0) {
       // `addModels` always calculates the vector so we use it both for created documents and those to update
-      // Note: this is out of the transaction because it could takes time to compute
-      await this.initiativesVectorStore.addModels(initiativeLlmDocumentsToCalculate);
+      // Notes:
+      // - this is out of the transaction because it could takes time to compute
+      // - it has tokens limitation as for a basic chat call, so chunking the operation
+      const documentsChunks: (typeof initiativeLlmDocumentsToCalculate)[0][][] = [[]];
+      let currentChunk = 0;
+      let currentChunkTokensCounter = 0;
+      for (const initiativeLlmDocument of initiativeLlmDocumentsToCalculate) {
+        const documentTokens = mistralTokenizer.encode(initiativeLlmDocument.content);
 
-      await prisma.initiativeLlmDocument.updateMany({
-        where: {
-          id: {
-            in: initiativeLlmDocumentsToCalculate.map((document) => document.id),
+        if (documentTokens.length >= this.gptInstance.modelTokenLimit) {
+          throw new Error('an initiative document should not be huge and triggering the llm limit');
+        } else if (currentChunkTokensCounter + documentTokens.length >= this.gptInstance.modelTokenLimit) {
+          // If adding this document to previous ones is over the tokens limit for, use a new chunk
+          currentChunk += 1;
+          documentsChunks.push([]);
+
+          currentChunkTokensCounter = 0;
+        }
+
+        currentChunkTokensCounter += documentTokens.length;
+
+        documentsChunks[currentChunk].push(initiativeLlmDocument);
+      }
+
+      for (const documentsChunk of documentsChunks) {
+        await this.initiativesVectorStore.addModels(documentsChunk);
+
+        await prisma.initiativeLlmDocument.updateMany({
+          where: {
+            id: {
+              in: documentsChunk.map((document) => document.id),
+            },
           },
-        },
-        data: {
-          calculatedAt: new Date(),
-        },
-      });
+          data: {
+            calculatedAt: new Date(),
+          },
+        });
+
+        await sleep(1000); // Wait to be sure not to trigger the API rate limit of MistralAI
+      }
 
       console.log(`${initiativeLlmDocumentsToCalculate.length} initiative documents have been calculated`);
     } else {

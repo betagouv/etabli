@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs';
 import createHttpError from 'http-errors';
 import { NextApiHandler, NextApiRequest, NextApiResponse } from 'next';
+import { ZodError } from 'zod';
 
 import { BusinessError, internalServerErrorError } from '@etabli/src/models/entities/errors';
 
@@ -36,7 +37,13 @@ export async function errorHandler(error: unknown, req: NextApiRequest, res: Nex
     res.status(error.statusCode).json({ error: { message: error.message } });
   } else {
     console.log(`the following error is unexpected and went up to the api endpoint catcher before being logged to sentry`);
-    console.error(error);
+
+    if (error instanceof ZodError) {
+      // Give some visibility to zod errors to avoid seeing things like `path: [Array]`
+      console.error(JSON.stringify(error));
+    } else {
+      console.error(error);
+    }
 
     // Notify Sentry of this unexpected error
     Sentry.withScope(function (scope) {

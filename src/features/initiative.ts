@@ -932,8 +932,9 @@ export async function feedInitiativesFromDatabase() {
                 // Since the `git clone --filter=blob:limit=XXX` seems to only filter specific uploaded assets (not filtering all files over the size limit)
                 // we do a manual cleaning of files too big, otherwise since they have an allowed file pattern they would be analzyed and it could take some
                 // time in case it's bundled files, minified files... and it would be meaningless to us (even if we may have bundled files with size lower than the limit we set)
-                const fileStat = await fs.stat(path.resolve(codeFolderPath, filePath));
-                if (fileStat.size <= gitFileSizeLimitInKb * bitsFor.KiB) {
+                // Note: if the file is a symbolic link there is a high chance it points to nowhere (probably for libraries...), so skipping them to not break things
+                const fileStat = await fs.lstat(path.resolve(codeFolderPath, filePath));
+                if (!fileStat.isSymbolicLink() && fileStat.size <= gitFileSizeLimitInKb * bitsFor.KiB) {
                   continue;
                 }
 

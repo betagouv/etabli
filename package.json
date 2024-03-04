@@ -84,8 +84,8 @@
     "@hookform/resolvers": "^2.9.10",
     "@inquirer/prompts": "^3.3.0",
     "@langchain/community": "^0.0.20",
-    "@langchain/core": "0.1.17",
-    "@langchain/mistralai": "^0.0.6",
+    "@langchain/core": "0.1.40",
+    "@langchain/mistralai": "0.0.7",
     "@mui/icons-material": "^5.15.10",
     "@mui/lab": "5.0.0-alpha.165",
     "@mui/material": "^5.15.10",
@@ -269,7 +269,7 @@
     "typescript-plugin-css-modules": "^4.1.1"
   },
   "overrides": {
-    "@langchain/core": "0.1.17",
+    "@langchain/core": "0.1.40",
     "msw": {
       "typescript": "$typescript"
     },

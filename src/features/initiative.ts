@@ -15,6 +15,7 @@ import fs from 'fs/promises';
 import { glob } from 'glob';
 import graphlib, { Graph } from 'graphlib';
 import handlebars from 'handlebars';
+import mistralTokenizer from 'mistral-tokenizer-js';
 import OpenAI from 'openai';
 import path from 'path';
 import prettyBytes from 'pretty-bytes';
@@ -1005,6 +1006,7 @@ export async function feedInitiativesFromDatabase() {
         // Since properties for websites and repositories are variable in length, and since GPT accepts a maximum of tokens in the context
         // We try with all information and if it's above, we retry with less content until it passes (if it can) because since sorted by main website/repository
         // The algorithm should extract interesting information even without having the whole bunch of information
+        let lastChanceAttemptWithOneTruncated = false;
         while (true) {
           // Prepare the content for GPT
           const finalGptContent = initiativeGptTemplate(
@@ -1234,6 +1236,25 @@ export async function feedInitiativesFromDatabase() {
               if (repositoriesTemplates.length >= websitesTemplates.length) {
                 repositoriesTemplates.pop();
               } else {
+                if (!lastChanceAttemptWithOneTruncated && websitesTemplates.length === 1) {
+                  // It seems even with only 1 website it does not work so we truncate
+                  // because if the content is huge there is a low probability everything is meaningful
+                  lastChanceAttemptWithOneTruncated = true;
+
+                  // TODO: the logic of tokens should be in `llm-*`... but for the ease for now it's here
+                  const tokens = mistralTokenizer.encode(websitesTemplates[0].content);
+                  const truncatedTokens = tokens.slice(0, 5000); // We could go up to `this.gptInstance.modelTokenLimit` but it's high probable the content is not meaningful enough since only 1 website to analyze
+
+                  // Set back the truncated content
+                  websitesTemplates[0].content = mistralTokenizer.decode(truncatedTokens);
+
+                  console.log(
+                    `[${initiativeMap.id}] the next retry will be with website content truncated (${truncatedTokens.length} tokens will be used)`
+                  );
+
+                  continue;
+                }
+
                 websitesTemplates.pop();
               }
 

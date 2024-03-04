@@ -518,17 +518,22 @@ CONTEXTE :
       const jsonStringNotStrict = typescriptCode.replace('type ResultSchemaType =', '').trim();
 
       // A JSON object in TypeScript cannot be parsed due to missing quotes on properties, ending comma... so using a helper for this
-      jsonString = JSON.stringify(jsonic(jsonStringNotStrict));
+      jsonString = jsonStringNotStrict;
+    } else if (answer.text.includes('```')) {
+      // Sometimes it forgets about the starting delimiter but has the one for the end, so we strip it
+      jsonString = answer.text.replace('```', '');
     }
 
     if (!jsonString) {
+      // Last attempt, hoping it has provided a pseudo-JSON we way parse
       jsonString = answer.text;
     }
 
     let answerObject: any;
     let result: ResultSchemaType;
     try {
-      answerObject = JSON.parse(jsonString);
+      // To avoid issues with wrong syntax or missing wrapper delimiter, we use a library that may help in parsing the whole
+      answerObject = jsonic(jsonString);
       result = ResultSchema.parse(answerObject);
     } catch (error) {
       console.log(`unable to parse the following content returned by the api`);

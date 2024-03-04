@@ -536,7 +536,13 @@ CONTEXTE :
   }
 
   public async assertToolsDocumentsAreReady(settings: Settings): Promise<void> {
-    const total = await prisma.toolLlmDocument.count({});
+    const total = await prisma.toolLlmDocument.count({
+      where: {
+        calculatedAt: {
+          not: null,
+        },
+      },
+    });
 
     if (total === 0) {
       throw new Error('the tools documents must be ingested to be used by the llm system');
@@ -683,7 +689,13 @@ CONTEXTE :
   }
 
   public async assertInitiativesDocumentsAreReady(settings: Settings): Promise<void> {
-    const total = await prisma.initiativeLlmDocument.count({});
+    const total = await prisma.initiativeLlmDocument.count({
+      where: {
+        calculatedAt: {
+          not: null,
+        },
+      },
+    });
 
     if (total === 0) {
       throw new Error('the initiatives documents must be ingested to be used by the llm system');

@@ -26,7 +26,7 @@ import {
 } from '@etabli/src/features/llm';
 import { gptInstances, gptSeed } from '@etabli/src/gpt';
 import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
-import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
+import { llmResponseFormatError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
@@ -537,8 +537,9 @@ CONTEXTE :
       console.log('------------');
       console.log(jsonString);
       console.log('------------');
+      console.log(error);
 
-      throw error;
+      throw llmResponseFormatError;
     }
 
     // We add correction to tools in case the LLM processed them poorly and to adjust to our own internal naming

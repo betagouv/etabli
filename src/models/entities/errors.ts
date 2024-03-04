@@ -63,3 +63,7 @@ export const unexpectedCliMaintenanceCommandError = new BusinessError(
 
 // LLM
 export const tokensReachTheLimitError = new BusinessError('tokensReachTheLimit', 'too many tokens according to the model limit');
+export const llmResponseFormatError = new BusinessError(
+  'llmResponseFormat',
+  'the response format received cannot be parsed as the expected json structure'
+);

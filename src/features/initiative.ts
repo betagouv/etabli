@@ -1,5 +1,6 @@
 import { input } from '@inquirer/prompts';
 import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@prisma/client';
+import * as Sentry from '@sentry/nextjs';
 import assert from 'assert';
 import { eachOfLimit } from 'async';
 import chalk from 'chalk';
@@ -38,7 +39,7 @@ import {
   WebsiteTemplateSchemaType,
   resultSchemaDefinition,
 } from '@etabli/src/gpt/template';
-import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
+import { llmResponseFormatError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
@@ -1033,9 +1034,16 @@ export async function feedInitiativesFromDatabase() {
             try {
               answerData = await llmManagerInstance.computeInitiative(settings, projectDirectory, finalGptContent, mixedInitiativeTools);
             } catch (error) {
-              // We tried to detect network errors but the original issue is written in the console but not spreaded to here
-              // So using the replacement error, hoping it's always this one for network erros (ref: https://github.com/langchain-ai/langchainjs/issues/4570)
-              if (error instanceof TypeError && error.message === "Cannot read properties of undefined (reading 'text')") {
+              if (error === llmResponseFormatError) {
+                // Since we cannot force the LLM to return an JSON object exactly, we had to deal with multiple workarounds
+                // to handle the LLM returning it with a bad syntax, a bad wrapper... so to not break the next iterations
+                // we just notify us inside Sentry to fix this case when we can (should be rare among thousands of initiative maps we have)
+                Sentry.captureException(error);
+
+                return;
+              } else if (error instanceof TypeError && error.message === "Cannot read properties of undefined (reading 'text')") {
+                // We tried to detect network errors but the original issue is written in the console but not spreaded to here
+                // So using the replacement error, hoping it's always this one for network erros (ref: https://github.com/langchain-ai/langchainjs/issues/4570)
                 await prisma.initiativeMap.update({
                   where: {
                     id: initiativeMap.id,

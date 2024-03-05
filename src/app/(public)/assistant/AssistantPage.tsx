@@ -75,9 +75,9 @@ export function AssistantPage(props: AssistantPageProps) {
         py: 3,
       }}
     >
-      <Box sx={{ flex: 1, minHeight: 400, pb: 2 }}>
+      <Box sx={{ flex: 1, minHeight: 400 }}>
         {messages.length > 0 ? (
-          <Box sx={{ pb: 2 }}>
+          <Box>
             {messages.map((message) => (
               <Box key={message.id} sx={{ py: '0.75rem' }}>
                 <Message message={message} />
@@ -105,8 +105,16 @@ export function AssistantPage(props: AssistantPageProps) {
           </Grid>
         )}
       </Box>
-      <Box sx={{ bgcolor: 'var(--background-default-grey)', position: 'sticky', bottom: '1.5rem', pt: 1 }} ref={inputContainerRef}>
-        <Grid container spacing={2} sx={{ bgcolor: 'var(--background-default-grey)' }}>
+      <Box sx={{ bgcolor: 'var(--background-default-grey)', position: 'sticky', bottom: '0', pt: 1 }} ref={inputContainerRef}>
+        <Grid
+          container
+          spacing={2}
+          sx={{
+            bgcolor: 'var(--background-default-grey)',
+            p: '1rem',
+            pr: 0, // This padding is added by another block
+          }}
+        >
           <Grid item xs={12}>
             <ContextualRequestAssistantForm
               prefill={{ sessionId: sessionId }}

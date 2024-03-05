@@ -127,9 +127,9 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
   return (
     <BaseForm handleSubmit={handleSubmit} onSubmit={onSubmit} control={control} innerRef={formRef} ariaLabel="envoyer un message">
       <TextField
-        label="Message à envoyer"
         {...register('message')}
         error={!!errors.message}
+        placeholder="Message à envoyer"
         helperText={errors?.message?.message}
         multiline
         minRows={3}

@@ -17,7 +17,10 @@ end
 function extract_meta_description(meta)
   -- Look for the meta description in the metadata
   if meta and meta.description then
-    return meta.description
+    -- Pandoc is returning an array for some meta tags (including the description one)
+    if type(meta.description) == "table" and #meta.description > 0 then
+      return meta.description[1]
+    end
   end
 
   return nil

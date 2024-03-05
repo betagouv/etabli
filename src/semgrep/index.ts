@@ -1,3 +1,4 @@
+import { noCase } from 'change-case';
 import { $ } from 'execa';
 import fsSync from 'fs';
 import fs from 'fs/promises';
@@ -10,6 +11,14 @@ const __root_dirname = process.cwd();
 export interface AnalysisResult {
   functions: string[];
   dependencies: string[];
+}
+
+export function isFunctionNameMeaningful(functionName: string): boolean {
+  // We expect the function name to have more than a word otherwise it cannot bring information for analyzing business use cases
+  // Bonus: it may also prevent having minified files functions (depends on the complexitty of the minification)
+  const functionNameWordsCount = noCase(functionName).split(' ').length;
+
+  return functionNameWordsCount > 1;
 }
 
 export async function analyzeWithSemgrep(folderPath: string, outputPath: string): Promise<AnalysisResult> {
@@ -36,8 +45,8 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
 
   for (const result of codeAnalysisData.results) {
     if (result.check_id.endsWith('-extract-functions')) {
-      if (result.extra.metavars.$FUNC?.abstract_content) {
-        functions.push(result.extra.metavars.$FUNC?.abstract_content);
+      if (result.extra.metavars.$FUNC?.abstract_content && isFunctionNameMeaningful(result.extra.metavars.$FUNC.abstract_content)) {
+        functions.push(result.extra.metavars.$FUNC.abstract_content);
       }
     } else {
       throw new Error('rule handler not implemented');

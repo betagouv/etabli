@@ -3,9 +3,21 @@
  */
 import path from 'path';
 
-import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
+import { analyzeWithSemgrep, isFunctionNameMeaningful } from '@etabli/src/semgrep/index';
 
 const __root_dirname = process.cwd();
+
+describe('isFunctionNameMeaningful()', () => {
+  it('should detect a meaningful function name', () => {
+    expect(isFunctionNameMeaningful('send')).toBeFalsy();
+    expect(isFunctionNameMeaningful('send123')).toBeFalsy();
+    expect(isFunctionNameMeaningful('sendEmail')).toBeTruthy();
+    expect(isFunctionNameMeaningful('send_email')).toBeTruthy();
+    expect(isFunctionNameMeaningful('SendEmail')).toBeTruthy();
+    expect(isFunctionNameMeaningful('$sendEmail')).toBeTruthy();
+    expect(isFunctionNameMeaningful('$send')).toBeFalsy();
+  });
+});
 
 describe('analyzeWithSemgrep()', () => {
   it(
@@ -18,7 +30,7 @@ describe('analyzeWithSemgrep()', () => {
 
       expect(results).toStrictEqual({
         dependencies: ['dependency-a', 'dependency-b', 'dependency-c', 'dependency-d'],
-        functions: ['sendWelcomeMessage', 'sendEmail', 'globalCallback', 'asyncGlobalCallback', 'run', 'notificationCallback'],
+        functions: ['sendWelcomeMessage', 'sendEmail', 'globalCallback', 'asyncGlobalCallback', 'notificationCallback'],
       });
     },
     10 * 1000
@@ -34,7 +46,7 @@ describe('analyzeWithSemgrep()', () => {
 
       expect(results).toStrictEqual({
         dependencies: ['dependency-a', 'dependency-b', 'dependency-c', 'dependency-d'],
-        functions: ['sendWelcomeMessage', 'sendEmail', '$globalCallback', 'run', '$notificationCallback'],
+        functions: ['sendWelcomeMessage', 'sendEmail', '$globalCallback', '$notificationCallback'],
       });
     },
     10 * 1000
@@ -50,7 +62,7 @@ describe('analyzeWithSemgrep()', () => {
 
       expect(results).toStrictEqual({
         dependencies: ['dependency-a', 'dependency-b', 'dependency-c', 'dependency-d'],
-        functions: ['send_welcome_message', 'send_email', '$global_callback', 'run', 'notification_callback'],
+        functions: ['send_welcome_message', 'send_email', '$global_callback', 'notification_callback'],
       });
     },
     10 * 1000
@@ -80,7 +92,7 @@ describe('analyzeWithSemgrep()', () => {
           'dependency-requirementstxt-c',
           'dependency-requirementstxt-d',
         ],
-        functions: ['send_welcome_message', 'send_email', 'global_callback', 'async_global_callback', 'run', 'notification_callback'],
+        functions: ['send_welcome_message', 'send_email', 'global_callback', 'async_global_callback', 'notification_callback'],
       });
     },
     10 * 1000
@@ -103,7 +115,7 @@ describe('analyzeWithSemgrep()', () => {
           'org.apache.maven:dependency-maven-a',
           'org.apache.maven:dependency-maven-b',
         ],
-        functions: ['globalCallback', 'run', 'notificationCallback', 'Mailer', 'sendWelcomeMessage', 'sendEmail'],
+        functions: ['globalCallback', 'notificationCallback', 'sendWelcomeMessage', 'sendEmail'],
       });
     },
     10 * 1000
@@ -119,7 +131,7 @@ describe('analyzeWithSemgrep()', () => {
 
       expect(results).toStrictEqual({
         dependencies: ['bitbucket.org/account-a/dependency-a', 'bitbucket.org/account-a/dependency-b', 'github.com/account-b/dependency-c'],
-        functions: ['sendWelcomeMessage', 'sendEmail', 'globalCallback', 'run'],
+        functions: ['sendWelcomeMessage', 'sendEmail', 'globalCallback'],
       });
     },
     10 * 1000
@@ -135,7 +147,7 @@ describe('analyzeWithSemgrep()', () => {
 
       expect(results).toStrictEqual({
         dependencies: ['dependency-a', 'dependency-b', 'dependency-c', 'dependency-d'],
-        functions: ['send_welcome_message', 'send_email', 'global_callback', 'async_global_callback', 'run', 'notification_callback'],
+        functions: ['send_welcome_message', 'send_email', 'global_callback', 'async_global_callback', 'notification_callback'],
       });
     },
     10 * 1000
@@ -156,12 +168,10 @@ describe('analyzeWithSemgrep()', () => {
           // 'dependency-b',
         ],
         functions: [
-          'Mailer', // This class constructor cannot be skipped for now
           'sendWelcomeMessage',
           'sendEmail',
           'globalCallback',
           'asyncGlobalCallback',
-          'run',
           // 'notificationCallback' // Cannot parse it for now, it's a bit too complicated
         ],
       });
@@ -186,7 +196,7 @@ describe('analyzeWithSemgrep()', () => {
           // 'dependency-c',
           // 'dependency-d',
         ],
-        functions: ['sendWelcomeMessage', 'sendEmail', 'globalCallback', 'asyncGlobalCallback', 'run', 'notificationCallback'],
+        functions: ['sendWelcomeMessage', 'sendEmail', 'globalCallback', 'asyncGlobalCallback', 'notificationCallback'],
       });
     },
     10 * 1000

@@ -29,4 +29,8 @@ export class AggregatedQueries {
   public get isLoading(): boolean {
     return this.queries.filter((query) => query.isLoading).length > 0;
   }
+
+  public get isInitialLoading(): boolean {
+    return this.queries.filter((query) => query.isInitialLoading).length > 0;
+  }
 }

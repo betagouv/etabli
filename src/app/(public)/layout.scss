@@ -23,3 +23,11 @@
     margin-top: 0 !important;
   }
 }
+
+// Make the use `react-show-more-text` nicer
+.show-more-less-clickable {
+  color: var(--text-label-blue-france);
+  font-style: italic;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}

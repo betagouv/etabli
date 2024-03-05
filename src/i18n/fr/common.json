@@ -11,11 +11,20 @@
   },
   "errors": {
     "custom": {
+      "initiativeNotFound": "cette initiative n'existe pas",
       "internalServerError": "une erreur interne est survenue, veuillez retenter",
       "unauthorizedError": "vous devez être connecté pour effectuer cette action",
       "unexpectedError": "une erreur inattendue est survenue, veuillez retenter"
     },
-    "validation": {}
+    "validation": {
+      "message": {
+        "too_big": "le message doit faire {{maximum}} caractères maximum",
+        "too_small_one": "le message est requis"
+      },
+      "query": {
+        "too_big": "la recherche doit faire {{maximum}} caractères maximum"
+      }
+    }
   },
   "date": {
     "ago": "{{ date, ago }}",
@@ -25,5 +34,25 @@
     "relative": "{{ date, relative }}",
     "short": "{{ date, short }}"
   },
-  "model": {}
+  "model": {
+    "initiative": {
+      "businessUseCase_one": "Cas d'utilisation métier",
+      "businessUseCase_other": "Cas d'utilisation métiers",
+      "functionalUseCase": {
+        "enum": {
+          "HAS_VIRTUAL_EMAIL_INBOXES": "Génère des boîtes email virtuelles de réception",
+          "SENDS_EMAILS": "Envoie des emails",
+          "GENERATES_PDF": "Génère des fichiers PDF"
+        },
+        "label_one": "Cas d'utilisation fonctionnel",
+        "label_other": "Cas d'utilisation fonctionnels"
+      },
+      "repository_one": "Dépôt de code",
+      "repository_other": "Dépôts de code",
+      "tool_one": "Outil utilisé",
+      "tool_other": "Outils utilisés",
+      "website_one": "Site internet",
+      "website_other": "Sites internet"
+    }
+  }
 }

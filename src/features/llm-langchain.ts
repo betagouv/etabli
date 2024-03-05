@@ -42,12 +42,22 @@ export type Sessions = {
   [key in string]: Session;
 };
 
+export interface QuerySession {
+  vector: number[];
+  lastRequestAt: Date;
+}
+
+export type QueryVectorHistory = {
+  [key in string]: QuerySession;
+};
+
 export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public readonly mistralaiClient;
   public readonly toolsVectorStore;
   public readonly initiativesVectorStore;
   public readonly gptInstance = gptInstances['tiny'];
   public readonly sessions: Sessions = {}; // To not overcomplexify the logic we go with memory history considering just 1 instance of the product (or if more, with sticky IP to target the same instance for the same user)
+  public readonly querySessions: QueryVectorHistory = {}; // To not overcomplexify the logic we go with memory history considering just 1 instance of the product (or if more, with sticky IP to target the same instance for the same user)
   public readonly cleanHistoryJob;
 
   public constructor() {
@@ -80,6 +90,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
       vectorColumnName: 'vector',
       columns: {
         id: PrismaVectorStore.IdColumn,
+        initiativeId: true,
         content: PrismaVectorStore.ContentColumn,
       },
     });
@@ -88,11 +99,18 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
     this.cleanHistoryJob = new CronJob(
       '0 * * * *', // Every hour
       () => {
-        const historyExpirationAt = subHours(new Date(), 6); // If a conversation has more than 6 hours, delete it
+        const sessionHistoryExpirationAt = subHours(new Date(), 6); // If a conversation has more than 6 hours, delete it
+        const querySessionHistoryExpirationAt = subHours(new Date(), 1); // If a query has more than 1 hour, delete it
 
         for (let sessionId in this.sessions) {
-          if (this.sessions[sessionId].lastRequestAt < historyExpirationAt) {
+          if (this.sessions[sessionId].lastRequestAt < sessionHistoryExpirationAt) {
             delete this.sessions[sessionId];
+          }
+        }
+
+        for (let query in this.querySessions) {
+          if (this.querySessions[query].lastRequestAt < querySessionHistoryExpirationAt) {
+            delete this.querySessions[query];
           }
         }
 
@@ -577,6 +595,34 @@ CONTEXTE :
     }
 
     return result;
+  }
+
+  public async getInitiativesFromQuery(query: string): Promise<string[]> {
+    // Due to pagination it makes no sense to recompute the query embedding against the MistralAI API
+    // so we keep a little cache just to reduce this cost
+    if (!this.querySessions[query]) {
+      const resultVector = await this.initiativesVectorStore.embeddings.embedQuery(query);
+
+      this.querySessions[query] = {
+        vector: resultVector,
+        lastRequestAt: new Date(),
+      };
+    } else {
+      this.querySessions[query].lastRequestAt = new Date();
+    }
+
+    const querySession = this.querySessions[query];
+
+    // We restrict the search to 50 items to no overload the database, since people probably won't look for more without precising the search
+    const similaries = await this.initiativesVectorStore.similaritySearchVectorWithScore(querySession.vector, 100);
+
+    const filteredSimilaries = similaries.filter(([document, score]) => {
+      return score < 0.3;
+    });
+
+    return filteredSimilaries.map(([document, score]) => {
+      return document.metadata.initiativeId;
+    });
   }
 
   public async assertToolsDocumentsAreReady(settings: Settings): Promise<void> {

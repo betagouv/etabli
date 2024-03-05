@@ -575,6 +575,10 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     return ResultSchema.parse(answerObject);
   }
 
+  public async getInitiativesFromQuery(query: string): Promise<string[]> {
+    throw new Error('not implemented yet');
+  }
+
   public async assertToolsDocumentsAreReady(settings: Settings): Promise<void> {
     if (!settings.llmAnalyzerAssistantId) {
       throw new Error('the analyzer assistant must exist to compute initiative through the llm system');

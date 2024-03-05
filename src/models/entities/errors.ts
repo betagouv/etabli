@@ -1,5 +1,7 @@
 import { CustomError as LibraryCustomError } from 'ts-custom-error';
 
+import { getServerTranslation } from '@etabli/src/i18n';
+
 export class CustomError extends LibraryCustomError {
   public constructor(
     public readonly code: string,
@@ -45,6 +47,12 @@ export class BusinessDomainError extends BusinessError {
   }
 }
 
+// The logged errors (console or API) are written by default in english (but will take french if english not filled)
+// but the displayer/frontend is able to translate the content thanks to the error code
+const { t } = getServerTranslation('common', {
+  lng: 'en',
+});
+
 //
 // Errors definition
 //
@@ -67,3 +75,6 @@ export const llmResponseFormatError = new BusinessError(
   'llmResponseFormat',
   'the response format received cannot be parsed as the expected json structure'
 );
+
+// Initiative
+export const initiativeNotFoundError = new BusinessError('initiativeNotFound', t('errors.custom.initiativeNotFound'));

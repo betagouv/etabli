@@ -21,6 +21,10 @@ export class MockVectorStoreLlmManager implements LlmManager {
 
   public async ingestInitiatives(settings: Settings): Promise<void> {}
 
+  public async getInitiativesFromQuery(query: string): Promise<string[]> {
+    return [];
+  }
+
   public async computeInitiative(
     settings: Settings,
     projectDirectory: string,

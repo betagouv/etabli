@@ -1,5 +1,8 @@
 import z from 'zod';
 
+export const FunctionalUseCaseSchema = z.enum(['HAS_VIRTUAL_EMAIL_INBOXES', 'SENDS_EMAILS', 'GENERATES_PDF']);
+export type FunctionalUseCaseSchemaType = z.infer<typeof FunctionalUseCaseSchema>;
+
 export const InitiativeSchema = z
   .object({
     id: z.string().uuid(),
@@ -7,7 +10,9 @@ export const InitiativeSchema = z
     description: z.string().min(1),
     websites: z.array(z.string().url()),
     repositories: z.array(z.string().url()),
-    // TODO: use cases, tools
+    businessUseCases: z.array(z.string()),
+    functionalUseCases: z.array(FunctionalUseCaseSchema),
+    tools: z.array(z.string()),
     createdAt: z.date(),
     updatedAt: z.date(),
     deletedAt: z.date().nullable(),

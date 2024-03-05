@@ -344,9 +344,14 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
       for (const initiativeLlmDocument of initiativeLlmDocumentsToCalculate) {
         const documentTokens = mistralTokenizer.encode(initiativeLlmDocument.content);
 
+        // [IMPORTANT] Is a variable `str` is 10 tokens length, setting it inside an array `[str]` is still 10 tokens length
+        // but after each new item will add a token, for example `[str, str]` is 21 tokens long
+        // Note: below we do `+1` to take in account the pontentially added document
+        const currentTokensFingerprintOfBatching = Math.max(documentsChunks[currentChunk].length - 1, 0);
+
         if (documentTokens.length >= this.gptInstance.modelTokenLimit) {
           throw new Error('an initiative document should not be huge and triggering the llm limit');
-        } else if (currentChunkTokensCounter + documentTokens.length >= this.gptInstance.modelTokenLimit) {
+        } else if (currentChunkTokensCounter + documentTokens.length + (currentTokensFingerprintOfBatching + 1) >= this.gptInstance.modelTokenLimit) {
           // If adding this document to previous ones is over the tokens limit for, use a new chunk
           currentChunk += 1;
           documentsChunks.push([]);

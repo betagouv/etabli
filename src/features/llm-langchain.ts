@@ -508,7 +508,9 @@ CONTEXTE :
       if (!jsonString) {
         console.log(answer.text);
 
-        throw new Error(`the json code block is not present in the answer or the answer has been truncated while saying it's complete`);
+        console.error(`the json code block is not present in the answer or the answer has been truncated while saying it's complete`);
+
+        throw llmResponseFormatError;
       }
     } else if (answer.text.includes('```ts')) {
       const typescriptCode = extractFirstTypescriptCodeContentFromMarkdown(answer.text);
@@ -516,7 +518,9 @@ CONTEXTE :
       if (!typescriptCode) {
         console.log(answer.text);
 
-        throw new Error(`the typescript code block is not present in the answer or the answer has been truncated while saying it's complete`);
+        console.error(`the typescript code block is not present in the answer or the answer has been truncated while saying it's complete`);
+
+        throw llmResponseFormatError;
       }
 
       // That's the pattern MistralAI seems to always provide when returning TypeScript format

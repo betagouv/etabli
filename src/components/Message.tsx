@@ -1,5 +1,6 @@
 import MuiAvatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
+import Markdown from 'markdown-to-jsx';
 
 import assistantAvatar from '@etabli/src/assets/images/assistant_avatar.png';
 import { Avatar } from '@etabli/src/components/Avatar';
@@ -21,7 +22,9 @@ export function Message(props: MessageProps) {
           )}
         </Box>
       </Box>
-      <Box sx={{ display: 'inline-block', width: 'auto' }}>{props.message.content}</Box>
+      <Box sx={{ display: 'inline-block', width: 'auto' }}>
+        <Markdown>{props.message.content}</Markdown>
+      </Box>
     </Box>
   );
 }

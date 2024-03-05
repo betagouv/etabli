@@ -4,6 +4,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import GridViewIcon from '@mui/icons-material/GridView';
 import SearchIcon from '@mui/icons-material/Search';
 import TableRowsIcon from '@mui/icons-material/TableRows';
+import Alert from '@mui/material/Alert';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -104,6 +105,11 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     <>
       <Grid container {...centeredContainerGridProps} alignContent="flex-start">
         <Grid item xs={12} sx={{ pb: 3 }}>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            {/* TODO: remove when appropriate */}
+            Dû à notre phase de tests, notre annuaire contient 2000 initiatives sur les 40 000 possibles. Nous avons principalement référencé celles
+            liées au gouvernement, nous les référencerons toutes sous peu.
+          </Alert>
           <Typography component="h1" variant="h5">
             Annuaire des initiatives
           </Typography>

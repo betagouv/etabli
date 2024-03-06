@@ -15,7 +15,7 @@ const styleSrcValues = ["'self'", 'https:', "'unsafe-inline'"];
 
 // Matomo settings
 if (process.env.NEXT_PUBLIC_MATOMO_URL) {
-  connectSrcValues.push(process.env.NEXT_PUBLIC_MATOMO_URL);
+  scriptSrcValues.push(process.env.NEXT_PUBLIC_MATOMO_URL);
 }
 
 // Sentry settings

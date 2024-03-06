@@ -4,6 +4,7 @@ import { DsfrProvider } from '@codegouvfr/react-dsfr/next-appdir/DsfrProvider';
 import { getHtmlAttributes } from '@codegouvfr/react-dsfr/next-appdir/getHtmlAttributes';
 import { PropsWithChildren } from 'react';
 
+import { Matomo } from '@etabli/src/app/Matomo';
 import { MuiDsfrThemeProvider } from '@etabli/src/app/MuiDsfrThemeProvider';
 import { SentryClientProvider } from '@etabli/src/app/SentryClientProvider';
 import { StartDsfr } from '@etabli/src/app/StartDsfr';
@@ -38,6 +39,7 @@ function MainStructure(props: PropsWithChildren) {
           </MuiDsfrThemeProvider>
           <Display />
         </DsfrProvider>
+        <Matomo />
       </body>
     </>
   );

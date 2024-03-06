@@ -35,7 +35,14 @@ export function InitiativeCard(props: InitiativeCardProps) {
   }, [props.initiative]);
 
   return (
-    <Card variant="outlined" sx={{ height: '100%' }}>
+    <Card
+      variant="outlined"
+      sx={{
+        height: '100%',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word', // Needed in case of word/sentence bigger than parent width (it applies on all children)
+      }}
+    >
       <CardContent>
         <Grid container direction={'column'} spacing={2}>
           <Grid item xs={12}>
@@ -44,13 +51,7 @@ export function InitiativeCard(props: InitiativeCardProps) {
             </Link>
           </Grid>
           <Grid item xs={12}>
-            <Typography
-              component="div"
-              sx={{
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word', // Needed in case of word/sentence bigger than parent width
-              }}
-            >
+            <Typography component="div">
               <ShowMoreText lines={3} more="Voir plus" less="Voir moins">
                 {props.initiative.description}
               </ShowMoreText>

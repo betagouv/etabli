@@ -26,9 +26,19 @@ export function InitiativeList(props: InitiativeListProps) {
       field: typedNameof('name'),
       headerName: 'Nom',
       flex: 1,
+      minWidth: 250,
       renderCell: (params) => {
         return (
-          <Link component={NextLink} href={linkRegistry.get('initiative', { initiativeId: params.row.id })} variant="subtitle2" underline="none">
+          <Link
+            component={NextLink}
+            href={linkRegistry.get('initiative', { initiativeId: params.row.id })}
+            variant="subtitle2"
+            underline="none"
+            sx={{
+              whiteSpace: 'pre-wrap !important',
+              wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
+            }}
+          >
             {params.row.name}
           </Link>
         );
@@ -38,6 +48,7 @@ export function InitiativeList(props: InitiativeListProps) {
       field: typedNameof('businessUseCases'),
       headerName: "Cas d'utilisation métiers",
       flex: 1,
+      minWidth: 300,
       renderCell: (params) => {
         return params.row.businessUseCases.length > 0 ? (
           <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, overflow: 'hidden' }}>
@@ -56,6 +67,7 @@ export function InitiativeList(props: InitiativeListProps) {
       field: 'websites_and_repositories',
       headerName: 'Références principales',
       flex: 1,
+      minWidth: 300,
       renderCell: (params) => {
         const referencesLinks: string[] = [];
 

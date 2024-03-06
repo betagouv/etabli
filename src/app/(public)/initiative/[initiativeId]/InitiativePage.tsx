@@ -68,7 +68,17 @@ export function InitiativePage({ params: { initiativeId } }: InitiativePageProps
               {initiative.websites.map((website) => {
                 return (
                   <li key={website}>
-                    <Link component={NextLink} href={website} variant="subtitle2" underline="none" target="_blank">
+                    <Link
+                      component={NextLink}
+                      href={website}
+                      variant="subtitle2"
+                      underline="none"
+                      target="_blank"
+                      sx={{
+                        whiteSpace: 'pre-wrap !important',
+                        wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
+                      }}
+                    >
                       {website}
                     </Link>
                   </li>
@@ -93,7 +103,17 @@ export function InitiativePage({ params: { initiativeId } }: InitiativePageProps
               {initiative.repositories.map((repository) => {
                 return (
                   <li key={repository}>
-                    <Link component={NextLink} href={repository} variant="subtitle2" underline="none" target="_blank">
+                    <Link
+                      component={NextLink}
+                      href={repository}
+                      variant="subtitle2"
+                      underline="none"
+                      target="_blank"
+                      sx={{
+                        whiteSpace: 'pre-wrap !important',
+                        wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
+                      }}
+                    >
                       {repository}
                     </Link>
                   </li>

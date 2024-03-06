@@ -169,7 +169,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
             {initiatives.length ? (
               <Grid item xs={12}>
                 <Grid container spacing={1} direction="column">
-                  <Grid item>
+                  <Grid item sx={{ width: '100%' }}>
                     <ContextualInitiativeList initiatives={initiatives} display={listDisplay} />
                     {/* TODO: allow customizing pageSize */}
                     <Pagination

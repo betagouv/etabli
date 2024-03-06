@@ -15,7 +15,15 @@ export function FunctionalUseCaseChip(props: FunctionalUseCaseChipProps) {
   return (
     <Chip
       label={t(`model.initiative.functionalUseCase.enum.${props.useCase}`)}
-      sx={{ bgcolor: 'var(--background-contrast-green-tilleul-verveine)' }}
+      sx={{
+        bgcolor: 'var(--background-contrast-green-tilleul-verveine)',
+        height: 'auto',
+        p: '5px',
+        '& > .MuiChip-label': {
+          whiteSpace: 'pre-wrap !important',
+          wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
+        },
+      }}
     />
   );
 }

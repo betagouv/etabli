@@ -4,6 +4,8 @@ import { ChunkEventEmitter, LlmManager } from '@etabli/src/features/llm';
 import { ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
 import { sleep } from '@etabli/src/utils/sleep';
 
+const warningMessage = `you are using the llm instance mock so watch out side-effect it can have`;
+
 export class MockVectorStoreLlmManager implements LlmManager {
   public constructor() {}
 
@@ -17,11 +19,17 @@ export class MockVectorStoreLlmManager implements LlmManager {
 
   public async stopHistoryCleaner(): Promise<void> {}
 
-  public async ingestTools(settings: Settings): Promise<void> {}
+  public async ingestTools(settings: Settings): Promise<void> {
+    console.warn(warningMessage);
+  }
 
-  public async ingestInitiatives(settings: Settings): Promise<void> {}
+  public async ingestInitiatives(settings: Settings): Promise<void> {
+    console.warn(warningMessage);
+  }
 
   public async getInitiativesFromQuery(query: string): Promise<string[]> {
+    console.warn(warningMessage);
+
     return [];
   }
 
@@ -31,6 +39,8 @@ export class MockVectorStoreLlmManager implements LlmManager {
     prompt: string,
     rawToolsFromAnalysis: string[]
   ): Promise<ResultSchemaType> {
+    console.warn(warningMessage);
+
     return ResultSchema.parse({
       businessUseCases: [
         'Dolorem aliquid dignissimos',

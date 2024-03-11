@@ -36,6 +36,7 @@ export function Introduction() {
         <Image
           src={hero}
           alt=""
+          priority={true}
           style={{
             width: '100%',
             maxHeight: '550px',

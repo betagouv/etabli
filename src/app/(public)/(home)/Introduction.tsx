@@ -5,6 +5,7 @@ import Image from 'next/image';
 import NextLink from 'next/link';
 import * as React from 'react';
 
+import style from '@etabli/src/app/(public)/(home)/Introduction.module.scss';
 import hero from '@etabli/src/assets/images/hero.png';
 import { IntroductionContainer } from '@etabli/src/components/IntroductionContainer';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
@@ -37,11 +38,9 @@ export function Introduction() {
           src={hero}
           alt=""
           priority={true}
+          className={style.hero}
           style={{
-            width: '100%',
-            maxHeight: '550px',
-            objectFit: 'contain',
-            objectPosition: 'left center',
+            color: undefined, // [WORKAROUND] Ref: https://github.com/vercel/next.js/issues/61388#issuecomment-1988278891
           }}
         />
       }

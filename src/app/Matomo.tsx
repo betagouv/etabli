@@ -1,6 +1,10 @@
 import Script from 'next/script';
 
-export function Matomo() {
+export interface MatomoProps {
+  nonce?: string;
+}
+
+export function Matomo(props: MatomoProps) {
   const matomoUrl = process.env.NEXT_PUBLIC_MATOMO_URL;
   const matomoSiteId = process.env.NEXT_PUBLIC_MATOMO_SITE_ID;
 
@@ -8,6 +12,7 @@ export function Matomo() {
     <Script
       id="matomo"
       strategy="afterInteractive"
+      nonce={props.nonce}
     >{`var _paq = window._paq = window._paq || [];_paq.push(['trackPageView']);_paq.push(['enableLinkTracking']);(function() {var u="${matomoUrl}";_paq.push(['setTrackerUrl', u+'matomo.php']);_paq.push(['setSiteId', '${matomoSiteId}']);var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);})();`}</Script>
   ) : null;
 }

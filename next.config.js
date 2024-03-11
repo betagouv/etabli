@@ -19,13 +19,10 @@ const { withSentryConfig } = require('@sentry/nextjs');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const gitRevision = require('git-rev-sync');
 const { getCommitSha, getHumanVersion, getTechnicalVersion } = require('./src/utils/app-version.js');
-const { convertHeadersForNextjs, securityHeaders, assetsSecurityHeaders } = require('./src/utils/http.js');
 const { i18n } = require('./next-i18next.config');
 
 const mode = process.env.APP_MODE || 'test';
 
-const nextjsSecurityHeaders = convertHeadersForNextjs(securityHeaders);
-const nextjsAssetsSecurityHeaders = convertHeadersForNextjs(assetsSecurityHeaders);
 const baseUrl = new URL(getBaseUrl());
 
 // TODO: once Next supports `next.config.js` we can set types like `ServerRuntimeConfig` and `PublicRuntimeConfig` below
@@ -84,19 +81,6 @@ const moduleExports = async () => {
         {
           source: '/robots.txt',
           destination: '/api/robots',
-        },
-      ];
-    },
-    async headers() {
-      // Order matters, less precise to more precise (it's weird since the opposite of others... but fine)
-      return [
-        {
-          source: '/:path*', // All routes
-          headers: nextjsSecurityHeaders,
-        },
-        {
-          source: '/assets/:path*', // Assets routes
-          headers: nextjsAssetsSecurityHeaders,
         },
       ];
     },

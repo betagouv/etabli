@@ -2,6 +2,8 @@ import { Display } from '@codegouvfr/react-dsfr/Display';
 import { DsfrHead } from '@codegouvfr/react-dsfr/next-appdir/DsfrHead';
 import { DsfrProvider } from '@codegouvfr/react-dsfr/next-appdir/DsfrProvider';
 import { getHtmlAttributes } from '@codegouvfr/react-dsfr/next-appdir/getHtmlAttributes';
+import { headers } from 'next/headers';
+import Link from 'next/link';
 import { PropsWithChildren } from 'react';
 
 import { Matomo } from '@etabli/src/app/Matomo';
@@ -21,17 +23,19 @@ export interface RootLayoutProps {
 getHtmlAttributes({ defaultColorScheme });
 
 function MainStructure(props: PropsWithChildren) {
+  const nonce = headers().get('x-nonce') || undefined;
+
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-head-element */}
       <head>
         <StartDsfr />
-        <DsfrHead />
+        <DsfrHead Link={Link} nonce={nonce} />
       </head>
       <body>
         <DsfrProvider>
           <MuiDsfrThemeProvider>
-            <Providers>
+            <Providers nonce={nonce}>
               <SentryClientProvider>
                 <LiveChatProvider>{props.children}</LiveChatProvider>
               </SentryClientProvider>
@@ -39,7 +43,7 @@ function MainStructure(props: PropsWithChildren) {
           </MuiDsfrThemeProvider>
           <Display />
         </DsfrProvider>
-        <Matomo />
+        <Matomo nonce={nonce} />
       </body>
     </>
   );

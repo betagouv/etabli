@@ -4,6 +4,8 @@ import Card from '@mui/material/Card';
 import Image, { StaticImageData } from 'next/image';
 import NextLink from 'next/link';
 
+import style from '@etabli/src/components/QuickAccessCard.module.scss';
+
 const isRemoteUrl = (url: string | StaticImageData) => {
   try {
     return Boolean(new URL(url as unknown as string));
@@ -44,8 +46,10 @@ export function QuickAccessCard(props: QuickAccessCardProps) {
             src={props.image}
             alt={props.imageAlt}
             fill={true}
+            priority={true}
+            className={style.imageWithUrl}
             style={{
-              objectFit: 'contain',
+              color: undefined, // [WORKAROUND] Ref: https://github.com/vercel/next.js/issues/61388#issuecomment-1988278891
             }}
             data-sentry-block
           />
@@ -54,10 +58,10 @@ export function QuickAccessCard(props: QuickAccessCardProps) {
         <Image
           src={props.image}
           alt={props.imageAlt}
+          priority={true}
+          className={style.imageWithoutUrl}
           style={{
-            width: '100%',
-            height: 'auto',
-            objectFit: 'contain',
+            color: undefined, // [WORKAROUND] Ref: https://github.com/vercel/next.js/issues/61388#issuecomment-1988278891
           }}
         />
       )}

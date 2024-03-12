@@ -101,10 +101,18 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
         }
       : {
           initiatives: [],
-          pagesCount: 1,
-          totalCount: -1,
+          pagesCount: null,
+          totalCount: -1, // -1 for the pagination component
         };
   }, [listInitiatives.data, pageSize]);
+
+  // Adjust the page in case the server removes some items in the meantime
+  // Note: we make sure it does not apply when loading another page since values are reset
+  useEffect(() => {
+    if (pagesCount && currentPage > pagesCount) {
+      setCurrentPage(pagesCount);
+    }
+  }, [pagesCount, currentPage]);
 
   if (aggregatedQueries.hasError) {
     return (

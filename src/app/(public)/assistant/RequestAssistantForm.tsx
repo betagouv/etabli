@@ -66,18 +66,6 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
     }
 
     try {
-      // Send the written message to the parent so it can display it
-      if (props.onNewMessage) {
-        props.onNewMessage(
-          MessageSchema.parse({
-            id: uuidv4(),
-            author: MessageAuthorSchema.Values.USER,
-            content: input.message,
-            complete: true,
-          })
-        );
-      }
-
       // Note: we keep it simple, in case of error the parent component will still display what has been sent
       const response = await fetch(`${shouldTargetMock ? mockBaseUrl : getBaseUrl()}/api/request-assistant`, {
         method: 'post',
@@ -96,6 +84,18 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
 
       assert(response.body);
       const reader = response.body.getReader();
+
+      // Send the written message to the parent so it can display it
+      if (props.onNewMessage) {
+        props.onNewMessage(
+          MessageSchema.parse({
+            id: uuidv4(),
+            author: MessageAuthorSchema.Values.USER,
+            content: input.message,
+            complete: true,
+          })
+        );
+      }
 
       // Since the answer should be streamed we don't want to keep the input until the end of the generation
       // (it may force the user to copy/paste in case of incomplete answer, but for now it's acceptable)

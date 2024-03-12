@@ -49,6 +49,14 @@ export const commonFooterAttributes = {
       },
       text: 'Politique de confidentialité',
     },
+    {
+      iconId: undefined as any,
+      linkProps: {
+        href: 'https://github.com/betagouv/etabli',
+        target: '_blank',
+      },
+      text: 'Code source',
+    },
     headerFooterDisplayItem,
   ],
   license: (

@@ -142,7 +142,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
           <TextField
             type="text"
             name="search"
-            label="Rechercher..."
+            placeholder="Rechercher... (que ce soit un nom, un outil, un cas d'utilisation)"
             inputRef={queryRef}
             onChange={debounedHandleClearQuery}
             fullWidth

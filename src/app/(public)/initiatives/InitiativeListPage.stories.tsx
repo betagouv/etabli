@@ -41,9 +41,7 @@ const commonComponentProps: ComponentProps<ComponentType> = {
 };
 
 async function playFindSearchInput(canvasElement: HTMLElement): Promise<HTMLElement> {
-  return await within(canvasElement).findByRole('textbox', {
-    name: /rechercher/i,
-  });
+  return await within(canvasElement).findByPlaceholderText(/rechercher/i);
 }
 
 const Template: StoryFn<ComponentType> = (args) => {

@@ -8,8 +8,18 @@ import Grid from '@mui/material/Grid';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import NextLink from 'next/link';
+import { useCallback, useRef, useState } from 'react';
 
 export function FrequentlyAskedQuestions() {
+  const [sourceExplanationOpen, setSourceExplanationOpen] = useState<boolean>(false);
+  const sourceExplanationRef = useRef<HTMLDivElement | null>(null); // This is used to scroll to the common accordion
+
+  const focusOnSourceExplanation = useCallback(() => {
+    setSourceExplanationOpen(true);
+
+    sourceExplanationRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [setSourceExplanationOpen]);
+
   return (
     <Container
       maxWidth={false}
@@ -57,41 +67,11 @@ export function FrequentlyAskedQuestions() {
                 de votre dépôt.
                 <br />
                 <br />
-                Si vous ne trouvez toujours rien, sachez qu&apos;il est indispensable d&apos;avoir listé votre initiative dans les sources que
-                l&apos;on utilise :
-                <ul>
-                  <li>
-                    Pour les sites internet, se référer à{' '}
-                    <Link
-                      component={NextLink}
-                      href="https://gitlab.adullact.net/dinum/noms-de-domaine-organismes-secteur-public/"
-                      variant="subtitle2"
-                      underline="none"
-                      target="_blank"
-                    >
-                      la liste de noms de domaine de la sphère publique
-                    </Link>{' '}
-                    ;
-                  </li>
-                  <li>
-                    Pour les dépôts de code informatique, se référer à la liste{' '}
-                    <Link component={NextLink} href="https://code.gouv.fr/public/" variant="subtitle2" underline="none" target="_blank">
-                      code.gouv.fr
-                    </Link>
-                    qui est faite{' '}
-                    <Link
-                      component={NextLink}
-                      href="https://git.sr.ht/~codegouvfr/codegouvfr-sources"
-                      variant="subtitle2"
-                      underline="none"
-                      target="_blank"
-                    >
-                      par déclaration des comptes sur forge
-                    </Link>
-                    (que ce soit GitHub, GitLab...).
-                  </li>
-                </ul>
-                Une fois fait, il convient d&apos;attendre quelques jours le temps que nos processus synchronisent les nouvelles données.
+                Si vous n&apos;en trouvez aucune dans notre propre annuaire, allez vérifier l&apos;existence de vos sites et dépôts{' '}
+                <Link component="span" role="link" color="primary" onClick={focusOnSourceExplanation} className="fr-link" sx={{ cursor: 'pointer' }}>
+                  dans les listes sources que nous utilisons, et contribuez-y s&apos;ils sont manquants
+                </Link>
+                .
               </AccordionDetails>
             </Accordion>
             <Accordion sx={{ boxShadow: 'none' }}>
@@ -104,23 +84,109 @@ export function FrequentlyAskedQuestions() {
                 sur Établi.
                 <br />
                 <br />
-                Si le contenu vous paraît erroné :
-                <ol>
+                <ul>
                   <li>
-                    Vérifiez déjà que votre fiche initiative référence tous les sites internet et dépôts appropriés pour que notre algoritme ait le
-                    plus de contexte possible ;
+                    S&apos;il manque un site ou un dépôt à votre fiche,{' '}
+                    <Link
+                      component="span"
+                      role="link"
+                      color="primary"
+                      onClick={focusOnSourceExplanation}
+                      className="fr-link"
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      assurez-vous qu&apos;il soit référencé dans nos sources
+                    </Link>{' '}
+                    ;
                   </li>
-                  <li>Si applicable, lisez la page d&apos;accueil de votre site internet pour vous assurer qu&apos;elle est assez explicite ;</li>
                   <li>
-                    Si applicable, lisez la description de votre dépôt de code ou votre fichier{' '}
-                    <Typography component="span" sx={{ fontStyle: 'italic' }}>
-                      README.md
-                    </Typography>{' '}
-                    pour vous assurer qu&apos;elle est assez explicite.
+                    Si le contenu vous paraît erroné :
+                    <ol>
+                      <li>
+                        Vérifiez déjà que votre fiche initiative référence tous les sites internet et dépôts appropriés pour que notre algorithme ait
+                        le plus de contexte possible ;
+                      </li>
+                      <li>Si applicable, lisez la page d&apos;accueil de votre site internet pour vous assurer qu&apos;elle est assez explicite ;</li>
+                      <li>
+                        Si applicable, lisez la description de votre dépôt de code ou votre fichier{' '}
+                        <Typography component="span" sx={{ fontStyle: 'italic' }}>
+                          README.md
+                        </Typography>{' '}
+                        pour vous assurer qu&apos;elle est assez explicite.
+                      </li>
+                    </ol>
                   </li>
-                </ol>
+                </ul>
                 À noter que notre synthétisons l&apos;information pour faire les fiches d&apos;initiatives, il est possible que notre processus
                 automatisé soit encore à optimiser. Si tel est le cas, merci de nous faire part de vos difficultés.
+              </AccordionDetails>
+            </Accordion>
+            <Accordion
+              expanded={sourceExplanationOpen}
+              onChange={() => {
+                setSourceExplanationOpen(!sourceExplanationOpen);
+              }}
+              ref={sourceExplanationRef}
+              sx={{ boxShadow: 'none' }}
+            >
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography sx={{ fontWeight: 600 }}>Où sont référencés les sites et dépôts de code ?</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                Tout d&apos;abord il faut savoir que nous utilisons des sources externes à Établi (1 pour les sites, et 1 pour les dépôts de code
+                informatique). Pourquoi ?
+                <ol>
+                  <li>Ne pas maintenir cesdites sources nous permet de nous concentrer sur notre coeur de métier ;</li>
+                  <li>
+                    Avoir 1 source par type de donnée est une volonté de notre part afin que la communauté au sens large se concentre sur
+                    l&apos;amélioration de ces seules &quot;sources de vérité&quot;, plutôt que de s&apos;éparpiller.
+                  </li>
+                </ol>
+                <br />
+                Vous pouvez vous en servir pour vérifier qu&apos;une initiative manquante sur Établi est bien absente des sources initiales, ou dans
+                le cas où vous envisagez d&apos;y référencer de nouveaux éléments. Les sources utilisées étant maintenues dans des dépôts de code
+                informatique, n&apos;hésitez pas à demander à vos collègues techniques voire à nous contacter si vous ne savez pas comment les faire
+                évoluer.
+                <br />
+                <br />
+                Nos sources :
+                <ul>
+                  <li>
+                    Les sites internet sont extraits de{' '}
+                    <Link
+                      component={NextLink}
+                      href="https://gitlab.adullact.net/dinum/noms-de-domaine-organismes-secteur-public/-/blob/master/urls.txt?ref_type=heads"
+                      underline="none"
+                      target="_blank"
+                    >
+                      la liste de noms de domaine de la sphère publique
+                    </Link>{' '}
+                    (en plus de ce qui est mentionné dans{' '}
+                    <Link
+                      component={NextLink}
+                      href="https://gitlab.adullact.net/dinum/noms-de-domaine-organismes-secteur-public/"
+                      underline="none"
+                      target="_blank"
+                    >
+                      leur guide de contribution
+                    </Link>
+                    , il est envisageable d&apos;y ouvrir une simple &quot;issue&quot; pour leur demander une modification) ;
+                  </li>
+                  <li>
+                    Et{' '}
+                    <Link component={NextLink} href="https://code.gouv.fr/public/" underline="none" target="_blank">
+                      code.gouv.fr
+                    </Link>{' '}
+                    qui référence les dépôts de code informatique (
+                    <Link component={NextLink} href="https://git.sr.ht/~codegouvfr/codegouvfr-sources" underline="none" target="_blank">
+                      comme mentionné dans leur guide de contribution
+                    </Link>
+                    , vous pouvez leur envoyer un email pour toute demande d&apos;évolution).
+                  </li>
+                </ul>
+                <br />
+                Pour chaque nouveau référencement, il convient d&apos;attendre quelques jours le temps que nos processus synchronisent les nouvelles
+                données.
               </AccordionDetails>
             </Accordion>
             <Accordion sx={{ boxShadow: 'none' }}>

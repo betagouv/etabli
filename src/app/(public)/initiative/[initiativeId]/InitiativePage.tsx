@@ -14,6 +14,7 @@ import { ErrorAlert } from '@etabli/src/components/ErrorAlert';
 import { FunctionalUseCaseChip } from '@etabli/src/components/FunctionalUseCaseChip';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
 import { ToolChip } from '@etabli/src/components/ToolChip';
+import { initiativeNotFoundError } from '@etabli/src/models/entities/errors';
 import { centeredAlertContainerGridProps, centeredContainerGridProps, ulComponentResetStyles } from '@etabli/src/utils/grid';
 
 export interface InitiativePageProps {
@@ -34,7 +35,14 @@ export function InitiativePage({ params: { initiativeId } }: InitiativePageProps
   } else if (error) {
     return (
       <Grid container {...centeredAlertContainerGridProps}>
-        <ErrorAlert errors={[error]} refetchs={[refetch]} />
+        {error.data?.code === 'BAD_REQUEST' && error.data.zodError && error.data.zodError[0].code === 'invalid_string' ? (
+          // Since this page can be referenced by the assistant and that sometimes the assistant is more creative than it should
+          // It creates links with UUID not existing, or preprending/appending some by adding a 0 or so, makin it invalid
+          // We just warn the user about this so he can have a bit of context why it fails
+          <ErrorAlert errors={[initiativeNotFoundError]} />
+        ) : (
+          <ErrorAlert errors={[error]} refetchs={[refetch]} />
+        )}
       </Grid>
     );
   }

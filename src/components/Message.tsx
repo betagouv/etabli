@@ -30,7 +30,7 @@ export function Message(props: MessageProps) {
           wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
         }}
       >
-        <Markdown>{props.message.content}</Markdown>
+        <Markdown options={{ overrides: { a: { props: { target: '_blank' } } } }}>{props.message.content}</Markdown>
       </Box>
     </Box>
   );

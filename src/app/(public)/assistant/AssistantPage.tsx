@@ -113,6 +113,8 @@ export function AssistantPage(props: AssistantPageProps) {
               <Typography component="span" variant="body2" sx={{ textAlign: 'center', mt: 1 }}>
                 L&apos;assistant virtuel peut être inexact voire se tromper, faites-nous vos retours pour que l&apos;équipe Établi puisse
                 l&apos;améliorer.
+                <br />
+                Aussi, même si les messages ne sont pas enregistrés nous vous demandons de ne pas y écrire d&apos;information à caractère personnel.
               </Typography>
             </Grid>
           </Grid>

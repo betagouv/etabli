@@ -5,7 +5,9 @@ import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Grid from '@mui/material/Grid';
 import Typography from '@mui/material/Typography';
+import { push } from '@socialgouv/matomo-next';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useUpdateEffect } from 'react-use';
 import { v4 as uuidv4 } from 'uuid';
 
 import { RequestAssistantForm } from '@etabli/src/app/(public)/assistant/RequestAssistantForm';
@@ -29,6 +31,11 @@ export function AssistantPage(props: AssistantPageProps) {
   const [sessionId, setSessionId] = useState<string>(() => uuidv4());
   const [messages, setMessages] = useState<MessageSchemaType[]>(() => props.prefilledMessages || []);
   const inputContainerRef = useRef<HTMLDivElement | null>(null); // This is used to scroll to ease the reading
+
+  useUpdateEffect(() => {
+    // Try to understand how many times people reset the session
+    push(['trackEvent', 'assistant', 'resetSession']);
+  }, [sessionId]);
 
   const handleNewMessageChunk = (data: SessionAnswerChunkSchemaType) => {
     // If not for the current session (for any reason, ignore)

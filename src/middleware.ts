@@ -46,9 +46,8 @@ function formatSecurityHeaders(nonce?: string) {
   // - https://github.com/mui/material-ui/issues/19938#issuecomment-1989042978
   const libraryCompatibilityWorkaround = true;
 
-  // Note: we could have used trusted types to prevent client-side injections but it fails with the loaded script
-  // of Matomo (even without the Next.js `<Script ... />` tag). So for now, disabling it since we didn't find an easy way
-  // For record, we used initially: `require-trusted-types-for 'script'; trusted-types react-dsfr react-dsfr-asap nextjs#bundler; ${restOfPoliciesAsBelow}`
+  // Note: we could have used trusted types to prevent client-side injections but it fails locally. So for now, disabling it since we didn't find an easy way
+  // For record, we used initially: `require-trusted-types-for 'script'; trusted-types react-dsfr react-dsfr-asap nextjs#bundler matomo-next; ${restOfPoliciesAsBelow}`
   //
   // Also we wanted to use the nonce for styles by using `style-src-elem ${`'nonce-${nonce}'`} ${styleSrcValues.join(' ')};` but at the end
   // Crisp is loading `l.js` (we modified it for test with `patch-package`) to propagate the nonce, but then this script is downloading `client.js`

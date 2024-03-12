@@ -13,8 +13,10 @@ import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
+import { push } from '@socialgouv/matomo-next';
 import debounce from 'lodash.debounce';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { usePrevious, useUpdateEffect } from 'react-use';
 
 import { trpc } from '@etabli/src/client/trpcClient';
 import { ErrorAlert } from '@etabli/src/components/ErrorAlert';
@@ -46,6 +48,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
   const [listDisplay, setListDisplay] = useLocalStorageListDisplay();
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(PaginationSize.size10);
+  const prevCurrentPage = usePrevious(currentPage);
 
   const listInitiatives = trpc.listInitiatives.useQuery({
     page: currentPage,
@@ -55,6 +58,24 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
       query: searchQuery,
     },
   });
+
+  useUpdateEffect(() => {
+    if (!searchQuery) {
+      return;
+    }
+
+    // If the query is different, track the new search (without the query)
+    push(['trackEvent', 'directory', 'search', 'words', searchQuery.split(' ').length]);
+  }, [searchQuery]);
+
+  useUpdateEffect(() => {
+    // [WORKAROUND] For whatever reason it triggers at start despite `setCurrentPage` not being called, so have to compare the value to avoid this
+    if (prevCurrentPage === undefined || prevCurrentPage === currentPage) {
+      return;
+    }
+
+    push(['trackEvent', 'directory', 'changePage', 'number', currentPage]);
+  }, [currentPage, prevCurrentPage]);
 
   const aggregatedQueries = new AggregatedQueries(listInitiatives);
 

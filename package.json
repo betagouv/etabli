@@ -95,6 +95,7 @@
     "@sentry/integrations": "^7.75.1",
     "@sentry/nextjs": "^7.75.1",
     "@sentry/rrweb": "^0.3.3",
+    "@socialgouv/matomo-next": "^1.8.1",
     "@storybook/testing-library": "0.0.14-next.1",
     "@tanstack/query-core": "^4.19.1",
     "@tanstack/react-query": "^4.19.1",

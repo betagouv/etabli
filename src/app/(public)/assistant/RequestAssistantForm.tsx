@@ -7,6 +7,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import TextField from '@mui/material/TextField';
+import { push } from '@socialgouv/matomo-next';
 import assert from 'assert';
 import { Mutex } from 'locks';
 import { useEffect, useRef, useState } from 'react';
@@ -89,6 +90,9 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
       if (response.status !== 200) {
         throw internalServerErrorError;
       }
+
+      // Track sending messages but without the query
+      push(['trackEvent', 'assistant', 'sendMessage', 'words', input.message.split(' ').length]);
 
       assert(response.body);
       const reader = response.body.getReader();

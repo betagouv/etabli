@@ -53,11 +53,27 @@ export function InitiativePage({ params: { initiativeId } }: InitiativePageProps
     <>
       <Grid container {...centeredContainerGridProps} alignContent="flex-start" spacing={2}>
         <Grid item xs={12}>
-          <Typography component="h1" variant="h1" data-sentry-mask>
+          <Typography
+            component="h1"
+            variant="h1"
+            data-sentry-mask
+            sx={{
+              whiteSpace: 'pre-wrap !important',
+              wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
+            }}
+          >
             {initiative.name}
           </Typography>
         </Grid>
-        <Grid item xs={12} sx={{ pb: 2 }}>
+        <Grid
+          item
+          xs={12}
+          sx={{
+            pb: 2,
+            whiteSpace: 'pre-wrap !important',
+            wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
+          }}
+        >
           {initiative.description}
         </Grid>
         {initiative.websites.length > 0 && (

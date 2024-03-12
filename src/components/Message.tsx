@@ -22,7 +22,14 @@ export function Message(props: MessageProps) {
           )}
         </Box>
       </Box>
-      <Box sx={{ display: 'inline-block', width: 'auto' }}>
+      <Box
+        sx={{
+          display: 'inline-block',
+          width: 'auto',
+          whiteSpace: 'pre-wrap !important',
+          wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
+        }}
+      >
         <Markdown>{props.message.content}</Markdown>
       </Box>
     </Box>

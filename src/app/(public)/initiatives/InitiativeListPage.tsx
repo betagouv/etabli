@@ -8,7 +8,7 @@ import Alert from '@mui/material/Alert';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
-import Pagination from '@mui/material/Pagination';
+import TablePagination from '@mui/material/TablePagination';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
@@ -47,7 +47,8 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [listDisplay, setListDisplay] = useLocalStorageListDisplay();
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(PaginationSize.size10);
+  const [possiblePageSizes] = useState<PaginationSize[]>(() => [PaginationSize.size10, PaginationSize.size25, PaginationSize.size50]);
+  const [pageSize, setPageSize] = useState<PaginationSize>(() => possiblePageSizes[0]);
   const prevCurrentPage = usePrevious(currentPage);
 
   const listInitiatives = trpc.listInitiatives.useQuery({
@@ -91,15 +92,17 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     };
   }, [debounedHandleClearQuery]);
 
-  const { initiatives, pagesCount } = useMemo(() => {
+  const { initiatives, pagesCount, totalCount } = useMemo(() => {
     return !!listInitiatives.data
       ? {
           initiatives: listInitiatives.data.initiatives,
           pagesCount: Math.ceil(listInitiatives.data.totalCount / pageSize),
+          totalCount: listInitiatives.data.totalCount,
         }
       : {
           initiatives: [],
           pagesCount: 1,
+          totalCount: -1,
         };
   }, [listInitiatives.data, pageSize]);
 
@@ -192,16 +195,22 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                 <Grid container spacing={1} direction="column">
                   <Grid item sx={{ width: '100%' }}>
                     <ContextualInitiativeList initiatives={initiatives} display={listDisplay} />
-                    {/* TODO: allow customizing pageSize */}
-                    <Pagination
-                      count={pagesCount}
-                      page={currentPage}
-                      onChange={(event, value) => setCurrentPage(value)}
-                      color="primary"
+                    <TablePagination
+                      component="div"
+                      rowsPerPageOptions={possiblePageSizes}
+                      count={totalCount}
+                      rowsPerPage={pageSize}
+                      page={currentPage - 1} // Starting at 0
+                      onPageChange={(event, pageNumber) => {
+                        setCurrentPage(pageNumber + 1);
+                      }}
+                      onRowsPerPageChange={(event) => {
+                        setPageSize(event.target.value as unknown as PaginationSize);
+                      }}
                       sx={{
-                        mt: 5,
-                        '& > .MuiPagination-ul': {
-                          justifyContent: 'center',
+                        mt: 3,
+                        '& > .MuiToolbar-root > p': {
+                          margin: 'auto', // For whatever reason the text elements stick to the top otherwise
                         },
                       }}
                     />

@@ -86,6 +86,9 @@ export const initiativeRouter = router({
             },
           },
         },
+        orderBy: {
+          name: 'asc',
+        },
         skip: (input.page - 1) * input.pageSize,
         take: input.pageSize,
       }),

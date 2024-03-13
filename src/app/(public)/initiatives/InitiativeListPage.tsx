@@ -5,7 +5,7 @@ import GridViewIcon from '@mui/icons-material/GridView';
 import SearchIcon from '@mui/icons-material/Search';
 import TableRowsIcon from '@mui/icons-material/TableRows';
 import Alert from '@mui/material/Alert';
-import Grid from '@mui/material/Grid';
+import Grid, { GridProps } from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import TablePagination from '@mui/material/TablePagination';
@@ -24,7 +24,7 @@ import { InitiativeList } from '@etabli/src/components/InitiativeList';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
 import { PaginationSize } from '@etabli/src/models/actions/common';
 import { ListDisplay, useLocalStorageListDisplay } from '@etabli/src/utils/display';
-import { centeredAlertContainerGridProps, centeredContainerGridProps } from '@etabli/src/utils/grid';
+import { centeredAlertContainerGridProps, wideContainerGridProps } from '@etabli/src/utils/grid';
 import { AggregatedQueries } from '@etabli/src/utils/trpc';
 
 export enum ListFilter {
@@ -32,6 +32,13 @@ export enum ListFilter {
   OPEN_ONLY,
   CLOSE_ONLY,
 }
+
+const reusableCentering: GridProps['sx'] = {
+  ...wideContainerGridProps.sx,
+  py: 0,
+  maxWidth: 'lg',
+  mx: 'auto',
+};
 
 export const InitiativeListPageContext = createContext({
   ContextualInitiativeList: InitiativeList,
@@ -135,100 +142,141 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
 
   return (
     <>
-      <Grid container {...centeredContainerGridProps} alignContent="flex-start">
-        <Grid item xs={12} sx={{ pb: 3 }}>
-          <Alert severity="info" sx={{ mb: 3 }}>
-            {/* TODO: remove when appropriate */}
-            Dû à notre phase de tests, notre annuaire contient 2000 initiatives sur les 40 000 possibles. Nous avons principalement référencé celles
-            liées au gouvernement, nous les référencerons toutes sous peu.
-          </Alert>
-          <Typography component="h1" variant="h5">
-            Annuaire des initiatives
-          </Typography>
-        </Grid>
-        <Grid item xs={12} sx={{ mb: 3 }}>
-          <TextField
-            type="text"
-            name="search"
-            placeholder="Rechercher... (que ce soit un nom, un outil, un cas d'utilisation)"
-            inputRef={queryRef}
-            onChange={debounedHandleClearQuery}
-            fullWidth
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <InputAdornment position="end">
-                  {searchQuery && searchQuery !== '' && (
-                    <IconButton aria-label="effacer la recherche" onClick={handleClearQuery}>
-                      <ClearIcon />
-                    </IconButton>
-                  )}
-                </InputAdornment>
-              ),
-            }}
-          />
+      <Grid container sx={{ ...wideContainerGridProps.sx, px: 0 }} direction="column" alignContent="flex-start">
+        <Grid
+          container
+          sx={{
+            ...reusableCentering,
+          }}
+        >
+          <Grid item xs={12} sx={{ pb: 3 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              {/* TODO: remove when appropriate */}
+              Dû à notre phase de tests, notre annuaire contient 2000 initiatives sur les 40 000 possibles. Nous avons principalement référencé celles
+              liées au gouvernement, nous les référencerons toutes sous peu.
+            </Alert>
+            <Typography component="h1" variant="h5">
+              Annuaire des initiatives
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sx={{ mb: 3 }}>
+            <TextField
+              type="text"
+              name="search"
+              placeholder="Rechercher... (que ce soit un nom, un outil, un cas d'utilisation)"
+              inputRef={queryRef}
+              onChange={debounedHandleClearQuery}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    {searchQuery && searchQuery !== '' && (
+                      <IconButton aria-label="effacer la recherche" onClick={handleClearQuery}>
+                        <ClearIcon />
+                      </IconButton>
+                    )}
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Grid>
         </Grid>
         {!listInitiatives.isLoading ? (
           <>
-            <Grid item xs={12} sx={{ py: 1 }}>
-              <Grid container spacing={1} alignContent="flex-start">
-                <Grid item sx={{ ml: 'auto' }}>
-                  <ToggleButtonGroup
-                    color="primary"
-                    value={listDisplay}
-                    exclusive
-                    onChange={(event, newValue) => {
-                      if (newValue !== null) {
-                        setListDisplay(newValue);
-                      }
-                    }}
-                    aria-label="affichage de la liste"
-                  >
-                    <ToggleButton value={ListDisplay.GRID} aria-label="grille">
-                      <GridViewIcon />
-                    </ToggleButton>
-                    <ToggleButton value={ListDisplay.TABLE} aria-label="tableau">
-                      <TableRowsIcon />
-                    </ToggleButton>
-                  </ToggleButtonGroup>
+            <Grid
+              container
+              sx={{
+                ...reusableCentering,
+              }}
+            >
+              <Grid item xs={12} sx={{ py: 1 }}>
+                <Grid container spacing={1} alignContent="flex-start">
+                  <Grid item sx={{ ml: 'auto' }}>
+                    <ToggleButtonGroup
+                      color="primary"
+                      value={listDisplay}
+                      exclusive
+                      onChange={(event, newValue) => {
+                        if (newValue !== null) {
+                          setListDisplay(newValue);
+                        }
+                      }}
+                      aria-label="affichage de la liste"
+                    >
+                      <ToggleButton value={ListDisplay.GRID} aria-label="grille">
+                        <GridViewIcon />
+                      </ToggleButton>
+                      <ToggleButton value={ListDisplay.TABLE} aria-label="tableau">
+                        <TableRowsIcon />
+                      </ToggleButton>
+                    </ToggleButtonGroup>
+                  </Grid>
                 </Grid>
               </Grid>
             </Grid>
             {initiatives.length ? (
-              <Grid item xs={12}>
-                <Grid container spacing={1} direction="column">
-                  <Grid item sx={{ width: '100%' }}>
-                    <ContextualInitiativeList initiatives={initiatives} display={listDisplay} />
-                    <TablePagination
-                      component="div"
-                      rowsPerPageOptions={possiblePageSizes}
-                      count={totalCount}
-                      rowsPerPage={pageSize}
-                      page={currentPage - 1} // Starting at 0
-                      onPageChange={(event, pageNumber) => {
-                        setCurrentPage(pageNumber + 1);
-                      }}
-                      onRowsPerPageChange={(event) => {
-                        setPageSize(event.target.value as unknown as PaginationSize);
-                      }}
-                      sx={{
-                        mt: 3,
-                      }}
-                    />
-                  </Grid>
+              <Grid container direction="column">
+                <Grid
+                  container
+                  sx={
+                    // We changed the whole page logic to have a wide display when displaying the table (otherwise it was too compact)
+                    listDisplay === ListDisplay.TABLE
+                      ? {
+                          ...reusableCentering,
+                          // width:
+                          maxWidth: 1600, // Override the default `lg` value
+                        }
+                      : {
+                          ...reusableCentering,
+                        }
+                  }
+                >
+                  <ContextualInitiativeList initiatives={initiatives} display={listDisplay} />
+                </Grid>
+                <Grid
+                  container
+                  justifyContent="end"
+                  sx={{
+                    ...reusableCentering,
+                  }}
+                >
+                  <TablePagination
+                    component="div"
+                    rowsPerPageOptions={possiblePageSizes}
+                    count={totalCount}
+                    rowsPerPage={pageSize}
+                    page={currentPage - 1} // Starting at 0
+                    onPageChange={(event, pageNumber) => {
+                      setCurrentPage(pageNumber + 1);
+                    }}
+                    onRowsPerPageChange={(event) => {
+                      setPageSize(event.target.value as unknown as PaginationSize);
+                    }}
+                    sx={{
+                      mt: 3,
+                    }}
+                  />
                 </Grid>
               </Grid>
             ) : (
-              <Grid item xs={12} sx={{ py: 2 }}>
-                <Typography variant="body2">
-                  {initiatives.length === 0 && (!searchQuery || searchQuery === '')
-                    ? `Aucune initiative n'a été indexée pour le moment`
-                    : 'Aucune initiative trouvée pour la recherche spécifiée'}
-                </Typography>
+              <Grid
+                container
+                sx={{
+                  ...reusableCentering,
+                }}
+              >
+                <Grid item xs={12} sx={{ py: 2 }}>
+                  <Typography variant="body2">
+                    {initiatives.length === 0 && (!searchQuery || searchQuery === '')
+                      ? `Aucune initiative n'a été indexée pour le moment`
+                      : 'Aucune initiative trouvée pour la recherche spécifiée'}
+                  </Typography>
+                </Grid>
               </Grid>
             )}
           </>

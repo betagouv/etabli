@@ -217,9 +217,6 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                       }}
                       sx={{
                         mt: 3,
-                        '& > .MuiToolbar-root > p': {
-                          margin: 'auto', // For whatever reason the text elements stick to the top otherwise
-                        },
                       }}
                     />
                   </Grid>

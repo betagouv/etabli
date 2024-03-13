@@ -29,7 +29,15 @@ a.MuiMenuItem-root {
   }
 }
 
-// The page numbers indicator sticks to the top whereas it should be vertically centered, probably due to leaking DSFR style
-.MuiDataGrid-footerContainer .MuiTablePagination-displayedRows {
-  margin: 0 !important;
+.MuiTablePagination-root {
+  & > .MuiToolbar-root {
+    justify-content: end;
+    flex-wrap: wrap; // Required otherwise on mobile it stays on 1 line with a scrollbar (tried dealing with max-width but nothing to do)
+
+    & > p {
+      // For whatever reason the text elements stick to the top otherwise (maybe a DSFR style leak?)
+      margin-top: auto;
+      margin-bottom: auto;
+    }
+  }
 }

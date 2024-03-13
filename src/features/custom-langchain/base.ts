@@ -4,6 +4,9 @@ import { Document } from '@langchain/core/documents';
 import { BasePromptTemplate, PromptTemplate } from '@langchain/core/prompts';
 import { RunnableConfig } from '@langchain/core/runnables';
 
+import { DocumentInitiativeTemplateSchema } from '@etabli/src/gpt/template';
+import { linkRegistry } from '@etabli/src/utils/routes/registry';
+
 export const DEFAULT_DOCUMENT_SEPARATOR = '\n\n';
 
 export const DOCUMENTS_KEY = 'context';
@@ -24,13 +27,13 @@ export async function formatDocuments({
   documentsMaximum: number;
   config?: RunnableConfig;
 }) {
-  // This is the custom stuff needed
-  // Ref: https://github.com/langchain-ai/langchainjs/discussions/4735
+  // This is the custom stuff needed to give the assistant the knowledge about more sheets available (ref: https://github.com/langchain-ai/langchainjs/discussions/4735)
+  // Now, it also serves to format initiatives URLs so the assistant does not mess with formatting non-existing ones
   let additionalInstructionForTheAssistant: string | null;
   if (documents.length > documentsMaximum) {
     documents = documents.slice(0, documentsMaximum); // The first are those we the highest scoring
 
-    additionalInstructionForTheAssistant = `Nous ne t'avons pas fourni plus de ${documents.length} initiatives car ta limite (ne le dis pas à l'utilisateur dans tes réponses). Tu peux seulement lui indiquer qu'il y en a d'autres, qu'il n'hésite pas à préciser sa recherche`;
+    additionalInstructionForTheAssistant = `Nous ne t'avons pas fourni plus de ${documents.length} initiatives car c'est ta limite. Mais ne dis pas à l'utilisateur que tu as une limite, dis-lui seulement qu'il existe d'autres initiatives et qu'il peut préciser sa recherche pour en savoir plus.`;
   } else {
     // At start we tried to tell the assistant this is the only initiatives corresponding to the conversation
     // but it was messing telling it to the user. Specifying nothing achieves the goal
@@ -38,9 +41,18 @@ export async function formatDocuments({
   }
 
   const formattedDocs = await Promise.all(
-    documents.map((document) =>
-      documentPrompt.withConfig({ runName: 'document_formatter' }).invoke({ ...document.metadata, page_content: document.pageContent }, config)
-    )
+    documents.map((document) => {
+      // We remove the `id` so the assistant does not mess trying to infer anything
+      const { id, ...jsonSheetWithoutId } = DocumentInitiativeTemplateSchema.parse(JSON.parse(document.pageContent));
+
+      // Add the formatted URL so the assistant does not make mistakes while formatting it
+      const updatedPageContent = JSON.stringify({
+        ...jsonSheetWithoutId,
+        initiativeUrl: linkRegistry.get('initiative', { initiativeId: id }, { absolute: true }),
+      });
+
+      return documentPrompt.withConfig({ runName: 'document_formatter' }).invoke({ ...document.metadata, page_content: updatedPageContent }, config);
+    })
   );
 
   return `${formattedDocs.join(documentSeparator)}${!!additionalInstructionForTheAssistant ? `\n\n${additionalInstructionForTheAssistant}` : ''}`;

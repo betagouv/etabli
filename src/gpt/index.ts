@@ -7,10 +7,21 @@ export interface GptSettings {
   per1000TokensCost: number; // This is about input tokens (since our outputs should be small, we don't consider them here)
 }
 
-export type GptInstance = 'v3.5' | 'v4' | 'tiny' | 'small' | 'medium';
+export type GptInstance =
+  | 'v3.5'
+  | 'v4'
+  | 'deprecatedMistralTiny'
+  | 'deprecatedMistralSmall'
+  | 'deprecatedMistralMedium'
+  | 'mistral7b'
+  | 'mistral8x7b'
+  | 'mistralSmall'
+  | 'mistralMedium'
+  | 'mistralLarge';
 
 // TODO: split properly MistralAI models
 export const gptInstances: Record<GptInstance, GptSettings> = {
+  // GPT
   'v3.5': {
     model: 'gpt-3.5-turbo-1106',
     countModel: 'gpt-3.5-turbo',
@@ -23,23 +34,56 @@ export const gptInstances: Record<GptInstance, GptSettings> = {
     modelTokenLimit: 16385,
     per1000TokensCost: 0.01,
   },
-  tiny: {
+  // MistralAI
+  deprecatedMistralTiny: {
     model: 'mistral-tiny', // mistral7b
     countModel: 'gpt-4',
     modelTokenLimit: 16385,
     per1000TokensCost: 0.00014,
   },
-  small: {
+  deprecatedMistralSmall: {
     model: 'mistral-small', // mixtral8x7b
     countModel: 'gpt-4',
     modelTokenLimit: 16385,
     per1000TokensCost: 0.0006,
   },
-  medium: {
+  deprecatedMistralMedium: {
     model: 'mistral-medium', // ...
     countModel: 'gpt-4',
     modelTokenLimit: 16385,
     per1000TokensCost: 0.0025,
+  },
+  mistral7b: {
+    // New version of `tiny` a bit more expensive with more tokens capacity
+    model: 'open-mistral-7b', // mistral7b
+    countModel: 'gpt-4',
+    modelTokenLimit: 32768,
+    per1000TokensCost: 0.0002,
+  },
+  mistral8x7b: {
+    // New version of `small` a bit more expensive with more tokens capacity
+    model: 'open-mixtral-8x7b', // mixtral8x7b
+    countModel: 'gpt-4',
+    modelTokenLimit: 32768,
+    per1000TokensCost: 0.00065,
+  },
+  mistralSmall: {
+    model: 'mistral-small-latest',
+    countModel: 'gpt-4',
+    modelTokenLimit: 32768,
+    per1000TokensCost: 0.0055,
+  },
+  mistralMedium: {
+    model: 'mistral-medium-latest',
+    countModel: 'gpt-4',
+    modelTokenLimit: 32768,
+    per1000TokensCost: 0.0075,
+  },
+  mistralLarge: {
+    model: 'mistral-large-latest',
+    countModel: 'gpt-4',
+    modelTokenLimit: 32768,
+    per1000TokensCost: 0.022,
   },
 };
 

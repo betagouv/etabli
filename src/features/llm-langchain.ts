@@ -55,7 +55,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public readonly mistralaiClient;
   public readonly toolsVectorStore;
   public readonly initiativesVectorStore;
-  public readonly gptInstance = gptInstances['tiny'];
+  public readonly gptInstance = gptInstances['deprecatedMistralTiny'];
   public readonly sessions: Sessions = {}; // To not overcomplexify the logic we go with memory history considering just 1 instance of the product (or if more, with sticky IP to target the same instance for the same user)
   public readonly querySessions: QueryVectorHistory = {}; // To not overcomplexify the logic we go with memory history considering just 1 instance of the product (or if more, with sticky IP to target the same instance for the same user)
   public readonly cleanHistoryJob;

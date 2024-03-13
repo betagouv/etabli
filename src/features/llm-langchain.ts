@@ -598,6 +598,13 @@ CONTEXTE :
   }
 
   public async getInitiativesFromQuery(query: string): Promise<string[]> {
+    // [WORKAROUND] Force having the search as lowercase to get exact same results because the embeddings seem to be very sensitive to it
+    // Even if it's only a manner of threshold with scoring, it's impossible to adjust correctly depending on uppercase/lowercase letters
+    // For example:
+    // - `Santé` is returning more items than `santé`
+    // - `urban vitaliz`, `Urban Vitaliz` and `Urban vitaliz` are all the three not returning the same number of items
+    query = query.toLowerCase();
+
     // Due to pagination it makes no sense to recompute the query embedding against the MistralAI API
     // so we keep a little cache just to reduce this cost
     if (!this.querySessions[query]) {

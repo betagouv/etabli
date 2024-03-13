@@ -15,7 +15,7 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import { push } from '@socialgouv/matomo-next';
 import debounce from 'lodash.debounce';
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { usePrevious, useUpdateEffect } from 'react-use';
 
 import { trpc } from '@etabli/src/client/trpcClient';
@@ -87,10 +87,17 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
 
   const aggregatedQueries = new AggregatedQueries(listInitiatives);
 
-  const handleSearchQueryChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQueryManipulated(true);
-    setSearchQuery(event.target.value);
-  };
+  const handleSearchQueryChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      // If this is a new query, perform necessary changes
+      if (event.target.value !== searchQuery) {
+        setSearchQueryManipulated(true);
+        setSearchQuery(event.target.value);
+        setCurrentPage(1); // Since the new query may have less total items than the current search, we bring back the user to the behinning of the pagination
+      }
+    },
+    [setSearchQueryManipulated, setSearchQuery, setCurrentPage]
+  );
 
   const debounedHandleClearQuery = useMemo(() => debounce(handleSearchQueryChange, 1200), []); // We wait more than the usual `500ms` because it reaches the LLM system to embed the query and we must comply with the rate limit for this
   useEffect(() => {

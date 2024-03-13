@@ -11,13 +11,13 @@ import { subHours } from 'date-fns/subHours';
 import fs from 'fs/promises';
 import jsonic from 'jsonic';
 import { LLMChain } from 'langchain/chains';
-import { createStuffDocumentsChain } from 'langchain/chains/combine_documents';
 import { createRetrievalChain } from 'langchain/chains/retrieval';
 import { BufferMemory } from 'langchain/memory';
 import mistralTokenizer from 'mistral-tokenizer-js';
 import path from 'path';
 import { z } from 'zod';
 
+import { createStuffDocumentsChain } from '@etabli/src/features/custom-langchain/stuff';
 import {
   ChunkEventEmitter,
   LlmManager,
@@ -680,7 +680,7 @@ Tu es un robot qui aide les utilisateurs à trouver la bonne fiche d'initiative 
             'initiative',
             { initiativeId: '$INITIATIVE_ID' },
             { absolute: true }
-          )}"). Tu devrais fournir des fiches à propos du message de l'utilisateur, ne le fais pas s'il ne fournit aucune élément à rechercher. Tu dois répondre en français sauf si l'utilisateur parle une autre langue, et rappelle-toi que l'utilisateur n'est pas censé savoir que des fiches t'ont été fournies dans le contexte.
+          )}"). Tu devrais fournir des fiches à propos du message de l'utilisateur, ne le fais pas s'il ne fournit aucune élément à rechercher. Tu dois répondre en français sauf si l'utilisateur parle une autre langue, et l'utilisateur ne doit pas savoir que tu as à dispotion un "CONTEXTE" qui t'est donné (ne parle jamais de "contexte" mais de résultats de recherche), il doit croire que tu as fait une recherche toi-même dans une base de données. Cite simplement les initiatives qui sont dans le contexte quand c'est approprié.
 ---
 CONTEXTE :
 {context}
@@ -691,14 +691,17 @@ CONTEXTE :
         ['human', '{input}'],
       ]);
 
+      const totalDocumentsToRevealToTheUser: number = 5;
+
       const combineDocsChain = await createStuffDocumentsChain({
         llm: this.mistralaiClient,
         prompt: promptCanvas,
         documentSeparator: '\n',
+        documentsMaximum: totalDocumentsToRevealToTheUser,
       });
 
       const chain = await createRetrievalChain({
-        retriever: this.initiativesVectorStore.asRetriever(5),
+        retriever: this.initiativesVectorStore.asRetriever(totalDocumentsToRevealToTheUser + 1),
         combineDocsChain: combineDocsChain,
       });
 

@@ -70,6 +70,7 @@ export const unexpectedCliMaintenanceCommandError = new BusinessError(
 );
 
 // LLM
+export const responseStreamErrorError = new UnexpectedError('responseStreamError', 'an error has occured while streaming the response');
 export const tokensReachTheLimitError = new BusinessError('tokensReachTheLimit', 'too many tokens according to the model limit');
 export const llmResponseFormatError = new BusinessError(
   'llmResponseFormat',

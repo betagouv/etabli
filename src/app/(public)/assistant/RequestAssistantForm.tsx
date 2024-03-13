@@ -20,11 +20,13 @@ import {
   MessageAuthorSchema,
   MessageSchema,
   MessageSchemaType,
+  NetworkStreamChunkSchema,
   SessionAnswerChunkSchema,
   SessionAnswerChunkSchemaType,
 } from '@etabli/src/models/entities/assistant';
-import { internalServerErrorError } from '@etabli/src/models/entities/errors';
+import { CustomError, internalServerErrorError } from '@etabli/src/models/entities/errors';
 import { mockBaseUrl, shouldTargetMock } from '@etabli/src/server/mock/environment';
+import { CHUNK_DATA_PREFIX, CHUNK_ERROR_PREFIX } from '@etabli/src/utils/api';
 import { getBaseUrl } from '@etabli/src/utils/url';
 
 const textDecoder = new TextDecoder();
@@ -113,14 +115,37 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
           break;
         }
 
-        props.onNewMessageChunk &&
-          props.onNewMessageChunk(
-            SessionAnswerChunkSchema.parse({
-              sessionId: input.sessionId,
-              messageId: answerMessageId,
-              chunk: textDecoder.decode(value),
-            })
-          );
+        // A chunk may include multiple lines from multiple `res.write()`, so having to take this into acocunt
+        let buffer = textDecoder.decode(value, { stream: true });
+        let firstNewLine: number;
+
+        while ((firstNewLine = buffer.indexOf('\n')) !== -1) {
+          // Maybe it was not the "\n" of the ending chunk line, maybe it was
+          const chunkLine = buffer.substring(0, firstNewLine);
+          buffer = buffer.substring(firstNewLine + 1);
+
+          // As explained into `src/utils/api.ts` we have to manage our own protocol to handle errors properly
+          if (chunkLine.startsWith(CHUNK_DATA_PREFIX)) {
+            const rawChunk = chunkLine.substring(CHUNK_DATA_PREFIX.length).trim();
+            const jsonChunk = NetworkStreamChunkSchema.parse(JSON.parse(rawChunk));
+
+            props.onNewMessageChunk &&
+              props.onNewMessageChunk(
+                SessionAnswerChunkSchema.parse({
+                  sessionId: input.sessionId,
+                  messageId: answerMessageId,
+                  chunk: jsonChunk.content,
+                })
+              );
+          } else if (chunkLine.startsWith(CHUNK_ERROR_PREFIX)) {
+            const rawError = chunkLine.substring(CHUNK_ERROR_PREFIX.length).trim();
+            const jsonError = JSON.parse(rawError);
+
+            throw !!jsonError.code && !!jsonError.message ? new CustomError(jsonError.code, jsonError.message) : internalServerErrorError;
+          } else {
+            throw new Error(`the chunk line "${chunkLine}" is not handled`);
+          }
+        }
       }
     } finally {
       // Unlock to allow a new submit

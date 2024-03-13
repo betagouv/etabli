@@ -3,8 +3,10 @@ import { NextApiRequest, NextApiResponse } from 'next';
 
 import { ChunkEventEmitter, llmManagerInstance } from '@etabli/src/features/llm';
 import { RequestAssistantSchema } from '@etabli/src/models/actions/assistant';
+import { NetworkStreamChunkSchemaType } from '@etabli/src/models/entities/assistant';
+import { responseStreamErrorError } from '@etabli/src/models/entities/errors';
 import { prisma } from '@etabli/src/prisma/client';
-import { apiHandlerWrapper } from '@etabli/src/utils/api';
+import { CHUNK_DATA_PREFIX, CHUNK_ERROR_PREFIX, apiHandlerWrapper } from '@etabli/src/utils/api';
 
 // This has been implemented since tRPC does not manage stream responses
 export async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -22,7 +24,11 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Stream the answer being generated until completed
     requestEventEmitter.on('chunk', (chunk) => {
-      res.write(chunk);
+      const jsonChunk: NetworkStreamChunkSchemaType = { content: chunk };
+
+      // The return carriage is for network visibility, but it will be stripped on the frontend
+      // Note: we use the JSON intermediary to encode special character like return carriage so they are mixed with our own protocol logic
+      res.write(`${CHUNK_DATA_PREFIX}${JSON.stringify(jsonChunk)}\n`);
     });
 
     // TODO: check quotas... but it depends on tokens, so maybe inside the underlying call?
@@ -33,6 +39,10 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
     console.log(`an error has occured will reaching the assistant`);
     console.log(error);
 
+    res.write(`${CHUNK_ERROR_PREFIX}${JSON.stringify(responseStreamErrorError.json())}\n`); // Add a new line to have the same decoding logic than for data chunks
+    res.end();
+
+    // We still throw the error so the wrapper can perform its additional custom logic
     throw error;
   } finally {
     requestEventEmitter.removeAllListeners();

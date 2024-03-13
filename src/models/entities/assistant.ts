@@ -21,3 +21,10 @@ export const SessionAnswerChunkSchema = z
   })
   .strict();
 export type SessionAnswerChunkSchemaType = z.infer<typeof SessionAnswerChunkSchema>;
+
+export const NetworkStreamChunkSchema = z
+  .object({
+    content: z.string(),
+  })
+  .strict();
+export type NetworkStreamChunkSchemaType = z.infer<typeof NetworkStreamChunkSchema>;

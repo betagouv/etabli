@@ -13,6 +13,7 @@
     "custom": {
       "initiativeNotFound": "cette initiative n'existe pas. Si c'est l'assistant virtuel qui vous a dirigé sur cette page, sachez malheureusement que parfois il invente ou transforme des liens valides. Vous pouvez lui demander de se corriger, voire vous pouvez utiliser l'annuaire directement en recherchant l'initiative qui vous avait été proposée.",
       "internalServerError": "une erreur interne est survenue, veuillez retenter",
+      "responseStreamError": "une erreur interne est survenue lors de l'envoi de la réponse. Veuillez resaisir votre message si vous estimez que la réponse est incomplète.",
       "unauthorizedError": "vous devez être connecté pour effectuer cette action",
       "unexpectedError": "une erreur inattendue est survenue, veuillez retenter"
     },

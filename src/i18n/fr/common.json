@@ -55,5 +55,19 @@
       "website_one": "Site internet",
       "website_other": "Sites internet"
     }
+  },
+  "llm": {
+    "sheet": {
+      "keys": {
+        "link": "lienDeLaFiche",
+        "name": "nom",
+        "description": "description",
+        "websites": "liensDesSitesInternetAssocies",
+        "repositories": "liensDesDepotsDeCodeAssocies",
+        "businessUseCases": "casDUtilisationMetiers",
+        "functionalUseCases": "casDUtilisationFonctionnels",
+        "tools": "outilsUtilises"
+      }
+    }
   }
 }

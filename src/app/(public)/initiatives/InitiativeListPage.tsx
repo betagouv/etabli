@@ -96,10 +96,10 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
         setCurrentPage(1); // Since the new query may have less total items than the current search, we bring back the user to the behinning of the pagination
       }
     },
-    [setSearchQueryManipulated, setSearchQuery, setCurrentPage]
+    [searchQuery, setSearchQueryManipulated, setSearchQuery, setCurrentPage]
   );
 
-  const debounedHandleClearQuery = useMemo(() => debounce(handleSearchQueryChange, 1200), []); // We wait more than the usual `500ms` because it reaches the LLM system to embed the query and we must comply with the rate limit for this
+  const debounedHandleClearQuery = useMemo(() => debounce(handleSearchQueryChange, 1200), [handleSearchQueryChange]); // We wait more than the usual `500ms` because it reaches the LLM system to embed the query and we must comply with the rate limit for this
   useEffect(() => {
     return () => {
       debounedHandleClearQuery.cancel();

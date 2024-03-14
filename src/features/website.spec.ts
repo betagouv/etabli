@@ -44,6 +44,12 @@ describe('guessWebsiteNameFromPageTitles()', () => {
 
     const commonPattern6 = guessWebsiteNameFromPageTitles(unguessablePatternTitle1, unguessablePatternTitle2);
     expect(commonPattern6).toBeNull();
+
+    const noCommonPatternTitle1 = "Test de l'éclair";
+    const noCommonPatternTitle2 = "Appartenance d'une adresse à un quartier prioritaire de l'Auvergne";
+
+    const commonPattern7 = guessWebsiteNameFromPageTitles(noCommonPatternTitle1, noCommonPatternTitle2);
+    expect(commonPattern7).toBeNull(); // It should not detect "de l'" as being the common part
   });
 
   it('should find no common pattern', async () => {

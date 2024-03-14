@@ -32,4 +32,7 @@ declare module 'next/config' {
   const value: () => RuntimeConfig;
   export default value;
 }
+declare module 'natural/lib/natural/util/stopwords_fr' {
+  export const words: string[];
+}
 declare module 'storybook-mock-date-decorator';

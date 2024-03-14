@@ -1,4 +1,7 @@
 import assert from 'assert';
+import { WordTokenizer } from 'natural/lib/natural/tokenizers';
+import { stopwords as englishStopwords } from 'natural/lib/natural/util';
+import { words as frenchStopwords } from 'natural/lib/natural/util/stopwords_fr';
 import { Browser, Page, Response, chromium } from 'playwright';
 
 import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/src/models/entities/errors';
@@ -168,5 +171,28 @@ export function guessWebsiteNameFromPageTitles(title1: string, title2: string): 
   // We make sure to trim spaces and isolated special characters when there is a space like in `- react-dsfr` (can be at start or at the end)
   const commonTitle = commonSubstring.replace(/^\s*[^\w]+\s+|\s+[^\w]+\s*$/g, '').trim();
 
+  // Since common pattern could be just about common words (articles, pronouns...) we make sure to filter this case
+  // Note: the tokenizer is smart enough to split attached words like in "de l'autoroute", it would return: `de, l, autoroute`
+  const tokenizer = new WordTokenizer();
+  const words = tokenizer.tokenize(commonTitle);
+
+  if (!words) {
+    // Low probability but why not
+    return null;
+  }
+
+  const meaningfulWords = words.filter((word) => {
+    const lowercasedWord = word.toLowerCase(); // Because the comparaison is done on lowercased ones
+
+    // Filter words not meaningful (`de, la, du, des...`)
+    return frenchStopwords.indexOf(lowercasedWord) === -1 && englishStopwords.indexOf(lowercasedWord) === -1;
+  });
+
+  if (meaningfulWords.length === 0) {
+    return null;
+  }
+
+  // We do not expect the title to have a minimal length since some may have just 1 or 2
+  // Note: we do not strip not meaningful words because they can be part of the name
   return commonTitle !== '' ? commonTitle : null;
 }

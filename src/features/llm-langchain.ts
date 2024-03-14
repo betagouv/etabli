@@ -7,6 +7,7 @@ import { InitiativeLlmDocument, Prisma, Settings, ToolLlmDocument } from '@prism
 import assert from 'assert';
 import { CronJob } from 'cron';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
+import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import { subHours } from 'date-fns/subHours';
 import fs from 'fs/promises';
 import jsonic from 'jsonic';
@@ -56,6 +57,9 @@ export type QueryVectorHistory = {
 export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public readonly mistralaiClient;
   public readonly toolsVectorStore;
+  public readonly maximumRequestsPerSecond = !!process.env.LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND
+    ? parseInt(process.env.LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND, 10)
+    : 5; // 5 is the default when creating an account onto the MistralAI platform
   public readonly initiativesVectorStore;
   public readonly gptInstance = gptInstances['mistral8x7b'];
   public readonly sessions: Sessions = {}; // To not overcomplexify the logic we go with memory history considering just 1 instance of the product (or if more, with sticky IP to target the same instance for the same user)
@@ -74,9 +78,16 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
       randomSeed: gptSeed,
       verbose: false,
       // lc_serializable: xxx, // Cannot find what it is
+      maxConcurrency: this.maximumRequestsPerSecond, // It's not 100% optimum since concurrent requests can takes less than a second and still trigger the limit, but it should mitigate a bit reaching their limit
+      maxRetries: 1, // Default was `6` but in production it seems to be over 20 minutes, which blocks other calculations, we limit this privileging retrying on next batch of iterations
     });
 
-    this.toolsVectorStore = PrismaVectorStore.withModel<ToolLlmDocument>(prisma).create(new MistralAIEmbeddings(), {
+    const mistralaiEmbeddings = new MistralAIEmbeddings({
+      maxConcurrency: this.maximumRequestsPerSecond, // It's not 100% optimum since concurrent requests can takes less than a second and still trigger the limit, but it should mitigate a bit reaching their limit
+      maxRetries: 1, // Since it's an exponential backoff we don't block other calls since they can be retried by frontend and by the jobs
+    });
+
+    this.toolsVectorStore = PrismaVectorStore.withModel<ToolLlmDocument>(prisma).create(mistralaiEmbeddings, {
       prisma: Prisma,
       tableName: 'ToolLlmDocument',
       vectorColumnName: 'vector',
@@ -86,7 +97,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
       },
     });
 
-    this.initiativesVectorStore = PrismaVectorStore.withModel<InitiativeLlmDocument>(prisma).create(new MistralAIEmbeddings(), {
+    this.initiativesVectorStore = PrismaVectorStore.withModel<InitiativeLlmDocument>(prisma).create(mistralaiEmbeddings, {
       prisma: Prisma,
       tableName: 'InitiativeLlmDocument',
       vectorColumnName: 'vector',
@@ -427,8 +438,31 @@ CONTEXTE :
       ['human', '{input}'],
     ]);
 
+    let finishReason: string | null = null;
+    let tokenUsage: TokenUsage | null = null;
+
     const chain = new LLMChain({
-      llm: this.mistralaiClient,
+      llm: this.mistralaiClient
+        // Those specific settings cannot be set into the global instance directly
+        .bind({
+          timeout: secondsToMilliseconds(30), // It's unlikely the total call duration would take that much time, setting a limit to not block the process
+          callbacks: [
+            {
+              handleLLMEnd: (output, runId, parentRunId?, tags?) => {
+                if (!!output.generations[0]?.[0]?.generationInfo?.finish_reason) {
+                  finishReason = output.generations[0][0].generationInfo?.finish_reason;
+                }
+
+                if (!!output.llmOutput?.tokenUsage) {
+                  tokenUsage = output.llmOutput.tokenUsage as unknown as TokenUsage;
+                }
+              },
+            },
+          ],
+        })
+        .withRetry({
+          stopAfterAttempt: 2, // This is required in addition to the `maxRetries` otherwise they are more retries than expected
+        }),
       prompt: promptCanvas,
       verbose: false,
     });
@@ -472,23 +506,8 @@ CONTEXTE :
       throw tokensReachTheLimitError;
     }
 
-    let finishReason: string | null = null;
-    let tokenUsage: TokenUsage | null = null;
-
     const answer = await chain.invoke(invocationInputs, {
-      callbacks: [
-        {
-          handleLLMEnd: (output, runId, parentRunId?, tags?) => {
-            if (!!output.generations[0]?.[0]?.generationInfo?.finish_reason) {
-              finishReason = output.generations[0][0].generationInfo?.finish_reason;
-            }
-
-            if (!!output.llmOutput?.tokenUsage) {
-              tokenUsage = output.llmOutput.tokenUsage as unknown as TokenUsage;
-            }
-          },
-        },
-      ],
+      // Due to using chained `.bind().withRetry()` above, callbacks and others must be defined there (here they won't be called)
     });
 
     if (finishReason !== 'stop') {
@@ -726,8 +745,40 @@ CONTEXTE :
         ['human', '{input}'],
       ]);
 
+      // When using a stream there is no object `tokenUsage` as for the conventional way
+      // So do our own logic (it should be exactly true but maybe there is a little variation with the calculation from the remote LLM)
+      let totalTokensUsed = 0;
+
       const combineDocsChain = await createStuffDocumentsChain({
-        llm: this.mistralaiClient,
+        llm: this.mistralaiClient
+          // Those specific settings cannot be set into the global instance directly
+          .bind({
+            timeout: secondsToMilliseconds(30), // It's unlikely the total call duration would take that much time, setting a limit to not block the process and warn the user soemtimes wrong is happening
+            configurable: {
+              verbose: false,
+            },
+            callbacks: [
+              {
+                handleLLMStart: async (llm, messages) => {
+                  assert(messages.length === 1);
+
+                  const tokens = mistralTokenizer.encode(messages[0]);
+
+                  totalTokensUsed += tokens.length;
+                },
+                handleLLMEnd: async (output) => {
+                  if (!!output.generations[0]?.[0]) {
+                    const tokens = mistralTokenizer.encode(output.generations[0][0].text);
+
+                    totalTokensUsed += tokens.length;
+                  }
+                },
+              },
+            ],
+          })
+          .withRetry({
+            stopAfterAttempt: 2, // This is required in addition to the `maxRetries` otherwise they are more retries than expected
+          }),
         prompt: promptCanvas,
         documentSeparator: '\n',
         documentsMaximum: totalDocumentsToRevealToTheUser,
@@ -738,37 +789,13 @@ CONTEXTE :
         combineDocsChain: combineDocsChain,
       });
 
-      // When using a stream there is no object `tokenUsage` as for the conventional way
-      // So do our own logic (it should be exactly true but maybe there is a little variation with the calculation from the remote LLM)
-      let totalTokensUsed = 0;
-
       const stream = await chain.stream(
         {
           chat_history: await session.history.chatHistory.getMessages(),
           input: input,
         },
         {
-          configurable: {
-            verbose: false,
-          },
-          callbacks: [
-            {
-              handleLLMStart: async (llm, messages) => {
-                assert(messages.length === 1);
-
-                const tokens = mistralTokenizer.encode(messages[0]);
-
-                totalTokensUsed += tokens.length;
-              },
-              handleLLMEnd: async (output) => {
-                if (!!output.generations[0]?.[0]) {
-                  const tokens = mistralTokenizer.encode(output.generations[0][0].text);
-
-                  totalTokensUsed += tokens.length;
-                }
-              },
-            },
-          ],
+          // Due to using chained `.bind().withRetry()` above, callbacks and others must be defined there (here they won't be called)
         }
       );
 

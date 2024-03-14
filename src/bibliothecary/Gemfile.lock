@@ -1,7 +1,7 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    bibliothecary (8.7.6)
+    bibliothecary (8.7.7)
       commander
       deb_control
       librariesio-gem-parser

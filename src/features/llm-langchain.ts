@@ -63,7 +63,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public constructor() {
     this.mistralaiClient = new ChatMistralAI({
       apiKey: process.env.MISTRAL_API_KEY,
-      modelName: 'mistral-tiny',
+      modelName: this.gptInstance.model,
       temperature: 0, // Less creative answer, more deterministic
       streaming: false,
       topP: 1,

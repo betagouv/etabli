@@ -41,9 +41,22 @@
       "businessUseCase_other": "Cas d'utilisation métiers",
       "functionalUseCase": {
         "enum": {
+          "DISPLAYS_CARTOGRAPHY_MAP": "Affiche une carte",
+          "EXPOSES_API_ENDPOINTS": "Expose une API",
+          "GENERATES_PDF": "Génère des fichiers PDF",
+          "GENERATES_SPREADSHEET_FILE": "Génère des feuilles de calcul",
           "HAS_VIRTUAL_EMAIL_INBOXES": "Génère des boîtes email virtuelles de réception",
+          "HAS_SEARCH_SYSTEM": "Possède un système de recherche",
+          "HAS_PAYMENT_SYSTEM": "Possède un système de paiement",
+          "HAS_SEVERAL_LANGUAGES_AVAILABLE": "Est disponible en plusieurs langues",
+          "HAS_AUTHENTICATION_SYSTEM": "Possède un système d'authentification",
+          "MANAGES_FILE_UPLOAD": "Gère l'upload de fichiers",
+          "PROVIDES_TWO_FACTOR_AUTHENTICATION": "Propose de l'authentification 2FA",
+          "REPORTS_ANALYTICS": "Fait des rapports d'analyses",
+          "REPORTS_ERRORS": "Fait des rapports d'erreurs",
           "SENDS_EMAILS": "Envoie des emails",
-          "GENERATES_PDF": "Génère des fichiers PDF"
+          "SENDS_PUSH_NOTIFICATIONS": "Envoie des notifications push",
+          "USES_ARTIFICIAL_INTELLIGENCE": "Utilise de l'intelligence artificielle"
         },
         "label_one": "Cas d'utilisation fonctionnel",
         "label_other": "Cas d'utilisation fonctionnels"

@@ -1095,14 +1095,53 @@ export async function feedInitiativesFromDatabase() {
             );
             const functionalUseCases: FunctionalUseCase[] = [];
 
-            if (answerData.functionalUseCases.generatesPDF) {
-              functionalUseCases.push(FunctionalUseCase.GENERATES_PDF);
-            }
             if (answerData.functionalUseCases.hasVirtualEmailInboxes) {
               functionalUseCases.push(FunctionalUseCase.HAS_VIRTUAL_EMAIL_INBOXES);
             }
             if (answerData.functionalUseCases.sendsEmails) {
               functionalUseCases.push(FunctionalUseCase.SENDS_EMAILS);
+            }
+            if (answerData.functionalUseCases.sendsPushNotifications) {
+              functionalUseCases.push(FunctionalUseCase.SENDS_PUSH_NOTIFICATIONS);
+            }
+            if (answerData.functionalUseCases.generatesPDF) {
+              functionalUseCases.push(FunctionalUseCase.GENERATES_PDF);
+            }
+            if (answerData.functionalUseCases.generatesSpreadsheetFile) {
+              functionalUseCases.push(FunctionalUseCase.GENERATES_SPREADSHEET_FILE);
+            }
+            if (answerData.functionalUseCases.hasSearchSystem) {
+              functionalUseCases.push(FunctionalUseCase.HAS_SEARCH_SYSTEM);
+            }
+            if (answerData.functionalUseCases.hasAuthenticationSystem) {
+              functionalUseCases.push(FunctionalUseCase.HAS_AUTHENTICATION_SYSTEM);
+            }
+            if (answerData.functionalUseCases.providesTwoFactorAuthentication) {
+              functionalUseCases.push(FunctionalUseCase.PROVIDES_TWO_FACTOR_AUTHENTICATION);
+            }
+            if (answerData.functionalUseCases.managesFileUpload) {
+              functionalUseCases.push(FunctionalUseCase.MANAGES_FILE_UPLOAD);
+            }
+            if (answerData.functionalUseCases.hasPaymentSystem) {
+              functionalUseCases.push(FunctionalUseCase.HAS_PAYMENT_SYSTEM);
+            }
+            if (answerData.functionalUseCases.hasSeveralLanguagesAvailable) {
+              functionalUseCases.push(FunctionalUseCase.HAS_SEVERAL_LANGUAGES_AVAILABLE);
+            }
+            if (answerData.functionalUseCases.reportsAnalytics) {
+              functionalUseCases.push(FunctionalUseCase.REPORTS_ANALYTICS);
+            }
+            if (answerData.functionalUseCases.reportsErrors) {
+              functionalUseCases.push(FunctionalUseCase.REPORTS_ERRORS);
+            }
+            if (answerData.functionalUseCases.displaysCartographyMap) {
+              functionalUseCases.push(FunctionalUseCase.DISPLAYS_CARTOGRAPHY_MAP);
+            }
+            if (answerData.functionalUseCases.usesArtificialIntelligence) {
+              functionalUseCases.push(FunctionalUseCase.USES_ARTIFICIAL_INTELLIGENCE);
+            }
+            if (answerData.functionalUseCases.exposesApiEndpoints) {
+              functionalUseCases.push(FunctionalUseCase.EXPOSES_API_ENDPOINTS);
             }
 
             await prisma.$transaction(

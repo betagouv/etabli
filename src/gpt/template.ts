@@ -8,7 +8,20 @@ export const ResultSchema = z.object({
   functionalUseCases: z.object({
     hasVirtualEmailInboxes: z.boolean(),
     sendsEmails: z.boolean(),
+    sendsPushNotifications: z.boolean(),
     generatesPDF: z.boolean(),
+    generatesSpreadsheetFile: z.boolean(),
+    hasSearchSystem: z.boolean(),
+    hasAuthenticationSystem: z.boolean(),
+    providesTwoFactorAuthentication: z.boolean(),
+    managesFileUpload: z.boolean(),
+    hasPaymentSystem: z.boolean(),
+    hasSeveralLanguagesAvailable: z.boolean(),
+    reportsAnalytics: z.boolean(),
+    reportsErrors: z.boolean(),
+    displaysCartographyMap: z.boolean(),
+    usesArtificialIntelligence: z.boolean(),
+    exposesApiEndpoints: z.boolean(),
   }),
 });
 export type ResultSchemaType = z.infer<typeof ResultSchema>;
@@ -24,7 +37,20 @@ interface ResultSchemaType {
   functionalUseCases: {
     hasVirtualEmailInboxes: boolean;
     sendsEmails: boolean;
+    sendsPushNotifications: boolean;
     generatesPDF: boolean;
+    generatesSpreadsheetFile: boolean;
+    hasSearchSystem: boolean;
+    hasAuthenticationSystem: boolean;
+    providesTwoFactorAuthentication: boolean;
+    managesFileUpload: boolean;
+    hasPaymentSystem: boolean;
+    hasSeveralLanguagesAvailable: boolean;
+    reportsAnalytics: boolean;
+    reportsErrors: boolean;
+    displaysCartographyMap: boolean;
+    usesArtificialIntelligence: boolean;
+    exposesApiEndpoints: boolean;
   };
 }
 `.trim();

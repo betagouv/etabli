@@ -688,14 +688,14 @@ export async function feedInitiativesFromDatabase() {
 
         // Define the name of the initiative
         // Note: website inferred name in priority since it should better reflect the reality (not the technical name), we should end on the `main` since sorting them in the `.findMany()`
-        let initiativeName: string;
+        let probableInitiativeName: string;
         if (initiativeMap.RawDomainsOnInitiativeMaps.length > 0 && initiativeMap.RawDomainsOnInitiativeMaps[0].main) {
           const mainRawDomain = initiativeMapRawDomains.find((rd) => rd.id === initiativeMap.RawDomainsOnInitiativeMaps[0].rawDomainId);
           assert(mainRawDomain);
 
-          initiativeName = mainRawDomain.websiteInferredName || mainRawDomain.name;
+          probableInitiativeName = mainRawDomain.websiteInferredName || mainRawDomain.name;
         } else if (initiativeMap.RawRepositoriesOnInitiativeMaps.length > 0 && initiativeMap.RawRepositoriesOnInitiativeMaps[0].main) {
-          initiativeName = initiativeMap.RawRepositoriesOnInitiativeMaps[0].rawRepository.name;
+          probableInitiativeName = initiativeMap.RawRepositoriesOnInitiativeMaps[0].rawRepository.name;
         } else {
           throw new Error('initiative name cannot be inferred');
         }
@@ -1022,6 +1022,7 @@ export async function feedInitiativesFromDatabase() {
           // Prepare the content for GPT
           const finalGptContent = initiativeGptTemplate(
             InitiativeTemplateSchema.parse({
+              probableInitiativeName: probableInitiativeName,
               resultSchemaDefinition: resultSchemaDefinition,
               websites: websitesTemplates,
               repositories: repositoriesTemplates.map((repositoryTemplate) => {
@@ -1189,7 +1190,7 @@ export async function feedInitiativesFromDatabase() {
                     originId: initiativeMap.id,
                   },
                   update: {
-                    name: initiativeName,
+                    name: answerData.name,
                     description: answerData.description,
                     websites: websites,
                     repositories: repositories,
@@ -1246,7 +1247,7 @@ export async function feedInitiativesFromDatabase() {
                         id: initiativeMap.id,
                       },
                     },
-                    name: initiativeName,
+                    name: answerData.name,
                     description: answerData.description,
                     websites: websites,
                     repositories: repositories,

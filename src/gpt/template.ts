@@ -2,6 +2,7 @@ import ts from 'typescript';
 import { z } from 'zod';
 
 export const ResultSchema = z.object({
+  name: z.string(),
   businessUseCases: z.array(z.string()),
   description: z.string(),
   tools: z.array(z.string()),
@@ -31,6 +32,7 @@ export type ResultSchemaType = z.infer<typeof ResultSchema>;
 // It will serve as a result model for the LLM with types
 export const resultSchemaDefinition: string = `
 interface ResultSchemaType {
+  name: string;
   businessUseCases: string[];
   description: string;
   tools: string[];

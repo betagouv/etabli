@@ -1018,6 +1018,8 @@ export async function feedInitiativesFromDatabase() {
         // We try with all information and if it's above, we retry with less content until it passes (if it can) because since sorted by main website/repository
         // The algorithm should extract interesting information even without having the whole bunch of information
         let lastChanceAttemptWithOneTruncated = false;
+        let failedDueToLlmResponseFormat = 0;
+
         while (true) {
           // Prepare the content for GPT
           const finalGptContent = initiativeGptTemplate(
@@ -1036,6 +1038,12 @@ export async function feedInitiativesFromDatabase() {
                     })
                   : repositoryTemplate;
               }),
+              messageToAppend:
+                failedDueToLlmResponseFormat > 0
+                  ? `C'est la ${
+                      failedDueToLlmResponseFormat === 1 ? 'deuxième' : `${failedDueToLlmResponseFormat + 1}ème`
+                    } tentative car la dernière fois tu n'as pas respecté le format JSON attendu !`
+                  : undefined,
             })
           );
 
@@ -1048,6 +1056,15 @@ export async function feedInitiativesFromDatabase() {
               if (error === llmResponseFormatError) {
                 // Since we cannot force the LLM to return an JSON object exactly, we had to deal with multiple workarounds
                 // to handle the LLM returning it with a bad syntax, a bad wrapper... so to not break the next iterations
+                failedDueToLlmResponseFormat++;
+
+                // The main idea is to change a part of the prompt hopping the computing will be working (even a letter makes the whole generation different)
+                // We give 3 attempts total because maybe there is a case we didn't think about and it would not work forever
+                if (failedDueToLlmResponseFormat < 3) {
+                  console.warn(`the response format was wrong but we give another try by modifying a bit the prompt`);
+                  continue;
+                }
+
                 // we just notify us inside Sentry to fix this case when we can (should be rare among thousands of initiative maps we have)
                 Sentry.captureException(error);
 

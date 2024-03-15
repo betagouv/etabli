@@ -82,6 +82,7 @@ export const InitiativeTemplateSchema = z
     resultSchemaDefinition: z.string(),
     websites: z.array(WebsiteTemplateSchema),
     repositories: z.array(RepositoryTemplateSchema),
+    messageToAppend: z.string().optional(),
   })
   .strict();
 export type InitiativeTemplateSchemaType = z.infer<typeof InitiativeTemplateSchema>;

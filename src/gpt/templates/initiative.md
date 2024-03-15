@@ -49,3 +49,7 @@ Tu dois répondre en respectant les types suivants en les formattant au format J
 ---
 
 IMPORTANT: toutes tes réponses doivent impérativement être écrites en français (que ce soit les propriétés `name`, `description`, et les entrées dans `businessUseCases`) !
+
+{{#if messageToAppend}}
+{{{messageToAppend}}}
+{{/if}}

@@ -585,6 +585,11 @@ export async function feedInitiativesFromDatabase() {
             },
           },
           {
+            lastUpdateAttemptReachabilityError: {
+              not: {
+                equals: llmResponseFormatError.code, // If this error code has been reported to the database it means a manual investigation is needed to make it pass
+              },
+            },
             lastUpdateAttemptWithReachabilityError: {
               lt: subDays(new Date(), 1), // Skip rows with high probability of failure since they had recently a network reachability issue
             },
@@ -1070,6 +1075,22 @@ export async function feedInitiativesFromDatabase() {
                   console.warn(`the response format was wrong but we give another try by modifying a bit the prompt`);
                   continue;
                 }
+
+                // If after 3 attempts while changing a bit the prompt it's still not passing, we give up and leave it for manual investigation
+                // since next batch of processing would do the same since we configured the LLM to be "deterministic" for the same input
+                // Note: this is not exactly about a `reachability` error but we reuse this logic
+                await prisma.initiativeMap.update({
+                  where: {
+                    id: initiativeMap.id,
+                  },
+                  data: {
+                    lastUpdateAttemptWithReachabilityError: new Date(),
+                    lastUpdateAttemptReachabilityError: llmResponseFormatError.code,
+                  },
+                  select: {
+                    id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  },
+                });
 
                 // we just notify us inside Sentry to fix this case when we can (should be rare among thousands of initiative maps we have)
                 Sentry.captureException(error);

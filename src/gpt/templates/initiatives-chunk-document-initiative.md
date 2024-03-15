@@ -1,10 +1,10 @@
-## {{name}}
+## {{{name}}}
 
-Identifiant unique : {{id}}
+Identifiant unique : {{{id}}}
 Description :
 
 ```
-{{description}}
+{{{description}}}
 ```
 
 {{#if websites}}

@@ -1,6 +1,6 @@
 Je décris ci-dessous un projet composé de {{websites.length}} sites internet et de {{repositories.length}} dépôt de code source, et je veux que tu m'en déduises certaines informations :
 
-1. le nom de ce projet (nous pensons que c'est `{{probableInitiativeName}}`, n'hésite pas à corriger si ça te semble incorrect)
+1. le nom de ce projet (nous pensons que c'est `{{{probableInitiativeName}}}`, n'hésite pas à corriger si ça te semble incorrect)
 2. les cas d'utilisation métiers de ce que fait le projet (pas les choses fonctionnelles comme envoyer un email), utilise des mots simples pour garder cela compréhensible (10 mots maximum)
 3. une description de 100 mots maximum de ce que fait le projet (des mots métiers, ne pas aborder des choses techniques)
 4. tous les outils qui sont des frameworks ou des services utilisables par une API. D'abord, déduis-les et trouve leur nom commercial tout en omettant celles qui semblent être des petites librairies, des protocoles, ou des polices d'écriture. Une fois que tu as la liste, si certains correspondent à la liste des outils passée dans le contexte, utilise le nom du contexte

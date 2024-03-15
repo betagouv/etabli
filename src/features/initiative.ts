@@ -1218,10 +1218,9 @@ export async function feedInitiativesFromDatabase() {
                     name: true,
                   },
                 });
+                let existingBusinessUseCasesNames = existingBusinessUseCasesInTheDatabase.map((bUC) => bUC.name);
 
-                const newBusinessUseCases = answerData.businessUseCases.filter(
-                  (element) => !existingBusinessUseCasesInTheDatabase.map((bUC) => bUC.name).includes(element)
-                );
+                const newBusinessUseCases = answerData.businessUseCases.filter((element) => !existingBusinessUseCasesNames.includes(element));
 
                 const existingInitiative = await tx.initiative.findUnique({
                   where: {

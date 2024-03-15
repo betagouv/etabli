@@ -58,6 +58,10 @@ export class MockVectorStoreLlmManager implements LlmManager {
     });
   }
 
+  public truncateContentBasedOnTokens(content: string, maximumTokens: number): string {
+    return content.split(' ').slice(0, maximumTokens).join(' ');
+  }
+
   public async assertToolsDocumentsAreReady(settings: Settings): Promise<void> {}
 
   public async requestAssistant(settings: Settings, sessionId: string, input: string, eventEmitter: ChunkEventEmitter): Promise<string> {

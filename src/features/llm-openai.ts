@@ -579,6 +579,10 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     throw new Error('not implemented yet');
   }
 
+  public truncateContentBasedOnTokens(content: string, maximumTokens: number): string {
+    throw new Error('not implemented yet');
+  }
+
   public async assertToolsDocumentsAreReady(settings: Settings): Promise<void> {
     if (!settings.llmAnalyzerAssistantId) {
       throw new Error('the analyzer assistant must exist to compute initiative through the llm system');

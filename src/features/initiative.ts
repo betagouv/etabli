@@ -16,7 +16,6 @@ import fs from 'fs/promises';
 import { glob } from 'glob';
 import graphlib, { Graph } from 'graphlib';
 import handlebars from 'handlebars';
-import mistralTokenizer from 'mistral-tokenizer-js';
 import OpenAI from 'openai';
 import path from 'path';
 import prettyBytes from 'pretty-bytes';
@@ -1319,20 +1318,12 @@ export async function feedInitiativesFromDatabase() {
                   // because if the content is huge there is a low probability everything is meaningful
                   lastChanceAttemptWithOneTruncated = true;
 
-                  // TODO: the logic of tokens should be in `llm-*`... but for the ease for now it's here
-                  const tokens = mistralTokenizer.encode(repositoriesTemplates[0].readme);
-
                   // Ideally we could almost go to the limit `this.gptInstance.modelTokenLimit` but for this we should take in account
                   // the full templating for this repository because it will include deduced tools and some sentences from the template
                   // But we are fine we a lower arbitrary limit because it's high probable the content is not meaningful enough since only 1 repository to analyze with a long content
-                  const truncatedTokens = tokens.slice(0, 5000);
+                  repositoriesTemplates[0].readme = llmManagerInstance.truncateContentBasedOnTokens(repositoriesTemplates[0].readme, 5000);
 
-                  // Set back the truncated content
-                  repositoriesTemplates[0].readme = mistralTokenizer.decode(truncatedTokens);
-
-                  console.log(
-                    `[${initiativeMap.id}] the next retry will be with repository readme content truncated (${truncatedTokens.length} tokens will be used for this property)`
-                  );
+                  console.log(`[${initiativeMap.id}] the next retry will be with repository readme content truncated`);
 
                   continue;
                 }
@@ -1344,20 +1335,12 @@ export async function feedInitiativesFromDatabase() {
                   // because if the content is huge there is a low probability everything is meaningful
                   lastChanceAttemptWithOneTruncated = true;
 
-                  // TODO: the logic of tokens should be in `llm-*`... but for the ease for now it's here
-                  const tokens = mistralTokenizer.encode(websitesTemplates[0].content);
-
                   // Ideally we could almost go to the limit `this.gptInstance.modelTokenLimit` but for this we should take in account
-                  // the full templating for this re because it will include deduced tools and some sentences from the template
+                  // the full templating because it will include deduced tools and some sentences from the template
                   // But we are fine we a lower arbitrary limit because it's high probable the content is not meaningful enough since only 1 website to analyze with a long content
-                  const truncatedTokens = tokens.slice(0, 5000);
+                  websitesTemplates[0].content = llmManagerInstance.truncateContentBasedOnTokens(websitesTemplates[0].content, 5000);
 
-                  // Set back the truncated content
-                  websitesTemplates[0].content = mistralTokenizer.decode(truncatedTokens);
-
-                  console.log(
-                    `[${initiativeMap.id}] the next retry will be with website content truncated (${truncatedTokens.length} tokens will be used for this property)`
-                  );
+                  console.log(`[${initiativeMap.id}] the next retry will be with website content truncated`);
 
                   continue;
                 }

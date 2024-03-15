@@ -653,6 +653,22 @@ CONTEXTE :
     });
   }
 
+  public truncateContentBasedOnTokens(content: string, maximumTokens: number): string {
+    if (maximumTokens > this.gptInstance.modelTokenLimit) {
+      console.warn(
+        `the tokens truncate ceil specified (${maximumTokens}) is above the llm limit of ${this.gptInstance.modelTokenLimit} tokens, so defaulting to the latter`
+      );
+
+      maximumTokens = this.gptInstance.modelTokenLimit;
+    }
+
+    const tokens = mistralTokenizer.encode(content);
+
+    const truncatedTokens = tokens.slice(0, maximumTokens);
+
+    return mistralTokenizer.decode(truncatedTokens);
+  }
+
   public async assertToolsDocumentsAreReady(settings: Settings): Promise<void> {
     const total = await prisma.toolLlmDocument.count({
       where: {

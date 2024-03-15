@@ -1,4 +1,4 @@
-Je décris ci-dessous un projet composé de {{websites.length}} sites internet et de {{repositories.length}} dépôt de code source (repository), et je veux que tu m'en déduises certaines informations :
+Je décris ci-dessous un projet composé de {{websites.length}} sites internet et de {{repositories.length}} dépôt de code source, et je veux que tu m'en déduises certaines informations :
 
 1. le nom de ce projet (nous pensons que c'est `{{probableInitiativeName}}`, n'hésite pas à corriger si ça te semble incorrect)
 2. les cas d'utilisation métiers de ce que fait le projet (pas les choses fonctionnelles comme envoyer un email), utilise des mots simples pour garder cela compréhensible (10 mots maximum)
@@ -9,7 +9,7 @@ Je décris ci-dessous un projet composé de {{websites.length}} sites internet e
    - envoie des emails
    - a la capacité à générer des fichiers PDF
 
-Tu dois répondre en respectant les types suivants, mais tu dois les formatter au format JSON strict en utilisant `{{!}}``json ... ``{{!}}` (et surtout, n'ajoute pas de commentaires au JSON, c'est invalide, et je ne veux surtout pas un tableau, juste un seul objet de ce type). S'il te plaît écrit les valeurs en français, mais garde les mots-clés comme ils sont :
+Tu dois répondre en respectant les types suivants en les formattant au format JSON strict.
 
 {{! we use comments in the json delimiter otherwise Prettier autoformats it as inline code with only 1 back quote  }}
 
@@ -45,3 +45,7 @@ Tu dois répondre en respectant les types suivants, mais tu dois les formatter a
 
 {{/unless}}
 {{/each}}
+
+---
+
+IMPORTANT: toutes tes réponses doivent impérativement être écrites en français (que ce soit les propriétés `name`, `description`, et les entrées dans `businessUseCases`) !

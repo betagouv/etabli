@@ -1128,6 +1128,10 @@ export async function feedInitiativesFromDatabase() {
             answerData.businessUseCases = answerData.businessUseCases.map((businessUseCaseName) => capitalizeFirstLetter(businessUseCaseName.trim()));
             answerData.description = capitalizeFirstLetter(answerData.description.trim());
 
+            // Unique ones
+            answerData.businessUseCases = [...new Set(answerData.businessUseCases)];
+            answerData.tools = [...new Set(answerData.tools)];
+
             const sanitizedGptResultPath = path.resolve(projectDirectory, 'sanitized-gpt-result.json');
 
             const beautifiedAnswerData = JSON.stringify(answerData, null, 2);

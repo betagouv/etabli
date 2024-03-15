@@ -9,7 +9,7 @@ Je décris ci-dessous un projet composé de {{websites.length}} sites internet e
    - envoie des emails
    - a la capacité à générer des fichiers PDF
 
-Tu dois répondre en respectant les types suivants en les formattant au format JSON strict.
+Tu dois répondre en respectant les types suivants en les formattant au format JSON strict (et surtout, n'ajoute pas de commentaires ou de notes autour du JSON).
 
 {{! we use comments in the json delimiter otherwise Prettier autoformats it as inline code with only 1 back quote  }}
 

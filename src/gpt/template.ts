@@ -78,6 +78,7 @@ export type RepositoryTemplateSchemaType = z.infer<typeof RepositoryTemplateSche
 
 export const InitiativeTemplateSchema = z
   .object({
+    probableInitiativeName: z.string(),
     resultSchemaDefinition: z.string(),
     websites: z.array(WebsiteTemplateSchema),
     repositories: z.array(RepositoryTemplateSchema),

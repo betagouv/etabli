@@ -1322,6 +1322,10 @@ export async function feedInitiativesFromDatabase() {
                   // the full templating for this repository because it will include deduced tools and some sentences from the template
                   // But we are fine we a lower arbitrary limit because it's high probable the content is not meaningful enough since only 1 repository to analyze with a long content
                   repositoriesTemplates[0].readme = llmManagerInstance.truncateContentBasedOnTokens(repositoriesTemplates[0].readme, 5000);
+                  repositoriesTemplates[0].dependencies = repositoriesTemplates[0].dependencies
+                    ? repositoriesTemplates[0].dependencies.slice(0, 100)
+                    : null;
+                  repositoriesTemplates[0].functions = repositoriesTemplates[0].functions ? repositoriesTemplates[0].functions.slice(0, 100) : null;
 
                   console.log(`[${initiativeMap.id}] the next retry will be with repository readme content truncated`);
 
@@ -1339,6 +1343,7 @@ export async function feedInitiativesFromDatabase() {
                   // the full templating because it will include deduced tools and some sentences from the template
                   // But we are fine we a lower arbitrary limit because it's high probable the content is not meaningful enough since only 1 website to analyze with a long content
                   websitesTemplates[0].content = llmManagerInstance.truncateContentBasedOnTokens(websitesTemplates[0].content, 5000);
+                  websitesTemplates[0].deducedTools = websitesTemplates[0].deducedTools ? websitesTemplates[0].deducedTools.slice(0, 100) : null;
 
                   console.log(`[${initiativeMap.id}] the next retry will be with website content truncated`);
 

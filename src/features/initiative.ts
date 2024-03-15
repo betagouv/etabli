@@ -60,13 +60,13 @@ const fastFolderSizeAsync = promisify(fastFolderSize);
 // ... but be warned that for now if there is an error with Git, the cache will be misleading since it matches only the existence of folders (we could improve that by using try/catch/finally around git steps)
 const useLocalFileCache = false;
 
-const filesToKeepGitEndingPatterns: string[] = [
+const filesToKeepGitEndingPatterns: (string | RegExp)[] = [
   // This is used to reduce size of the repository once downloaded
   // Notes:
   // - only keep programming files and manifests since that what we only use for now (in addition to README files)
   // - with the current patterns we cannot rely on using leading `/` for the root, we should convert them to regexp otherwise
-  'README',
-  'README.md',
+  /readme$/i,
+  /readme\.md$/i,
   ...manifestsEndingPatterns,
   ...languagesExtensions,
 ];
@@ -926,8 +926,12 @@ export async function feedInitiativesFromDatabase() {
 
                 // Keep files having an allowed pattern (since they should have meaningful content to analyze)
                 if (
-                  !filesToKeepGitEndingPatterns.some((endingPattern) => {
-                    return filePath.endsWith(endingPattern);
+                  !filesToKeepGitEndingPatterns.some((endingPattern): boolean => {
+                    if (endingPattern instanceof RegExp) {
+                      return endingPattern.test(filePath);
+                    } else {
+                      return filePath.endsWith(endingPattern);
+                    }
                   })
                 ) {
                   filesToRemove.push(filePath);
@@ -985,8 +989,11 @@ export async function feedInitiativesFromDatabase() {
 
           mixedInitiativeTools.push(...dependencies);
 
-          // Get README in case it exists
-          const readmeEntries = await glob(path.resolve(codeFolderPath, '{README.md,README.txt,README}'));
+          // Get the root README in case it exists
+          const readmeEntries = await glob(path.resolve(codeFolderPath, '{README.md,README.txt,README}'), {
+            // Note: there is no need of `nocase` because systems were it's run should match despite difference of casing in search criterias
+            // nocase: true,
+          });
           let readmeContent: string | null = null;
           for (const entry of readmeEntries) {
             const entryContent = await fs.readFile(entry, 'utf-8');

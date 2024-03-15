@@ -854,7 +854,7 @@ export async function feedInitiativesFromDatabase() {
               baseDir: codeFolderPath,
               progress: (event: SimpleGitProgressEvent) => {
                 // To not flood we only log a few to notice some progress
-                if (event.progress % 10 === 0) {
+                if (event.progress % 20 === 0) {
                   console.log(
                     `[${initiativeMap.id}][${rawRepository.id}] git.${event.method} ${event.stage} stage ${event.progress}% complete (${event.processed}/${event.total})`
                   );

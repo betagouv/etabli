@@ -81,6 +81,12 @@
         "functionalUseCases": "casDUtilisationFonctionnels",
         "tools": "outilsUtilises"
       }
+    },
+    "template": {
+      "initiative": {
+        "responseFormatFailures_one": "Sache que c'est la deuxième tentative car la dernière fois tu n'as pas respecté le format de réponse attendu ! (on veut un JSON avec les propriétés citées, sans commentaire ni note autour)",
+        "responseFormatFailures_other": "On te renvoie la même demande car les {{count}} dernières fois tu n'as toujours pas respecté le format JSON attendu (sans commentaire ni note autour). Fais attention à bien formater ta réponse."
+      }
     }
   }
 }

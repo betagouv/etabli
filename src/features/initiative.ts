@@ -38,6 +38,7 @@ import {
   WebsiteTemplateSchemaType,
   resultSchemaDefinition,
 } from '@etabli/src/gpt/template';
+import { getServerTranslation } from '@etabli/src/i18n';
 import { llmResponseFormatError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma';
@@ -646,6 +647,10 @@ export async function feedInitiativesFromDatabase() {
 
     const initiativeGptTemplate = handlebars.compile(initiativeGptTemplateContent);
 
+    const { t } = getServerTranslation('common', {
+      lng: 'fr',
+    });
+
     // Since the underlying wappalyzer analysis per initiative map can take some time due to being in a Chromium environment
     // we parallelize hoping to save some time. But still, we take in considerations the LLM API rate limit
     const iterationLlmManagerApiCalls = 2; // One for the embeddings of the tools, and the other for the computation of the initiative sheet
@@ -1051,9 +1056,7 @@ export async function feedInitiativesFromDatabase() {
               }),
               messageToAppend:
                 failedDueToLlmResponseFormat > 0
-                  ? `C'est la ${
-                      failedDueToLlmResponseFormat === 1 ? 'deuxième' : `${failedDueToLlmResponseFormat + 1}ème`
-                    } tentative car la dernière fois tu n'as pas respecté le format JSON attendu !`
+                  ? t('llm.template.initiative.responseFormatFailures', { count: failedDueToLlmResponseFormat })
                   : undefined,
             })
           );

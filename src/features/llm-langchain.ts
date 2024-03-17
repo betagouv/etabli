@@ -510,7 +510,23 @@ CONTEXTE :
       // Due to using chained `.bind().withRetry()` above, callbacks and others must be defined there (here they won't be called)
     });
 
-    if (finishReason !== 'stop') {
+    if (finishReason === 'length') {
+      // The model has reached its length limit
+      // The `maxTokens` property of `ChatMistralAI` indicates something important: "The token count of your prompt plus max_tokens cannot exceed the model's context length"
+      // Note: we don't want to use `maxTokens` since it caps the response tokens, and we prefer to let the LLM tells the maximum about the initiative being computed
+
+      // Just in case, we check we did configure local limit accordingly to the LLM used
+      if (tokenUsage !== null) {
+        const usage = tokenUsage as TokenUsage; // TypeScript messes up due to the assignation being into `callbacks`, it tells it's `never` without casting
+
+        if (usage.totalTokens !== undefined && usage.totalTokens > this.gptInstance.modelTokenLimit) {
+          throw new Error('the maximum model tokens length we defined locally seems to not correspond to the real model limit');
+        }
+      }
+
+      // If the settings check is fine and since we were not able to know in advance the total of the input+output length, we just throw an error so the parent can adjust the content to reduce the input length until it passes
+      throw tokensReachTheLimitError;
+    } else if (finishReason !== 'stop') {
       throw new Error(`the generation has not completed fully according to the returned reason: ${finishReason}`);
     }
 

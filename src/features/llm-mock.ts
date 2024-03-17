@@ -42,6 +42,7 @@ export class MockVectorStoreLlmManager implements LlmManager {
     console.warn(warningMessage);
 
     return ResultSchema.parse({
+      name: 'Commodi',
       businessUseCases: [
         'Dolorem aliquid dignissimos',
         'Doloribus et eaque perspiciatis et est adipisci reiciendis eum vitae',
@@ -53,7 +54,20 @@ export class MockVectorStoreLlmManager implements LlmManager {
       functionalUseCases: {
         hasVirtualEmailInboxes: true,
         sendsEmails: true,
+        sendsPushNotifications: false,
         generatesPDF: false,
+        generatesSpreadsheetFile: false,
+        hasSearchSystem: false,
+        hasAuthenticationSystem: false,
+        providesTwoFactorAuthentication: false,
+        managesFileUpload: false,
+        hasPaymentSystem: false,
+        hasSeveralLanguagesAvailable: false,
+        reportsAnalytics: false,
+        reportsErrors: false,
+        displaysCartographyMap: false,
+        usesArtificialIntelligence: false,
+        exposesApiEndpoints: false,
       },
     });
   }

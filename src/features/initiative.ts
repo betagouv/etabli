@@ -1009,7 +1009,15 @@ export async function feedInitiativesFromDatabase() {
                 const filesToDeleteFilePath = path.resolve(codeFolderPath, `./.git/.filestodelete`);
 
                 await fs.writeFile(filesToDeleteFilePath, filesToRemove.join('\n'));
-                await projectGit.raw(['rm', '--pathspec-from-file', filesToDeleteFilePath]);
+                await projectGit.raw([
+                  'rm',
+                  '--pathspec-from-file',
+                  filesToDeleteFilePath,
+                  // Some repositories have a diff on binary files (like PDFs) just after cloning which prevents deletion
+                  // We thought it came from CRLF or binary settings, but despite trying the config properties `core.autocrlf=false` and `core.fileMode=false` nothing has changed
+                  // So just forcing the deletion (example having this issue: https://github.com/mission-apprentissage/mission.apprentissage)
+                  '--force',
+                ]);
               }
             }
 

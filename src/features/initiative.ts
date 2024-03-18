@@ -962,8 +962,14 @@ export async function feedInitiativesFromDatabase() {
               const filesToRemove: string[] = [];
 
               for (const filePath of lsResult.split('\0')) {
-                // There is an empty line in the output result that cannot be used by `git rm`
                 if (filePath.trim() === '') {
+                  // There is an empty line in the output result that cannot be used by `git rm`
+                  continue;
+                } else if (filePath === '.gitmodules') {
+                  // This file references all submodules used in the repository
+                  // But since the looped array is sorted alphabetically, the further `git rm xxx` could delete first one of the submodule
+                  // which automatically cleans the `.gitmodules`, and delete it if no more entry
+                  // This is a problem then if trying to remove `.gitmodules` since no longer existing, so leave it like that (if really containing submodules if will be deleted)
                   continue;
                 }
 

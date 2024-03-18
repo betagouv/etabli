@@ -1,0 +1,25 @@
+diff --git a/node_modules/@mistralai/mistralai/src/client.js b/node_modules/@mistralai/mistralai/src/client.js
+index 10def72..cb9c60c 100644
+--- a/node_modules/@mistralai/mistralai/src/client.js
++++ b/node_modules/@mistralai/mistralai/src/client.js
+@@ -53,8 +53,8 @@ class MistralClient {
+   constructor(
+     apiKey = process.env.MISTRAL_API_KEY,
+     endpoint = ENDPOINT,
+-    maxRetries = 5,
+-    timeout = 120,
++    maxRetries = 1,
++    timeout = 30,
+   ) {
+     this.endpoint = endpoint;
+     this.apiKey = apiKey;
+@@ -85,7 +85,8 @@ class MistralClient {
+         'Authorization': `Bearer ${this.apiKey}`,
+       },
+       body: method !== 'get' ? JSON.stringify(request) : null,
+-      timeout: this.timeout * 1000,
++      timeout: this.timeout * 1000, // Not working
++      signal: AbortSignal.timeout(this.timeout * 1000), // This makes the timeout working
+     };
+ 
+     for (let attempts = 0; attempts < this.maxRetries; attempts++) {

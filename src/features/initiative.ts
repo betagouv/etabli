@@ -1140,6 +1140,28 @@ export async function feedInitiativesFromDatabase() {
                 Sentry.captureException(error);
 
                 return;
+              } else if (
+                // Note: we manage 2 cases since MistralAI does not use the same `fetch` when it's a Node.js environment (development) and when it's bundled (like for production) (ref: https://github.com/mistralai/client-js/issues/5#issuecomment-2003801102)
+                (error instanceof Error && error.name === 'AbortError') ||
+                (error instanceof DOMException && error.code === DOMException.TIMEOUT_ERR)
+              ) {
+                await prisma.initiativeMap.update({
+                  where: {
+                    id: initiativeMap.id,
+                  },
+                  data: {
+                    lastUpdateAttemptWithReachabilityError: new Date(),
+                    lastUpdateAttemptReachabilityError: error.message,
+                  },
+                  select: {
+                    id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  },
+                });
+
+                console.error(`skip processing ${initiativeMap.id} due to the computation timing out`);
+                console.error(error.message);
+
+                return;
               } else if (error instanceof TypeError && error.message === "Cannot read properties of undefined (reading 'text')") {
                 // We tried to detect network errors but the original issue is written in the console but not spreaded to here
                 // So using the replacement error, hoping it's always this one for network erros (ref: https://github.com/langchain-ai/langchainjs/issues/4570)

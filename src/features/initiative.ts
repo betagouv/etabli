@@ -1009,11 +1009,12 @@ export async function feedInitiativesFromDatabase() {
                 // So instead we pass the list through a file (that will get deleted as the rest of unecessary files)
                 const filesToDeleteFilePath = path.resolve(codeFolderPath, `./.git/.filestodelete`);
 
-                await fs.writeFile(filesToDeleteFilePath, filesToRemove.join('\n'));
+                await fs.writeFile(filesToDeleteFilePath, filesToRemove.join('\0'));
                 await projectGit.raw([
                   'rm',
                   '--pathspec-from-file',
                   filesToDeleteFilePath,
+                  '--pathspec-file-nul', // This is the only way to deal with repositories having filenames with `\r` or `\n` (to do so we join paths on `\0`)
                   // Some repositories have a diff on binary files (like PDFs) just after cloning which prevents deletion
                   // We thought it came from CRLF or binary settings, but despite trying the config properties `core.autocrlf=false` and `core.fileMode=false` nothing has changed
                   // So just forcing the deletion (example having this issue: https://github.com/mission-apprentissage/mission.apprentissage)

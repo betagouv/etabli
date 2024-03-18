@@ -31,7 +31,8 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
   }
 
   try {
-    await $`semgrep --metrics=off --config ${codeAnalysisRulesPath} ${folderPath} --json -o ${outputPath}`;
+    // `--no-git-ignore` is required since the `.semgrepignore` is not taken into account with absolute paths (ref: https://github.com/semgrep/semgrep/issues/9960)
+    await $`semgrep --metrics=off --no-git-ignore --config ${codeAnalysisRulesPath} ${folderPath} --json -o ${outputPath}`;
   } catch (error) {
     console.log(`the details of the semgrep error can be read into ${outputPath}, but pushing it on Sentry too`);
 

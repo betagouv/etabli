@@ -1,0 +1,5 @@
+# This file is required otherwise it will use `.gitignore` by default
+# which is not wanted since it excludes analyzing repositories into the `data` folder when developping locally
+# Note: in production the `.gitignore` is not embedded into the Docker image, so it was not an issue
+# [IMPORTANT] This file will not be taken into account if you use absolute paths with the semgrep CLI (ref: https://github.com/semgrep/semgrep/issues/9960)
+node_modules

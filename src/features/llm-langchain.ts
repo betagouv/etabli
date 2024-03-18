@@ -448,7 +448,7 @@ CONTEXTE :
         // Those specific settings cannot be set into the global instance directly
         .bind({
           // [IMPORTANT] `timeout` is not passed to the underlying Mistral client, so we had to patch the module directly with `patch-package`
-          timeout: secondsToMilliseconds(30), // It's unlikely the total call duration would take that much time, setting a limit to not block the process
+          timeout: secondsToMilliseconds(60), // It's unlikely the total call duration would take that much time, setting a limit to not block the process
           callbacks: [
             {
               handleLLMEnd: (output, runId, parentRunId?, tags?) => {
@@ -789,7 +789,7 @@ CONTEXTE :
           // Those specific settings cannot be set into the global instance directly
           .bind({
             // [IMPORTANT] `timeout` is not passed to the underlying Mistral client, so we had to patch the module directly with `patch-package`
-            timeout: secondsToMilliseconds(30), // It's unlikely the total call duration would take that much time, setting a limit to not block the process and warn the user soemtimes wrong is happening
+            timeout: secondsToMilliseconds(60), // It's unlikely the total call duration would take that much time, setting a limit to not block the process and warn the user soemtimes wrong is happening
             configurable: {
               verbose: false,
             },

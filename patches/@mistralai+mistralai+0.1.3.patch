@@ -1,5 +1,5 @@
 diff --git a/node_modules/@mistralai/mistralai/src/client.js b/node_modules/@mistralai/mistralai/src/client.js
-index 10def72..cb9c60c 100644
+index 10def72..8bdcbcc 100644
 --- a/node_modules/@mistralai/mistralai/src/client.js
 +++ b/node_modules/@mistralai/mistralai/src/client.js
 @@ -53,8 +53,8 @@ class MistralClient {
@@ -9,7 +9,7 @@ index 10def72..cb9c60c 100644
 -    maxRetries = 5,
 -    timeout = 120,
 +    maxRetries = 1,
-+    timeout = 30,
++    timeout = 60,
    ) {
      this.endpoint = endpoint;
      this.apiKey = apiKey;

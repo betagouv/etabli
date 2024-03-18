@@ -594,7 +594,9 @@ export async function feedInitiativesFromDatabase() {
               },
             },
             lastUpdateAttemptWithReachabilityError: {
-              lt: subDays(new Date(), 1), // Skip rows with high probability of failure since they had recently a network reachability issue
+              // Skip rows with high probability of failure since they had recently a network reachability issue
+              // Note: since from scratch this batch can take several days and could be retried multiple times, we wait for 48 hours minimum
+              lt: subDays(new Date(), 2),
             },
           },
         ],

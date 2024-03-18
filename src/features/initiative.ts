@@ -1430,7 +1430,7 @@ export async function feedInitiativesFromDatabase() {
 
               if (repositoriesTemplates.length === 0 && websitesTemplates.length === 0) {
                 throw new Error(
-                  'initative with only a website should pass in the context, this case has not been handled yet, maybe we could truncate the website content so it passes?'
+                  `[${initiativeMap.id}] initiative has no repository or website to compute, it must be investigated to handle this case`
                 );
               }
 

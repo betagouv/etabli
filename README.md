@@ -41,7 +41,7 @@ If you want to only launch one of the two:
 
 - the database
 - [Pandoc](https://pandoc.org/) (to format legal documents, can be installed through a manager like `brew`)
-- [Semgrep](https://semgrep.dev/) (to analyze code files, can be installed through the Python package manager `pip` by running ``)
+- [Semgrep](https://semgrep.dev/) (to analyze code files, can be installed through the Python package manager `pip` by running `pip install -r src/semgrep/requirements.txt`)
 - [Bibliothecary](https://github.com/librariesio/bibliothecary) (to analyze code dependencies, can be installed through the Ruby package manager `bundle` by running `bundle --gemfile src/bibliothecary/Gemfile`)
 
 Note for long-running tools the easiest way to use them is to use `docker-compose`. In another terminal just set up all tools:

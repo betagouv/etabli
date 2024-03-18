@@ -954,8 +954,8 @@ export async function feedInitiativesFromDatabase() {
             const folderSizeBeforeClean = await fastFolderSizeAsync(codeFolderPath);
             assert(folderSizeBeforeClean !== undefined);
 
-            // `git ls-files` was returning non-UT8 encoding if it has the default config `core.quotePath = true` (for example `vidéo_48_bicolore.svg` was returned as `vid\303\251o_48_bicolore.svg`)
-            // so forcing displaying verbatim paths with `-z`. We did not change `core.quotePath` because it would modify the host git config resulting a side-effects potentially
+            // `git ls-files` was returning non-UT8 encoding if it has the default config `core.quotePath = true` (for example `vidéo_48_bicolore.svg` was returned as `vid\303\251o_48_bicolore.svg`),
+            // and moreover some filenames were including carriage returns so it was easier to manage Git paths by the null separator
             const lsResult = await projectGit.raw(['ls-files', '-z']);
 
             if (lsResult !== '') {

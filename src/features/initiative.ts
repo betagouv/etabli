@@ -68,6 +68,7 @@ const filesToKeepGitEndingPatterns: (string | RegExp)[] = [
   // - only keep programming files and manifests since that what we only use for now (in addition to README files)
   // - with the current patterns we cannot rely on using leading `/` for the root, we should convert them to regexp otherwise
   /readme$/i,
+  /readme\.txt$/i,
   /readme\.md$/i,
   ...manifestsEndingPatterns,
   ...languagesExtensions,

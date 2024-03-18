@@ -1467,6 +1467,8 @@ export async function feedInitiativesFromDatabase() {
 
               continue;
             } else {
+              console.log(`[${initiativeMap.id}] something went wrong, it will stop all workers`);
+
               throw error;
             }
           }

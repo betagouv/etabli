@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { noCase } from 'change-case';
 import { $ } from 'execa';
 import fsSync from 'fs';
@@ -32,7 +33,19 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
   try {
     await $`semgrep --metrics=off --config ${codeAnalysisRulesPath} ${folderPath} --json -o ${outputPath}`;
   } catch (error) {
-    console.log(`the details of the semgrep error can be read into ${outputPath}`);
+    console.log(`the details of the semgrep error can be read into ${outputPath}, but pushing it on Sentry too`);
+
+    const codeAnalysisDataString = await fs.readFile(outputPath, 'utf-8');
+    const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);
+
+    // For easy analysis since from logs it's hard to see the whole object in case of concurrency calls
+    if (!!codeAnalysisDataObject.errors) {
+      Sentry.captureException(error, {
+        extra: {
+          errors: codeAnalysisDataObject.errors,
+        },
+      });
+    }
 
     throw error;
   }

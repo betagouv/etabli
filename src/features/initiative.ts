@@ -1406,12 +1406,7 @@ export async function feedInitiativesFromDatabase() {
               // We try with less information if possible
               // (we try to remove 1 by 1 on each, but the main last one important is the website for business context on the initiative)
               if (repositoriesTemplates.length >= websitesTemplates.length) {
-                if (
-                  !lastChanceAttemptWithOneTruncated &&
-                  repositoriesTemplates.length === 1 &&
-                  websitesTemplates.length === 0 &&
-                  !!repositoriesTemplates[0].readme
-                ) {
+                if (!lastChanceAttemptWithOneTruncated && repositoriesTemplates.length === 1 && websitesTemplates.length === 0) {
                   // It seems even with only 1 repository it does not work so we truncate
                   // because if the content is huge there is a low probability everything is meaningful
                   lastChanceAttemptWithOneTruncated = true;
@@ -1419,7 +1414,9 @@ export async function feedInitiativesFromDatabase() {
                   // Ideally we could almost go to the limit `this.gptInstance.modelTokenLimit` but for this we should take in account
                   // the full templating for this repository because it will include deduced tools and some sentences from the template
                   // But we are fine we a lower arbitrary limit because it's high probable the content is not meaningful enough since only 1 repository to analyze with a long content
-                  repositoriesTemplates[0].readme = llmManagerInstance.truncateContentBasedOnTokens(repositoriesTemplates[0].readme, 5000);
+                  if (!!repositoriesTemplates[0].readme) {
+                    repositoriesTemplates[0].readme = llmManagerInstance.truncateContentBasedOnTokens(repositoriesTemplates[0].readme, 5000);
+                  }
                   repositoriesTemplates[0].dependencies = repositoriesTemplates[0].dependencies
                     ? repositoriesTemplates[0].dependencies.slice(0, 100)
                     : null;

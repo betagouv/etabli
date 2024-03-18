@@ -30,40 +30,49 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
     throw new Error('semgrep rules must exist');
   }
 
+  const functions: string[] = [];
+
   try {
     // `--no-git-ignore` is required since the `.semgrepignore` is not taken into account with absolute paths (ref: https://github.com/semgrep/semgrep/issues/9960)
     await $`semgrep --metrics=off --no-git-ignore --config ${codeAnalysisRulesPath} ${folderPath} --json -o ${outputPath}`;
-  } catch (error) {
-    console.log(`the details of the semgrep error can be read into ${outputPath}, but pushing it on Sentry too`);
 
     const codeAnalysisDataString = await fs.readFile(outputPath, 'utf-8');
     const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);
+    const codeAnalysisData = SemgrepResultSchema.parse(codeAnalysisDataObject);
 
-    // For easy analysis since from logs it's hard to see the whole object in case of concurrency calls
-    if (!!codeAnalysisDataObject.errors) {
+    for (const result of codeAnalysisData.results) {
+      if (result.check_id.endsWith('-extract-functions')) {
+        if (result.extra.metavars.$FUNC?.abstract_content && isFunctionNameMeaningful(result.extra.metavars.$FUNC.abstract_content)) {
+          functions.push(result.extra.metavars.$FUNC.abstract_content);
+        }
+      } else {
+        throw new Error('rule handler not implemented');
+      }
+    }
+  } catch (error) {
+    const codeAnalysisDataString = await fs.readFile(outputPath, 'utf-8');
+    const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);
+    const codeAnalysisData = SemgrepResultSchema.parse(codeAnalysisDataObject);
+
+    if (
+      codeAnalysisData.errors.some((semgrepError) => {
+        return semgrepError.message.includes('Invalid_argument: index out of bounds');
+      })
+    ) {
+      // This means the project is way too stuffed to be analyzed by semgrep
+      // We silent the error since in any way we could extract valuable information, we consider this as acceptable
+      console.log(`semgrep analysis skipped due to the project being too big`);
+    } else {
+      console.log(`the details of the semgrep error can be read into ${outputPath}, but pushing it on Sentry too`);
+
+      // For easy analysis since from logs it's hard to see the whole object in case of concurrency calls
       Sentry.captureException(error, {
         extra: {
-          errors: codeAnalysisDataObject.errors,
+          errors: codeAnalysisData.errors,
         },
       });
-    }
 
-    throw error;
-  }
-
-  const codeAnalysisDataString = await fs.readFile(outputPath, 'utf-8');
-  const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);
-  const codeAnalysisData = SemgrepResultSchema.parse(codeAnalysisDataObject);
-
-  const functions: string[] = [];
-
-  for (const result of codeAnalysisData.results) {
-    if (result.check_id.endsWith('-extract-functions')) {
-      if (result.extra.metavars.$FUNC?.abstract_content && isFunctionNameMeaningful(result.extra.metavars.$FUNC.abstract_content)) {
-        functions.push(result.extra.metavars.$FUNC.abstract_content);
-      }
-    } else {
-      throw new Error('rule handler not implemented');
+      throw error;
     }
   }
 

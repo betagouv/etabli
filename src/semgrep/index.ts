@@ -9,6 +9,7 @@ import path from 'path';
 import { SemgrepResultSchema } from '@etabli/src/semgrep';
 
 const __root_dirname = process.cwd();
+const semgrepMemoryLimitPerFile = process.env.SEMGREP_PER_FILE_MEMORY_LIMIT_IN_MB ? parseInt(process.env.SEMGREP_PER_FILE_MEMORY_LIMIT_IN_MB, 10) : 0; // Default (0) is unlimited
 
 export interface AnalysisResult {
   functions: string[];
@@ -40,13 +41,14 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
 
   try {
     // `--no-git-ignore` is required since the `.semgrepignore` is not taken into account with absolute paths (ref: https://github.com/semgrep/semgrep/issues/9960)
+    // `--max-memory` is scoped to the analysis for each file, skipping it if reaching the limit, size it according to the server capacity, but keep in mind since doing concurrency we could still reach the limit (if so, put a semaphore around this instruction)
     await $({
       // When it takes too much time it's not temporary, it's always the same for this specific repository, so better to skip it
       // For example with https://forge.aeif.fr/edupyter/EDUPYTER310 there is no big file, but around ~3000 files to analyze
       // and it was like stuck forever, until resulting in a OOM, or a JSON file being so big that the `readFile` was throwing `RangeError: Invalid string length` which is the limit a string can contains
       // Ref: https://github.com/semgrep/semgrep/issues/9469#issuecomment-2007687541
       timeout: minutesToMilliseconds(2),
-    })`semgrep --metrics=off --no-git-ignore --config ${codeAnalysisRulesPath} ${folderPath} --json -o ${outputPath}`;
+    })`semgrep --metrics=off --no-git-ignore --max-memory ${semgrepMemoryLimitPerFile} --config ${codeAnalysisRulesPath} ${folderPath} --json -o ${outputPath}`;
 
     const codeAnalysisDataString = await fs.readFile(outputPath, 'utf-8');
     const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);

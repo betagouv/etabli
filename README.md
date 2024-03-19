@@ -196,6 +196,7 @@ For each build and runtime (since they are shared), you should have set some env
 - `MISTRAL_API_KEY`: [SECRET] _(you can create an API key from your MistralAI "La plateforme" account)_
 - `LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND`: [TO_DEFINE] _(by default the MistralAI platform has a limit of `5` request per second, but they may increase this limit on-demand. If so, you can increase the rate limit here to parallelize underlying requests)_
 - `CHROMIUM_MAXIMUM_CONCURRENCY`: [TO_DEFINE] _(by default it will be `1` but it takes a long time when analyzing thousands of websites through the headless Chromium. After some testing we think on Clever Cloud having `4` is fine for the `S` plan (and `8` for `XL` plan for a quick test to speed things up), and locally it will depend on your hardware. Consider to lower the value when having more than 10% of analyses timed out)_
+- `SEMGREP_PER_FILE_MEMORY_LIMIT_IN_MB`: [TO_DEFINE] _(semgrep will skip analyzing a specific file if it reaches this limit (and pass to the next one), we advise you to set it to 50% of the memory capacity of the server)_
 - `NEXT_PUBLIC_APP_BASE_URL`: [TO_DEFINE] _(must be the root URL to access the application, format `https://xxx.yyy.zzz`)_
 - `NEXT_PUBLIC_CRISP_WEBSITE_ID`: [TO_DEFINE] _(this ID is defined in your Crisp account and depends on the development or production environment)_
 - `NEXT_PUBLIC_SENTRY_DSN`: [SECRET] _(format `https://xxx.yyy.zzz/nn`)_

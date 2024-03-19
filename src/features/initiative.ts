@@ -799,32 +799,47 @@ export async function feedInitiativesFromDatabase() {
             // This is a default from Wappalyzer but they use `acceptInsecureCerts: true` with puppeteer
             // meaning the certificate is no longer checked. It's mitigated by the fact we checked it when enhancing
             // the raw domain metadata, but is still a risk it has changed since then
-            const site = await wappalyzer.open(`https://${rawDomain.name}`, headers, storage);
+            let retriableErrorMessage: string | null = null;
 
-            const results = await site.analyze();
-            const parsedResults = WappalyzerResultSchema.parse(results);
+            try {
+              const site = await wappalyzer.open(`https://${rawDomain.name}`, headers, storage);
+              const results = await site.analyze();
+              const parsedResults = WappalyzerResultSchema.parse(results);
 
-            // If we fetched at least a page with an eligible status code we continue
-            const requestMetadataPerUrl = Object.values(parsedResults.urls);
-            if (requestMetadataPerUrl.some((metadata) => metadata.status >= 200 && metadata.status < 300)) {
-              // It's good to go further into the process
-            } else {
-              // No page for this website is reachable, it can comes from either:
-              // - a network error (net::ERR_CONNECTION_REFUSED... like for our Playwright calls) with a status code of 0
-              // - a server error with a status code of 404, 500...
-              //
-              // We skip this initiative calculation due to a network error, until a fix if done to remove the erroring website or until the website is parsable again
+              // If we fetched at least a page with an eligible status code we continue
+              const requestMetadataPerUrl = Object.values(parsedResults.urls);
 
-              // To debug easily since errors could be into multiple URLs, we just gather each URL request metadata
-              const errorMessage = JSON.stringify(parsedResults.urls);
+              if (requestMetadataPerUrl.some((metadata) => metadata.status >= 200 && metadata.status < 300)) {
+                // It's good to go further into the process
+                await fs.mkdir(path.dirname(wappalyzerAnalysisPath), { recursive: true });
+                await fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
+              } else {
+                // No page for this website is reachable, it can comes from either:
+                // - a network error (net::ERR_CONNECTION_REFUSED... like for our Playwright calls) with a status code of 0
+                // - a server error with a status code of 404, 500...
+                //
+                // We skip this initiative calculation due to a network error, until a fix if done to remove the erroring website or until the website is parsable again
 
+                // To debug easily since errors could be into multiple URLs, we just gather each URL request metadata
+                retriableErrorMessage = JSON.stringify(parsedResults.urls);
+              }
+            } catch (error) {
+              if (error instanceof Error && error.message.includes('Navigation timeout of')) {
+                // This is an error from Puppeteer that is retriable (note other timeouts are handled by Wappalyzer, don't know exactly why this one is leaking)
+                retriableErrorMessage = error.message;
+              } else {
+                throw error;
+              }
+            }
+
+            if (!!retriableErrorMessage) {
               await prisma.initiativeMap.update({
                 where: {
                   id: initiativeMap.id,
                 },
                 data: {
                   lastUpdateAttemptWithReachabilityError: new Date(),
-                  lastUpdateAttemptReachabilityError: errorMessage,
+                  lastUpdateAttemptReachabilityError: retriableErrorMessage,
                 },
                 select: {
                   id: true, // Ref: https://github.com/prisma/prisma/issues/6252
@@ -832,13 +847,10 @@ export async function feedInitiativesFromDatabase() {
               });
 
               console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its websites`);
-              console.error(errorMessage);
+              console.error(retriableErrorMessage);
 
               return;
             }
-
-            await fs.mkdir(path.dirname(wappalyzerAnalysisPath), { recursive: true });
-            await fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
 
             // Wait a bit in case websites from this initiative are on the same servers (tiny delay in this loop because)
             await sleep(50);

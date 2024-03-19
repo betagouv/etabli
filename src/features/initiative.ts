@@ -922,14 +922,25 @@ export async function feedInitiativesFromDatabase() {
             // * `--depth=1`: retrieve only information about the latest commit state (not having history will save space)
             // * `--filter=blob:limit=${SIZE}`: should not download blob objects over $SIZE size (we estimated a size to get big text file for code, while excluding big assets). In fact, it seems not working well because I do see some images fetched... just keeping this parameter in case it may work
             try {
-              await projectGit.clone(rawRepository.repositoryUrl, '.', {
-                '--single-branch': null,
-                '--depth': 1,
-                '--filter': `blob:limit=${gitFileSizeLimitInKb}k`,
-              });
+              await projectGit
+                .env({
+                  GIT_TERMINAL_PROMPT: 0, // This is required so it fails when a repository expects credentials (and so the git CLI expects inputs)
+                  GIT_ASKPASS: '', // This is needed because tools and IDE like `vscode` set it and it forces the GUI for credentials despite disabling `GIT_TERMINAL_PROMPT`
+                })
+                .clone(rawRepository.repositoryUrl, '.', {
+                  '--single-branch': null,
+                  '--depth': 1,
+                  '--filter': `blob:limit=${gitFileSizeLimitInKb}k`,
+                });
             } catch (error) {
               try {
                 if (error instanceof Error) {
+                  if (error.message.includes('terminal prompts disabled') && error.message.includes('could not read Username')) {
+                    // This is triggered by the setting `GIT_TERMINAL_PROMPT=0`, it's very likely the repository requires authentication
+                    // Since we cannot overcome this, we just skip this repository if there is other content to analyze, otherwise it will put in quarantine the initiative
+                    continue;
+                  }
+
                   // `simple-git` does not forward the error code and it would be a bit hard to maintain all possible cases
                   // so for now considering a `git clone` failure like a temporary network issue that we could recover during a future attempt
                   await prisma.initiativeMap.update({

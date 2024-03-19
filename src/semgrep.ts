@@ -18,7 +18,8 @@ export const ErrorItemSchema = z.object({
   code: z.number(),
   level: z.string(),
   message: z.string(),
-  path: z.string(),
+  rule_id: z.string().optional(),
+  path: z.string().optional(),
   spans: z.array(SpanSchema).optional(),
   type: z.string().or(
     z.tuple([

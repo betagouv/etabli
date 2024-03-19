@@ -1467,8 +1467,6 @@ export async function feedInitiativesFromDatabase() {
 
               continue;
             } else {
-              console.log(`[${initiativeMap.id}] something went wrong, it will stop all workers`);
-
               throw error;
             }
           }
@@ -1479,6 +1477,11 @@ export async function feedInitiativesFromDatabase() {
         // Do not flood network (tiny since MistralAI limits us to 5req/s but since the generation usually takes more than a second we are fine)
         // (if needed in the future we could look at their rate limit information in headers to wait the appropriate amount of time to retry)
         await sleep(50);
+      } catch (error) {
+        // Due to concurrency it's easier for us to log which initiative map is having the error
+        console.log(`[${initiativeMap.id}] something went wrong, it will stop all workers`);
+
+        throw error;
       } finally {
         // [WORKAROUND] The first idea was to keep everything local but even after cleaning the repositories it seems some are still
         // huge enough to fill the storage, and since the provider does not provide the clear available storage, we make sure to not be killed due to that (set to false to debug)

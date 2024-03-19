@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/nextjs';
 import { noCase } from 'change-case';
+import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { $ } from 'execa';
 import fsSync from 'fs';
 import fs from 'fs/promises';
@@ -39,7 +40,13 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
 
   try {
     // `--no-git-ignore` is required since the `.semgrepignore` is not taken into account with absolute paths (ref: https://github.com/semgrep/semgrep/issues/9960)
-    await $`semgrep --metrics=off --no-git-ignore --config ${codeAnalysisRulesPath} ${folderPath} --json -o ${outputPath}`;
+    await $({
+      // When it takes too much time it's not temporary, it's always the same for this specific repository, so better to skip it
+      // For example with https://forge.aeif.fr/edupyter/EDUPYTER310 there is no big file, but around ~3000 files to analyze
+      // and it was like stuck forever, until resulting in a OOM, or a JSON file being so big that the `readFile` was throwing `RangeError: Invalid string length` which is the limit a string can contains
+      // Ref: https://github.com/semgrep/semgrep/issues/9469#issuecomment-2007687541
+      timeout: minutesToMilliseconds(2),
+    })`semgrep --metrics=off --no-git-ignore --config ${codeAnalysisRulesPath} ${folderPath} --json -o ${outputPath}`;
 
     const codeAnalysisDataString = await fs.readFile(outputPath, 'utf-8');
     const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);
@@ -55,8 +62,16 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
       }
     }
   } catch (error) {
+    // We allow silenting the error if this one is related to the repository itself, so we can still analyze valuable information with biliothecary
     let acceptableError: boolean = false;
-    if (fsSync.existsSync(outputPath)) {
+
+    // Make sure it's a formatted execa error (ref: https://github.com/sindresorhus/execa/issues/909)
+    // Note: for a timeout `error.timedOut` can be true, but sometimes it says it has been killed (`error.killed`)... so just checking the `error.failed` flag
+    if (error instanceof Error && !!(error as any).failed && !!(error as any).shortMessage) {
+      console.log(`semgrep analysis skipped since it has reached the defined timeout limit`);
+
+      acceptableError = true;
+    } else if (fsSync.existsSync(outputPath)) {
       console.log(`the details of the semgrep error can be read into ${outputPath}, but pushing it on Sentry too`);
 
       const codeAnalysisDataString = await fs.readFile(outputPath, 'utf-8');
@@ -70,7 +85,6 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
         })
       ) {
         // This means the project is way too stuffed to be analyzed by semgrep
-        // We silent the error since in any way we could extract valuable information, we consider this as acceptable
         console.log(`semgrep analysis skipped due to the project being too big`);
 
         acceptableError = true;

@@ -919,28 +919,35 @@ export async function feedInitiativesFromDatabase() {
                 '--filter': `blob:limit=${gitFileSizeLimitInKb}k`,
               });
             } catch (error) {
-              if (error instanceof Error) {
-                // `simple-git` does not forward the error code and it would be a bit hard to maintain all possible cases
-                // so for now considering a `git clone` failure like a temporary network issue that we could recover during a future attempt
-                await prisma.initiativeMap.update({
-                  where: {
-                    id: initiativeMap.id,
-                  },
-                  data: {
-                    lastUpdateAttemptWithReachabilityError: new Date(),
-                    lastUpdateAttemptReachabilityError: error.message,
-                  },
-                  select: {
-                    id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-                  },
-                });
+              try {
+                if (error instanceof Error) {
+                  // `simple-git` does not forward the error code and it would be a bit hard to maintain all possible cases
+                  // so for now considering a `git clone` failure like a temporary network issue that we could recover during a future attempt
+                  await prisma.initiativeMap.update({
+                    where: {
+                      id: initiativeMap.id,
+                    },
+                    data: {
+                      lastUpdateAttemptWithReachabilityError: new Date(),
+                      lastUpdateAttemptReachabilityError: error.message,
+                    },
+                    select: {
+                      id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                    },
+                  });
 
-                console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its repositories`);
-                console.error(error.message);
+                  console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its repositories`);
+                  console.error(error.message);
 
-                return;
-              } else {
-                throw error;
+                  return;
+                } else {
+                  throw error;
+                }
+              } finally {
+                // To allow retries in case of caching, remove the folder that may be empty
+                if (fsSync.existsSync(codeFolderPath)) {
+                  await fs.rm(codeFolderPath, { recursive: true, force: true });
+                }
               }
             }
 

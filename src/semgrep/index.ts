@@ -30,6 +30,11 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
     throw new Error('semgrep rules must exist');
   }
 
+  // Since errors may or not be written into the result file, we make sure to remove any previous results to not mix with previous attempt
+  if (fsSync.existsSync(outputPath)) {
+    await fs.rm(outputPath);
+  }
+
   const functions: string[] = [];
 
   try {
@@ -50,28 +55,35 @@ export async function analyzeWithSemgrep(folderPath: string, outputPath: string)
       }
     }
   } catch (error) {
-    const codeAnalysisDataString = await fs.readFile(outputPath, 'utf-8');
-    const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);
-    const codeAnalysisData = SemgrepResultSchema.parse(codeAnalysisDataObject);
-
-    if (
-      codeAnalysisData.errors.some((semgrepError) => {
-        return semgrepError.message.includes('Invalid_argument: index out of bounds');
-      })
-    ) {
-      // This means the project is way too stuffed to be analyzed by semgrep
-      // We silent the error since in any way we could extract valuable information, we consider this as acceptable
-      console.log(`semgrep analysis skipped due to the project being too big`);
-    } else {
+    let acceptableError: boolean = false;
+    if (fsSync.existsSync(outputPath)) {
       console.log(`the details of the semgrep error can be read into ${outputPath}, but pushing it on Sentry too`);
 
-      // For easy analysis since from logs it's hard to see the whole object in case of concurrency calls
-      Sentry.captureException(error, {
-        extra: {
-          errors: codeAnalysisData.errors,
-        },
-      });
+      const codeAnalysisDataString = await fs.readFile(outputPath, 'utf-8');
+      const codeAnalysisDataObject = JSON.parse(codeAnalysisDataString);
+      const codeAnalysisData = SemgrepResultSchema.parse(codeAnalysisDataObject);
 
+      if (
+        // We don't use `.some()` in case there is also other errors we never took into account
+        codeAnalysisData.errors.every((semgrepError) => {
+          return semgrepError.message.includes('Invalid_argument: index out of bounds');
+        })
+      ) {
+        // This means the project is way too stuffed to be analyzed by semgrep
+        // We silent the error since in any way we could extract valuable information, we consider this as acceptable
+        console.log(`semgrep analysis skipped due to the project being too big`);
+
+        acceptableError = true;
+      } else {
+        Sentry.captureException(error, {
+          extra: {
+            errors: codeAnalysisData.errors,
+          },
+        });
+      }
+    }
+
+    if (!acceptableError) {
       throw error;
     }
   }

@@ -80,3 +80,4 @@ export const llmResponseFormatError = new BusinessError(
 
 // Initiative
 export const initiativeNotFoundError = new BusinessError('initiativeNotFound', t('errors.custom.initiativeNotFound'));
+export const noInitiativeContentToComputeError = new BusinessError('noInitiativeContentToCompute', t('errors.custom.noInitiativeContentToCompute'));

@@ -39,7 +39,12 @@ import {
   resultSchemaDefinition,
 } from '@etabli/src/gpt/template';
 import { getServerTranslation } from '@etabli/src/i18n';
-import { llmResponseFormatError, promiseTimeoutError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
+import {
+  llmResponseFormatError,
+  noInitiativeContentToComputeError,
+  promiseTimeoutError,
+  tokensReachTheLimitError,
+} from '@etabli/src/models/entities/errors';
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
@@ -590,7 +595,11 @@ export async function feedInitiativesFromDatabase() {
           {
             lastUpdateAttemptReachabilityError: {
               not: {
-                equals: llmResponseFormatError.code, // If this error code has been reported to the database it means a manual investigation is needed to make it pass
+                in: [
+                  // If one of these error codes has been reported to the database it means the situation will not change by retrying, saving resources
+                  noInitiativeContentToComputeError.code, // Could be be due to the initiative having only 1 repository but this one requires authentication
+                  llmResponseFormatError.code, // Having a LLM response not parsable, since we set no creativity to the LLM it won't change over time
+                ],
               },
             },
             lastUpdateAttemptWithReachabilityError: {
@@ -1082,7 +1091,22 @@ export async function feedInitiativesFromDatabase() {
         }
 
         if (websitesTemplates.length === 0 && repositoriesTemplates.length === 0) {
-          throw new Error('this initiative must have items');
+          await prisma.initiativeMap.update({
+            where: {
+              id: initiativeMap.id,
+            },
+            data: {
+              lastUpdateAttemptWithReachabilityError: new Date(),
+              lastUpdateAttemptReachabilityError: noInitiativeContentToComputeError.code,
+            },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+            },
+          });
+
+          console.error(`skip processing ${initiativeMap.id} due to no content to compute`);
+
+          return;
         }
 
         // Unique ones

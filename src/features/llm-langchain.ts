@@ -509,7 +509,7 @@ CONTEXTE :
 
     console.log(`the content to send is ${tokens.length} tokens long (${this.gptInstance.modelTokenLimit} is the input+output limit)`);
 
-    if (tokens.length >= this.gptInstance.modelTokenLimit) {
+    if (tokens.length > this.gptInstance.modelTokenLimit) {
       console.log('there are too many tokens for this GPT model to accept the current request');
 
       throw tokensReachTheLimitError;

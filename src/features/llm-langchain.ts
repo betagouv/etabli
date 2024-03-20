@@ -384,9 +384,12 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
         // Note: below we do `+1` to take in account the pontentially added document
         const currentTokensFingerprintOfBatching = Math.max(documentsChunks[currentChunk].length - 1, 0);
 
-        if (documentTokens.length >= this.gptInstance.modelTokenLimit) {
+        if (documentTokens.length >= this.gptInstance.embeddingsTokenLimit) {
           throw new Error('an initiative document should not be huge and triggering the llm limit');
-        } else if (currentChunkTokensCounter + documentTokens.length + (currentTokensFingerprintOfBatching + 1) >= this.gptInstance.modelTokenLimit) {
+        } else if (
+          currentChunkTokensCounter + documentTokens.length + (currentTokensFingerprintOfBatching + 1) >=
+          this.gptInstance.embeddingsTokenLimit
+        ) {
           // If adding this document to previous ones is over the tokens limit for, use a new chunk
           currentChunk += 1;
           documentsChunks.push([]);
@@ -474,6 +477,7 @@ CONTEXTE :
 
     // To help the LLM we give inside the context tools we are looking for
     // Since we cannot give the 8k+ tools from our database, we try to provide a subset meaningful according to extracted tech references we retrieved
+    // Note: we did not check the `embeddingsTokenLimit` since it has never been reached, if needed take example at documents computation to prepare chunks
     const rawToolsVectors = await this.toolsVectorStore.embeddings.embedDocuments(rawToolsFromAnalysis.filter((item) => item.trim() !== ''));
 
     const contextTools: string[] = [];
@@ -675,6 +679,7 @@ CONTEXTE :
   }
 
   public truncateContentBasedOnTokens(content: string, maximumTokens: number): string {
+    // Note the token limit we use is about the model, not for embeddings (adjust if needed)
     if (maximumTokens > this.gptInstance.modelTokenLimit) {
       console.warn(
         `the tokens truncate ceil specified (${maximumTokens}) is above the llm limit of ${this.gptInstance.modelTokenLimit} tokens, so defaulting to the latter`

@@ -112,6 +112,7 @@
     "eventemitter3": "^5.0.1",
     "execa": "^8.0.1",
     "fast-folder-size": "^2.2.0",
+    "glob": "^10.3.10",
     "graphlib": "^2.1.8",
     "handlebars": "^4.7.8",
     "http-errors": "^2.0.0",

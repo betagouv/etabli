@@ -1205,9 +1205,11 @@ export async function feedInitiativesFromDatabase() {
 
                 return;
               } else if (
-                // Note: we manage 2 cases since MistralAI does not use the same `fetch` when it's a Node.js environment (development) and when it's bundled (like for production) (ref: https://github.com/mistralai/client-js/issues/5#issuecomment-2003801102)
+                // We manage 2 cases since MistralAI does not use the same `fetch` when it's a Node.js environment (development) and when it's bundled (like for production) (ref: https://github.com/mistralai/client-js/issues/5#issuecomment-2003801102)
                 (error instanceof Error && error.name === 'AbortError') ||
-                (error instanceof DOMException && error.code === DOMException.TIMEOUT_ERR)
+                (error instanceof DOMException && error.code === DOMException.TIMEOUT_ERR) ||
+                // This error is when it comes from the server
+                (error instanceof Error && (error.cause as any)?.code === 'UND_ERR_CONNECT_TIMEOUT')
               ) {
                 await prisma.initiativeMap.update({
                   where: {

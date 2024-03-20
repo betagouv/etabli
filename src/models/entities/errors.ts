@@ -61,6 +61,7 @@ const { t } = getServerTranslation('common', {
 export const internalServerErrorError = new UnexpectedError('internalServerError', 'internal server error');
 export const unexpectedErrorError = new UnexpectedError('unexpectedError', 'unexpected error');
 export const programRequestedToShutDownError = new UnexpectedError('programRequestedToShutDown', 'the program has been requested to shut down error');
+export const promiseTimeoutError = new UnexpectedError('promiseTimeout', 'promise considered as timed out');
 
 // Validations
 export const unexpectedDomainRedirectionError = new BusinessError('unexpectedDomainRedirection', 'unexpected domain redirection');

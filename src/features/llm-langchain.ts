@@ -310,10 +310,12 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
           throw new Error('it seems no initiative has been computed, which is required to export them to the llm system');
         }
 
+        // Note: the deletion should be handled by the `onCascade` constraint but leaving it for record
+        // Also, for tools with used `notId` but it was not working with too many items (https://github.com/prisma/prisma/issues/12499#issuecomment-2009179865)
         await tx.initiativeLlmDocument.deleteMany({
           where: {
-            initiativeId: {
-              notIn: initiatives.map((initiative) => initiative.id),
+            initiative: {
+              is: null,
             },
           },
         });

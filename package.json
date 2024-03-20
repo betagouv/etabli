@@ -8,6 +8,7 @@
   },
   "license": "AGPL-3.0",
   "scripts": {
+    "postinstall": "patch-package",
     "dev": "only-include-used-icons && concurrently --kill-others -c \"auto\" \"npm:dev:app:command\" \"npm:dev:storybook:command\"",
     "dev:app": "only-include-used-icons && npm run dev:app:command",
     "dev:app:command": "dotenv-run-script .env.test -- dev:app:command:unsecure",
@@ -133,6 +134,7 @@
     "next-superjson-plugin": "0.5.10",
     "openai": "^4.25.0",
     "parse-domain": "^8.0.1",
+    "patch-package": "^8.0.0",
     "pg-boss": "^9.0.1",
     "playwright": "1.39.0",
     "pretty-bytes": "^6.1.1",

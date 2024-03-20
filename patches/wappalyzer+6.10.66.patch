@@ -1,0 +1,13 @@
+diff --git a/node_modules/wappalyzer/driver.js b/node_modules/wappalyzer/driver.js
+index abfbcad..a1bb371 100644
+--- a/node_modules/wappalyzer/driver.js
++++ b/node_modules/wappalyzer/driver.js
+@@ -16,7 +16,7 @@ const chromiumArgs = CHROMIUM_ARGS
+   ? CHROMIUM_ARGS.split(' ')
+   : [
+       '--headless',
+-      '--single-process',
++      // '--single-process',
+       '--no-sandbox',
+       '--no-zygote',
+       '--disable-gpu',

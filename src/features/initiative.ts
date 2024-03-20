@@ -1461,12 +1461,16 @@ export async function feedInitiativesFromDatabase() {
 
     console.log(`the old initiatives no longer part of newly computed initiative maps have been deleted`);
   } catch (error) {
+    console.error(`error while feeding initiatives`);
+
     if (error instanceof OpenAI.APIError) {
-      console.log(error.status);
-      console.log(error.name);
+      console.error(error.status);
+      console.error(error.name);
 
       throw error;
     } else {
+      console.error(error);
+
       throw error;
     }
   } finally {

@@ -368,6 +368,9 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
       }
     );
 
+    // If needed, check the table of documents and have a look at the columns `updatedAt` and `calculatedAt` to see progression
+    console.log(`there are ${initiativeLlmDocumentsToCalculate.length} initiative documents to compute, it may take a few minutes if there is a lot`);
+
     if (initiativeLlmDocumentsToCalculate.length > 0) {
       // `addModels` always calculates the vector so we use it both for created documents and those to update
       // Notes:

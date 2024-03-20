@@ -735,7 +735,39 @@ export async function feedInitiativesFromDatabase() {
             }
 
             if (!useLocalFileCache || !fsSync.existsSync(markdownPath)) {
-              await $`pandoc ${htmlPath} --lua-filter ${noImgAndSvgFilterPath} --lua-filter ${extractMetaDescriptionFilterPath} --lua-filter ${removeInlineFileContentFilterPath} -t gfm-raw_html -o ${markdownPath}`;
+              try {
+                await $({
+                  // For whatever reason sometimes the pandoc command is hanging forever, so forcing a timeout to not block next iterations (this one will be reprocessed at another round)
+                  // Note: it was pretty hard to detect it when having batching concurrency, the result was just seeable when all processes were hanging (and so we digged into finding the issue cause)
+                  timeout: minutesToMilliseconds(3),
+                })`pandoc ${htmlPath} --lua-filter ${noImgAndSvgFilterPath} --lua-filter ${extractMetaDescriptionFilterPath} --lua-filter ${removeInlineFileContentFilterPath} -t gfm-raw_html -o ${markdownPath}`;
+              } catch (error) {
+                // Make sure it's a formatted execa error (ref: https://github.com/sindresorhus/execa/issues/909)
+                // Note: for a timeout `error.timedOut` can be true, but sometimes it says it has been killed (`error.killed`)... so just checking the `error.failed` flag
+                if (error instanceof Error && !!(error as any).failed && !!(error as any).shortMessage) {
+                  const errorMessage = (error as any).shortMessage;
+
+                  await prisma.initiativeMap.update({
+                    where: {
+                      id: initiativeMap.id,
+                    },
+                    data: {
+                      lastUpdateAttemptWithReachabilityError: new Date(),
+                      lastUpdateAttemptReachabilityError: errorMessage,
+                    },
+                    select: {
+                      id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                    },
+                  });
+
+                  console.error(`skip processing ${initiativeMap.id} due to an error while doing pandoc analysis on one of its websites`);
+                  console.error(errorMessage);
+
+                  return;
+                } else {
+                  throw error;
+                }
+              }
             }
 
             websiteMarkdownContent = await fs.readFile(markdownPath, 'utf-8');

@@ -1,5 +1,5 @@
 diff --git a/node_modules/wappalyzer/driver.js b/node_modules/wappalyzer/driver.js
-index abfbcad..a1bb371 100644
+index abfbcad..398c2ee 100644
 --- a/node_modules/wappalyzer/driver.js
 +++ b/node_modules/wappalyzer/driver.js
 @@ -16,7 +16,7 @@ const chromiumArgs = CHROMIUM_ARGS
@@ -11,3 +11,12 @@ index abfbcad..a1bb371 100644
        '--no-sandbox',
        '--no-zygote',
        '--disable-gpu',
+@@ -543,7 +543,7 @@ class Site {
+     errorMessage = 'Operation took too long to complete',
+     maxWait = this.options.fast
+       ? Math.min(this.options.maxWait, 2000)
+-      : this.options.maxWait
++      : (4 * this.options.maxWait) // Increasing the default timeout since async processes in JavaScript will take longer than usual since we use concurrency (the real `maxWait` is only meaningful when talking to Puppeteer)
+   ) {
+     let timeout = null
+ 

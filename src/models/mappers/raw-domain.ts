@@ -30,6 +30,7 @@ export function rawDomainTypeCsvToModel(csvType: CsvDomainTypeSchemaType): RawDo
     case CsvDomainTypeSchema.Values['Hôpital']:
     case CsvDomainTypeSchema.Values['APHP']:
       return RawDomainTypeSchema.Values.HOSPITAL;
+    case CsvDomainTypeSchema.Values['Ministère']:
     case CsvDomainTypeSchema.Values['Gouvernement']:
       return RawDomainTypeSchema.Values.GOVERNMENT;
     case CsvDomainTypeSchema.Values['Préfécture']:

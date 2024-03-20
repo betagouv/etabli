@@ -54,6 +54,7 @@ export const CsvDomainTypeSchema = z.enum([
   'Hôpital',
   'APHP',
   'Ajout Manuel Matthieu Faure',
+  'Ministère',
   'Gouvernement',
   'Préfécture',
   'Santé',

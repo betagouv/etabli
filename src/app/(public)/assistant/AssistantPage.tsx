@@ -1,6 +1,5 @@
 'use client';
 
-import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Grid from '@mui/material/Grid';
@@ -95,11 +94,6 @@ export function AssistantPage(props: AssistantPageProps) {
         ) : (
           <Grid container spacing={2} justifyContent="center" sx={{ height: '100%' }}>
             <Grid item xs={12} sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-              <Alert severity="info" sx={{ mb: 3 }}>
-                {/* TODO: remove when appropriate */}
-                Dû à notre phase de tests, nous avons limité la connaissance de notre assistant à 2000 initiatives sur les 40 000 possibles. Nous
-                avons principalement référencé celles liées au gouvernement, mais nous les référencerons toutes sous peu.
-              </Alert>
               <Box sx={{ flex: 1 }} />
               <Box sx={{ textAlign: 'center', mt: 1, mb: { xs: 2, sm: 4 } }}>
                 <Avatar fullName="Assistant" src={assistantAvatar.src} size={48} sx={{ margin: 'auto' }} />

@@ -1,12 +1,14 @@
 diff --git a/node_modules/wappalyzer/driver.js b/node_modules/wappalyzer/driver.js
-index abfbcad..398c2ee 100644
+index abfbcad..768754b 100644
 --- a/node_modules/wappalyzer/driver.js
 +++ b/node_modules/wappalyzer/driver.js
-@@ -16,7 +16,7 @@ const chromiumArgs = CHROMIUM_ARGS
+@@ -15,8 +15,8 @@ const { CHROMIUM_BIN, CHROMIUM_DATA_DIR, CHROMIUM_WEBSOCKET, CHROMIUM_ARGS } =
+ const chromiumArgs = CHROMIUM_ARGS
    ? CHROMIUM_ARGS.split(' ')
    : [
-       '--headless',
+-      '--headless',
 -      '--single-process',
++      '--headless=old', // We upgraded puppeteer but still we want to use the old headless mode since Wappalyzer has been only developed/tested for it
 +      // '--single-process',
        '--no-sandbox',
        '--no-zygote',

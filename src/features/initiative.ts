@@ -39,7 +39,7 @@ import {
   resultSchemaDefinition,
 } from '@etabli/src/gpt/template';
 import { getServerTranslation } from '@etabli/src/i18n';
-import { llmResponseFormatError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
+import { llmResponseFormatError, promiseTimeoutError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
@@ -49,6 +49,7 @@ import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
 import { languagesExtensions } from '@etabli/src/utils/languages';
+import { promiseWithFatalTimeout } from '@etabli/src/utils/maintenance';
 import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
 import { WappalyzerResultSchema } from '@etabli/src/wappalyzer';
@@ -1469,29 +1470,17 @@ export async function feedInitiativesFromDatabase() {
       throw error;
     }
   } finally {
-    let wappalyzerClosedNormally = false;
-
-    // For whatever reason despite the official documentation when doing it it may hang forever (ref: https://github.com/enthec/webappanalyzer/issues/74)
+    // For whatever reason despite the official documentation when doing it may hang forever (ref: https://github.com/enthec/webappanalyzer/issues/74)
     // If not done the program may not quit (it's random), and if done it may be stuck on it... an acceptable workaround is to set a timeout
-    // Note: `Promise.race` was not working by using directly async functions so we used promises (maybe due to the `finally` block? Weird...)
-    await Promise.race([
-      new Promise<void>(async (resolve) => {
-        await wappalyzer.destroy();
-
-        wappalyzerClosedNormally = true;
-
-        resolve();
-      }),
-      new Promise<void>(async (resolve) => {
-        await sleep(4000);
-
-        if (!wappalyzerClosedNormally) {
-          console.warn('wappalyzer seems stuck closing, you may have to force terminating the program if it seems to hang forever');
-        }
-
-        resolve();
-      }),
-    ]);
+    try {
+      await promiseWithFatalTimeout(wappalyzer.destroy(), `wappalyzer.destroy()`, secondsToMilliseconds(4));
+    } catch (error) {
+      if (error === promiseTimeoutError) {
+        console.warn('wappalyzer seems stuck closing, you may have to force terminating the program if it seems to hang forever');
+      } else {
+        throw error;
+      }
+    }
   }
 }
 

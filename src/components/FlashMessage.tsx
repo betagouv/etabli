@@ -9,7 +9,7 @@ export function FlashMessage(props: FlashMessageProps) {
   if (props.nodeEnv === 'production') {
     return (
       <Notice
-        title={<>Ce service vient tout juste d&apos;être lancé, merci de nous faire vos retours dans la section</>}
+        title={<>Ce service vient tout juste d&apos;être lancé, merci de nous faire vos retours dans la section support</>}
         isClosable
         style={{
           fontSize: '0.9rem',

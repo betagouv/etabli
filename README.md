@@ -278,6 +278,8 @@ pg_restore -U postgres -d postgres --no-owner -v /backup.pgsql
 psql -U postgres -d postgres
 ```
 
+_Note: sometimes `pg_restore` will fail creating the `public` schema despite having the command to. Create it manually through DBeaver within the database and rerun the `pg_restore` command to make it successful._
+
 Then debug from SQL inline or use DBeaver to connect to `localhost:15432` with above credentials.
 
 Once done, stop the container and remove the downloaded `.tar.gz / .psql` files.

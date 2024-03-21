@@ -25,8 +25,7 @@ export function Introduction() {
             Découvrir l&apos;existant, que l&apos;on soit agent ou citoyen
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 3, maxWidth: 500 }}>
-            Établi est un service qui référence les initiatives publiques numériques françaises, ce afin d&apos;augmenter leur découvrabilité et leur
-            (ré)utilisation.
+            Établi référence les initiatives publiques numériques françaises pour augmenter leur découvrabilité et leur (ré)utilisation.
           </Typography>
           <Button component={NextLink} href={linkRegistry.get('explore', undefined)} size="large" variant="contained" sx={{ mb: 3 }}>
             Commencer l&apos;exploration

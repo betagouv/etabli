@@ -2,7 +2,7 @@ import { Offline as OfflineIntegration } from '@sentry/integrations';
 import * as Sentry from '@sentry/nextjs';
 import SentryRRWeb from '@sentry/rrweb';
 
-import { dsn, environment, release } from '@etabli/src/utils/sentry';
+import { beforeSend, dsn, environment, release } from '@etabli/src/utils/sentry';
 
 const hasReplays = true;
 const integrations: any[] = [new OfflineIntegration({})];
@@ -29,6 +29,7 @@ Sentry.init({
   release: release,
   autoSessionTracking: true,
   integrations,
+  beforeSend: beforeSend,
 });
 
 // Help to distinguish in the UI an extension resource is available

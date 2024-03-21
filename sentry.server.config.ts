@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/nextjs';
 
-import { dsn, environment, release } from '@etabli/src/utils/sentry';
+import { beforeSend, dsn, environment, release } from '@etabli/src/utils/sentry';
 
 const integrations: any[] = [];
 
@@ -11,4 +11,5 @@ Sentry.init({
   release: release,
   autoSessionTracking: true,
   integrations,
+  beforeSend: beforeSend,
 });

@@ -82,6 +82,10 @@ const moduleExports = async () => {
           source: '/robots.txt',
           destination: '/api/robots',
         },
+        {
+          source: '/sitemap/:reference.xml',
+          destination: '/api/sitemap/:reference',
+        },
       ];
     },
     images: {

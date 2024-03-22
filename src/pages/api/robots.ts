@@ -1,18 +1,30 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import getConfig from 'next/config';
 
-import devRobotsFile from '@etabli/src/pages/assets/public/dev/robots.txt';
-import prodRobotsFile from '@etabli/src/pages/assets/public/prod/robots.txt';
 import { apiHandlerWrapper } from '@etabli/src/utils/api';
+import { linkRegistry } from '@etabli/src/utils/routes/registry';
 
 const { publicRuntimeConfig } = getConfig();
 
 export function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only allow indexing in production
   if (publicRuntimeConfig.appMode === 'prod') {
-    res.send(prodRobotsFile);
+    // Note: sitemap URLs need to be absolute (ref: https://stackoverflow.com/a/14218476/3608410)
+    res.send(
+      `
+User-agent: *
+Allow: /
+Sitemap: ${linkRegistry.get('sitemapIndex', undefined, { absolute: true })}
+`.trim()
+    );
   } else {
-    res.send(devRobotsFile);
+    res.send(
+      `
+User-agent: *
+Disallow: /
+Allow: /.well-known/
+`.trim()
+    );
   }
 }
 

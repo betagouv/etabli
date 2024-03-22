@@ -35,6 +35,18 @@ export const localizedRoutes = {
       en: (p) => `/initiatives`,
     }
   ),
+  sitemap: defineLocalizedRoute(
+    { sitemapId: param.path.number },
+    {
+      en: (p) => `/sitemap/${p.sitemapId}.xml`,
+    }
+  ),
+  sitemapIndex: defineLocalizedRoute(
+    {},
+    {
+      en: (p) => `/sitemap/index.xml`,
+    }
+  ),
 };
 
 // function createLocalizedRouter(lang: Lang, localeRoutes: typeof localizedRoutes) {
@@ -75,5 +87,7 @@ export const routes = {
     home: defineRoute(localizedRoutes.home.params, localizedRoutes.home.paths.en),
     initiative: defineRoute(localizedRoutes.initiative.params, localizedRoutes.initiative.paths.en),
     initiatives: defineRoute(localizedRoutes.initiatives.params, localizedRoutes.initiatives.paths.en),
+    sitemap: defineRoute(localizedRoutes.sitemap.params, localizedRoutes.sitemap.paths.en),
+    sitemapIndex: defineRoute(localizedRoutes.sitemapIndex.params, localizedRoutes.sitemapIndex.paths.en),
   }).routes,
 };

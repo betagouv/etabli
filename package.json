@@ -150,6 +150,7 @@
     "schema-dts": "^1.1.2",
     "sharp": "^0.32.1",
     "simple-git": "^3.22.0",
+    "sitemap": "^7.1.1",
     "superjson": "^1.13.3",
     "tiktoken": "^1.0.10",
     "ts-custom-error": "^3.3.1",

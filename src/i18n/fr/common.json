@@ -36,6 +36,35 @@
     "relative": "{{ date, relative }}",
     "short": "{{ date, short }}"
   },
+  "document": {
+    "csv": {
+      "boolean": {
+        "true": "Oui",
+        "false": "Non"
+      },
+      "date": {
+        "default": "{{ date, spreadsheetDate }}",
+        "withTime": "{{ date, spreadsheetDateTime }}"
+      }
+    },
+    "template": {
+      "Initiative": {
+        "columns": {
+          "businessUseCases": "Cas d'utilisation métiers",
+          "createdAt": "Date de création",
+          "deletedAt": "Date de suppresion",
+          "description": "Description",
+          "functionalUseCases": "Cas d'utilisation fonctionnels",
+          "id": "ID",
+          "name": "Nom",
+          "repositories": "Dépôts de code",
+          "tools": "Outils utilisés",
+          "updatedAt": "Date de mise à jour",
+          "websites": "Sites internet"
+        }
+      }
+    }
+  },
   "model": {
     "initiative": {
       "businessUseCase_one": "Cas d'utilisation métier",

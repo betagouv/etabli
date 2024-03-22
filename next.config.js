@@ -86,6 +86,10 @@ const moduleExports = async () => {
           source: '/sitemap/:reference.xml',
           destination: '/api/sitemap/:reference',
         },
+        {
+          source: '/dataset/initiatives.:filetype',
+          destination: '/api/dataset/initiatives?filetype=:filetype',
+        },
       ];
     },
     images: {

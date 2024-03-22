@@ -10,6 +10,8 @@ import Typography from '@mui/material/Typography';
 import NextLink from 'next/link';
 import { useCallback, useRef, useState } from 'react';
 
+import { linkRegistry } from '@etabli/src/utils/routes/registry';
+
 export function FrequentlyAskedQuestions() {
   const [sourceExplanationOpen, setSourceExplanationOpen] = useState<boolean>(false);
   const sourceExplanationRef = useRef<HTMLDivElement | null>(null); // This is used to scroll to the common accordion
@@ -234,7 +236,117 @@ export function FrequentlyAskedQuestions() {
             </Accordion>
             <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography sx={{ fontWeight: 600 }}>Quels sont les prochaines améliorations dans Établi ?</Typography>
+                <Typography sx={{ fontWeight: 600 }}>Comment exploiter les données sans l&apos;interface Établi ?</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                Toutes nos données sont mises à disposition dans un format exploitable. Cela vous sera utile si vous développez une fonctionnalité
+                basée sur nos données, ou que vous essayez de faire des filtres de recherche que notre interface ne propose pas.
+                <br />
+                <br />
+                Les jeux de données ci-dessous sont générés directement depuis notre base de données avec plus ou moins 1 jour de décalage. La donnée
+                que vous exploiterez est donc à jour.
+                <br />
+                <br />
+                <Typography sx={{ fontStyle: 'italic' }}>
+                  Pour les formats tableurs, plusieurs entités de même type pour une même initiative (sites internet, dépôts de code, cas
+                  d&apos;utilisation et outils) sont regroupées dans une même cellule mais séparées par des retours à la ligne.
+                </Typography>
+                <br />
+                <ul>
+                  <li>
+                    <Typography component="span" sx={{ fontWeight: 600 }}>
+                      Fichier JSON
+                    </Typography>
+                    <ul>
+                      <li>
+                        <Link
+                          component={NextLink}
+                          href={`${linkRegistry.get('dataset', { technicalName: 'initiatives.json' })}?format=raw`}
+                          underline="none"
+                          target="_blank"
+                        >
+                          Format technique
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          component={NextLink}
+                          href={linkRegistry.get('dataset', { technicalName: 'initiatives.json' })}
+                          underline="none"
+                          target="_blank"
+                        >
+                          Format avec champs techniques traduits
+                        </Link>
+                      </li>
+                    </ul>
+                  </li>
+                  <li>
+                    <Typography component="span" sx={{ fontWeight: 600 }}>
+                      Fichier XLSX
+                    </Typography>{' '}
+                    <Typography component="span" sx={{ fontStyle: 'italic' }}>
+                      (pratique pour une exploration via logiciel type Excel)
+                    </Typography>
+                    <ul>
+                      <li>
+                        <Link
+                          component={NextLink}
+                          href={`${linkRegistry.get('dataset', { technicalName: 'initiatives.xlsx' })}?format=raw`}
+                          underline="none"
+                          target="_blank"
+                        >
+                          Format technique
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          component={NextLink}
+                          href={linkRegistry.get('dataset', { technicalName: 'initiatives.xlsx' })}
+                          underline="none"
+                          target="_blank"
+                        >
+                          Format avec colonnes et champs techniques traduits
+                        </Link>
+                      </li>
+                    </ul>
+                  </li>
+                  <li>
+                    <Typography component="span" sx={{ fontWeight: 600 }}>
+                      Fichier CSV
+                    </Typography>
+                    <ul>
+                      <li>
+                        <Link
+                          component={NextLink}
+                          href={`${linkRegistry.get('dataset', { technicalName: 'initiatives.csv' })}?format=raw`}
+                          underline="none"
+                          target="_blank"
+                        >
+                          Format technique
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          component={NextLink}
+                          href={linkRegistry.get('dataset', { technicalName: 'initiatives.csv' })}
+                          underline="none"
+                          target="_blank"
+                        >
+                          Format avec colonnes et champs techniques traduits
+                        </Link>
+                      </li>
+                    </ul>
+                  </li>
+                </ul>
+                <Typography sx={{ fontStyle: 'italic' }}>
+                  Notez que si vous êtes le premier de la journée à télécharger le jeu de données, il se peut que cela prenne quelques secondes au vu
+                  du grand nombre d&apos;initiatives à formater dans le fichier.
+                </Typography>
+              </AccordionDetails>
+            </Accordion>
+            <Accordion sx={{ boxShadow: 'none' }}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography sx={{ fontWeight: 600 }}>Quels sont les prochaines améliorations ?</Typography>
               </AccordionSummary>
               <AccordionDetails>
                 La réalisation des prochains objectifs va forcément dépendre de l&apos;impact que ce service aura auprès des agents et des citoyens.
@@ -242,7 +354,6 @@ export function FrequentlyAskedQuestions() {
                 <ul>
                   <li>Analyser si les sites internets possèdent des mentions légales et la déclaration d&apos;accessibilité ;</li>
                   <li>Analyser si les dépôts de code déclarent une licence d&apos;utilisation ;</li>
-                  <li>Mettre à disposition une API technique et la documenter afin que les données soient réutilisables par des services tiers.</li>
                 </ul>
                 Si vous avez des idées pour nous, nous vous invitons à les partager via la messagerie !
               </AccordionDetails>

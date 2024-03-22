@@ -1,4 +1,5 @@
 import type { Locale } from 'date-fns';
+// import utcToZonedTime from 'date-fns-tz/utcToZonedTime';
 import { formatDate } from 'date-fns/format';
 import { formatDistance } from 'date-fns/formatDistance';
 import { formatRelative } from 'date-fns/formatRelative';
@@ -47,6 +48,15 @@ i18next.use(LanguageDetector).init(
       format: (value, format, lng, options) => {
         if (!!format && !!lng) {
           if (isDate(value)) {
+            if (options) {
+              // TODO: `date-fns-tz/utcToZonedTime` is not compatible for now with `date-fns` v3
+              // // If specified we shift the date from UTC (with its offset marker)
+              // // to the right time without any offset marker (useful to format on server-side)
+              // if (options.timezone) {
+              //   value = utcToZonedTime(value, options.timezone);
+              // }
+            }
+
             const locale = dateFnsLocales[lng];
 
             if (format === 'short') return formatDate(value, 'P', { locale });
@@ -59,6 +69,8 @@ i18next.use(LanguageDetector).init(
                 addSuffix: true,
               });
             }
+            if (format === 'spreadsheetDate') return formatDate(value, 'yyyy-MM-dd', { locale });
+            if (format === 'spreadsheetDateTime') return formatDate(value, 'yyyy-MM-dd HH:mm:ss', { locale });
 
             return formatDate(value, format, { locale });
           }

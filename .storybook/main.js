@@ -111,6 +111,14 @@ module.exports = {
       config.resolve.alias = {};
     }
 
+    // [IMPORTANT] We wanted to use the node version for `main` and the browser for `docs` but we had issues using just an alias with default name as origin
+    // so we changed to a `xxx-proxy` but then the `TypeScript is unable to find the module with right `paths` settings in `tsconfig.json`
+    // so definitely giving up the optimization and using the ESM browser also for the node version
+    // // Needed to make the CSV node library working in the browser
+    // // We tried to do `csv-parse --> csv-parse/browser/esm` but it does not work, maybe because it's the same prefix... so we use a suffix `-proxy`
+    // config.resolve.alias['csv-parse-proxy'] = 'csv-parse/browser/esm';
+    // config.resolve.alias['csv-stringify-proxy'] = 'csv-stringify/browser/esm';
+
     config.resolve.plugins = [
       new TsconfigPathsPlugin({
         configFile: path.resolve(__dirname, '../tsconfig.json'),

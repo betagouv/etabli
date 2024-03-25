@@ -2,17 +2,19 @@ import contentDisposition from 'content-disposition';
 import { differenceInDays } from 'date-fns/differenceInDays';
 import fsSync from 'fs';
 import fs from 'fs/promises';
+import { JsonStreamStringify } from 'json-stream-stringify';
 import { NextApiRequest, NextApiResponse } from 'next';
 import path from 'path';
+import { Readable, Transform, pipeline } from 'stream';
 import { z } from 'zod';
 
 import { getServerTranslation } from '@etabli/src/i18n';
-import { FunctionalUseCaseSchemaType } from '@etabli/src/models/entities/initiative';
+import { DatasetInitiativeSchemaType, FunctionalUseCaseSchemaType } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma/client';
-import { initiativePrismaToModel } from '@etabli/src/server/routers/mappers';
+import { datasetInitiativePrismaToModel } from '@etabli/src/server/routers/mappers';
 import { apiHandlerWrapper } from '@etabli/src/utils/api';
-import { initiativesToCsv } from '@etabli/src/utils/csv';
-import { csvToXlsx } from '@etabli/src/utils/excel';
+import { getInitiativesToCsvStream } from '@etabli/src/utils/csv';
+import { pipeCsvStreamToXlsxFileStream } from '@etabli/src/utils/excel';
 
 const __root_dirname = process.cwd();
 
@@ -25,8 +27,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { t } = getServerTranslation('common');
 
   const parameters = QueryParametersSchema.parse(req.query);
-  const filename = `initiatives.${parameters.filetype}`;
   const rawFormat = parameters.format === 'raw';
+  const filename = `initiatives${rawFormat ? '-raw' : ''}.${parameters.filetype}`;
 
   // Since this dataset is huge, we cache them locally for a few days
   const datasetPath = path.resolve(__root_dirname, `./data/datasets/${filename}`);
@@ -47,9 +49,18 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
     await fs.mkdir(path.dirname(datasetPath), { recursive: true });
 
     const dbInitiatives = await prisma.initiative.findMany({
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        websites: true,
+        repositories: true,
+        functionalUseCases: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
         ToolsOnInitiatives: {
-          include: {
+          select: {
             tool: {
               select: {
                 name: true,
@@ -58,7 +69,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
           },
         },
         BusinessUseCasesOnInitiatives: {
-          include: {
+          select: {
             businessUseCase: {
               select: {
                 name: true,
@@ -72,39 +83,92 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
       },
     });
 
-    const initiatives = dbInitiatives.map((dbInitiative) => {
-      return initiativePrismaToModel({
-        ...dbInitiative,
-        businessUseCases: dbInitiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
-        tools: dbInitiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+    // Below we try to maximize performance with streams so production environment can have low memory capacity and does not crash
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const writableFileStream = fsSync.createWriteStream(datasetPath);
+        const initiativesStream = new Readable({ objectMode: true, read() {} });
+
+        if (parameters.filetype === 'json') {
+          // Replace technical values is requested
+          const jsonContentStream = pipeline(
+            initiativesStream,
+            new Transform({
+              objectMode: true,
+              transform: (initiative: DatasetInitiativeSchemaType, encoding, callback) => {
+                callback(null, {
+                  ...initiative,
+                  functionalUseCases: rawFormat
+                    ? initiative.functionalUseCases
+                    : initiative.functionalUseCases.map((functionalUseCase) =>
+                        t(`model.initiative.functionalUseCase.enum.${functionalUseCase as FunctionalUseCaseSchemaType}`)
+                      ),
+                });
+              },
+            }),
+            (error) => {
+              if (error) {
+                reject(error);
+              }
+            }
+          );
+
+          // We have to use a specific stream writer since JSON format is not just about appending a object (due to the wrapping array)
+          // const jsonWritableFileStream = new JsonStreamStringify({ salut: jsonContentStream });
+          const jsonWritableFileStream = new JsonStreamStringify(jsonContentStream);
+
+          pipeline(jsonWritableFileStream, writableFileStream, (error) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve();
+            }
+          });
+        } else {
+          const initiativesToCsvStream = getInitiativesToCsvStream(rawFormat);
+
+          if (parameters.filetype === 'csv') {
+            pipeline(initiativesStream, initiativesToCsvStream, writableFileStream, (error) => {
+              if (error) {
+                reject(error);
+              } else {
+                resolve();
+              }
+            });
+          } else {
+            // Despite CSV working well for most of software (delimiter and UTF8) sometimes it has merged columns or encoding issues depending on the Excel versions
+            // Since most of people have this tool we decided to provide a .xlsx aside the .csv
+            const csvStream = pipeline(initiativesStream, initiativesToCsvStream, (error) => {
+              if (error) {
+                reject(error);
+              }
+            });
+
+            // The ExcelJS stream API is specific so it's handled inside the helper
+            pipeCsvStreamToXlsxFileStream(csvStream, writableFileStream).then(resolve).catch(reject);
+          }
+        }
+
+        for (const dbInitiative of dbInitiatives) {
+          initiativesStream.push(
+            datasetInitiativePrismaToModel({
+              ...dbInitiative,
+              businessUseCases: dbInitiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
+              tools: dbInitiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+            })
+          );
+        }
+
+        // Signal the end of the stream
+        initiativesStream.push(null);
       });
-    });
-
-    if (parameters.filetype === 'json') {
-      const jsonInitiatives = initiatives.map((initiative) => {
-        return {
-          ...initiative,
-          functionalUseCases: rawFormat
-            ? initiative.functionalUseCases
-            : initiative.functionalUseCases.map((functionalUseCase) =>
-                t(`model.initiative.functionalUseCase.enum.${functionalUseCase as FunctionalUseCaseSchemaType}`)
-              ),
-        };
-      });
-
-      await fs.writeFile(datasetPath, JSON.stringify(jsonInitiatives));
-    } else {
-      const csvString = initiativesToCsv(initiatives, rawFormat);
-
-      if (parameters.filetype === 'csv') {
-        await fs.writeFile(datasetPath, csvString);
-      } else {
-        // Despite CSV working well for most of software (delimiter and UTF8) sometimes it has merged columns or encoding issues depending on the Excel versions
-        // Since most of people have this tool we decided to provide a .xlsx aside the .csv
-        const xlsxBuffer = await csvToXlsx(csvString);
-
-        await fs.writeFile(datasetPath, xlsxBuffer);
+    } catch (error) {
+      // Since there was an error while writing the file, we delete any partial writing so on next calls it's retried
+      if (fsSync.existsSync(datasetPath)) {
+        await fs.rm(datasetPath);
       }
+
+      throw error;
     }
   }
 

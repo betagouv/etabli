@@ -45,3 +45,18 @@ export const LiteInitiativeMapSchema = z
   })
   .strict();
 export type LiteInitiativeMapSchemaType = z.infer<typeof LiteInitiativeMapSchema>;
+
+export const DatasetInitiativeSchema = InitiativeSchema.pick({
+  id: true,
+  name: true,
+  description: true,
+  websites: true,
+  repositories: true,
+  businessUseCases: true,
+  functionalUseCases: true,
+  tools: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+}).strict();
+export type DatasetInitiativeSchemaType = z.infer<typeof DatasetInitiativeSchema>;

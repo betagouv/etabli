@@ -1,19 +1,24 @@
 import {
-  // See Webpack aliases into `@etabli/.storybook/main.js` to understand why we use the browser version at the end even if not optimal
+  Options, // See Webpack aliases into `@etabli/.storybook/main.js` to understand why we use the browser version at the end even if not optimal
+  Stringifier,
   stringify,
+} from 'csv-stringify/browser/esm';
+import {
+  // See Webpack aliases into `@etabli/.storybook/main.js` to understand why we use the browser version at the end even if not optimal
+  stringify as stringifySync,
 } from 'csv-stringify/browser/esm/sync';
 
 import { getServerTranslation } from '@etabli/src/i18n';
-import type { InitiativeSchemaType } from '@etabli/src/models/entities/initiative';
+import type { DatasetInitiativeSchemaType } from '@etabli/src/models/entities/initiative';
 import { FunctionalUseCaseSchemaType } from '@etabli/src/models/entities/initiative';
 import { nameof } from '@etabli/src/utils/typescript';
 
-const typedNameof = nameof<InitiativeSchemaType>;
+const typedNameof = nameof<DatasetInitiativeSchemaType>;
 
-export function initiativesToCsv(initiatives: InitiativeSchemaType[], rawFormat: boolean = false): string {
+export function getOptions(rawFormat: boolean): Options {
   const { t } = getServerTranslation('common');
 
-  const data = stringify(initiatives, {
+  return {
     delimiter: ',',
     header: true,
     columns: [
@@ -81,7 +86,18 @@ export function initiativesToCsv(initiatives: InitiativeSchemaType[], rawFormat:
         return value;
       },
     },
-  });
+  };
+}
+
+// Synchronous one to work with frontends (Storybook)
+export function initiativesToCsv(initiatives: DatasetInitiativeSchemaType[], rawFormat: boolean = false): string {
+  const data = stringifySync(initiatives, getOptions(rawFormat));
 
   return data;
+}
+
+export function getInitiativesToCsvStream(rawFormat: boolean = false): Stringifier {
+  const stream = stringify(getOptions(rawFormat));
+
+  return stream;
 }

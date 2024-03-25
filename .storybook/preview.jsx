@@ -108,6 +108,18 @@ export const parameters = {
           selector: '*:not([aria-controls="fr-theme-modal"])',
         },
         {
+          // When using the `DataGrid` it says: "Element has children which are not allowed"
+          // whereas it has `role="rowgroup"` as direct nested elements... it seems a false-positive so ignoring it
+          // (multiple posts on internet mentions this wrong trigger)
+          id: 'aria-required-children',
+          selector: '*:not(.MuiDataGrid-root)',
+        },
+        {
+          // Cannot add the missign piece triggering the error
+          id: 'scrollable-region-focusable',
+          selector: '*:not(.MuiDataGrid-virtualScroller)',
+        },
+        {
           // `react-dsfr` uses the same id for desktop and mobile for their quick access items
           id: 'duplicate-id-active',
           selector: '*:not([id^="fr-header-quick-access-item"])',

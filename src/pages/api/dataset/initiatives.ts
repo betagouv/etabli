@@ -1,5 +1,7 @@
+import { Prisma } from '@prisma/client';
 import contentDisposition from 'content-disposition';
 import { differenceInDays } from 'date-fns/differenceInDays';
+import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import { JsonStreamStringify } from 'json-stream-stringify';
@@ -51,43 +53,10 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (!datasetExists) {
+    console.log(`the dataset "${filename}" is going to be computed`);
+
     // In case parent folders does not exist yet
     await fs.mkdir(path.dirname(datasetPath), { recursive: true });
-
-    const dbInitiatives = await prisma.initiative.findMany({
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        websites: true,
-        repositories: true,
-        functionalUseCases: true,
-        createdAt: true,
-        updatedAt: true,
-        deletedAt: true,
-        ToolsOnInitiatives: {
-          select: {
-            tool: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        BusinessUseCasesOnInitiatives: {
-          select: {
-            businessUseCase: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    });
 
     // Below we try to maximize performance with streams so production environment can have low memory capacity and does not crash
     try {
@@ -155,19 +124,83 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
           }
         }
 
-        for (const dbInitiative of dbInitiatives) {
-          initiativesStream.push(
-            datasetInitiativePrismaToModel({
-              ...dbInitiative,
-              businessUseCases: dbInitiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
-              tools: dbInitiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
-            })
-          );
-        }
+        prisma
+          .$transaction(
+            async (tx) => {
+              // Despite the optimization of using streams for the files computation it was sometimes still crashing in production
+              // due to restricted resources, so chunking the database fetch
+              const chunkSize = 5_000;
+              let retrievedItemsCount = 0;
 
-        // Signal the end of the stream
-        initiativesStream.push(null);
+              while (true) {
+                const chunkItems = await tx.initiative.findMany({
+                  select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    websites: true,
+                    repositories: true,
+                    functionalUseCases: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    deletedAt: true,
+                    ToolsOnInitiatives: {
+                      select: {
+                        tool: {
+                          select: {
+                            name: true,
+                          },
+                        },
+                      },
+                    },
+                    BusinessUseCasesOnInitiatives: {
+                      select: {
+                        businessUseCase: {
+                          select: {
+                            name: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                  orderBy: {
+                    name: 'asc',
+                  },
+                  skip: retrievedItemsCount,
+                  take: chunkSize,
+                });
+
+                retrievedItemsCount += chunkItems.length;
+
+                console.log(`currently retrieved ${retrievedItemsCount} initiatives with the splitted fetcher to generate the file`);
+
+                for (const dbInitiative of chunkItems) {
+                  initiativesStream.push(
+                    datasetInitiativePrismaToModel({
+                      ...dbInitiative,
+                      businessUseCases: dbInitiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
+                      tools: dbInitiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+                    })
+                  );
+                }
+
+                if (chunkItems.length < chunkSize) {
+                  break;
+                }
+              }
+
+              // Signal the end of the stream
+              initiativesStream.push(null);
+            },
+            {
+              timeout: minutesToMilliseconds(3), // Since dealing with a lot of data, prevent closing whereas everything is alright
+              isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+            }
+          )
+          .catch(reject);
       });
+
+      console.log(`the file "${filename}" has been computed and is ready to be served`);
     } catch (error) {
       // Since there was an error while writing the file, we delete any partial writing so on next calls it's retried
       if (fsSync.existsSync(datasetPath)) {

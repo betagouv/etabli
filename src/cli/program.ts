@@ -19,6 +19,7 @@ import {
   updateInferredMetadataOnRepositories,
 } from '@etabli/src/features/repository';
 import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli/src/features/tool';
+import { downloadPretrainedModels } from '@etabli/src/utils/cross-encoder';
 
 export const program = new Command();
 
@@ -28,6 +29,7 @@ const domain = program.command('domain').description('manage domains');
 const repository = program.command('repository').alias('repo').description('manage repositories');
 const tool = program.command('tool').description('manage tools');
 const llm = program.command('llm').description('manage llm settings and documents');
+const model = program.command('model').description('manage pretrained models');
 const initiative = program.command('initiative').description('manage initiatives');
 const cache = program.command('cache').description('manage cache across commands');
 
@@ -159,6 +161,13 @@ tool
     await saveToolCsvFile();
     await formatToolsIntoDatabase();
     await enhanceToolsIntoDatabase();
+  });
+
+model
+  .command('download')
+  .description('download pretrained models')
+  .action(async () => {
+    await downloadPretrainedModels();
   });
 
 llm

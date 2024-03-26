@@ -14,6 +14,7 @@ import jsonic from 'jsonic';
 import { LLMChain } from 'langchain/chains';
 import { createRetrievalChain } from 'langchain/chains/retrieval';
 import { BufferMemory } from 'langchain/memory';
+import { mean, std } from 'mathjs';
 import mistralTokenizer from 'mistral-tokenizer-js';
 import path from 'path';
 import { z } from 'zod';

@@ -83,6 +83,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
 
+      - uses: actions/cache@v3
+        name: Setup pretrained models cache
+        with:
+          path: ${{ github.workspace }}/.cache/models
+          key: ${{ runner.os }}-pretrained-models-${{ hashFiles('**/src/utils/pretrained-models.ts') }}
+          restore-keys: |
+            ${{ runner.os }}-pretrained-models-
+
       - name: Install tools
         run: bundle --gemfile src/bibliothecary/Gemfile && pip install -r src/semgrep/requirements.txt
 
@@ -90,6 +98,9 @@ jobs:
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ env.STORE_PATH }}/${{ env.PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX }}
         run: make deps
+
+      - name: Download pretrained models
+        run: make download-models
 
       - name: Prepare linting
         run: make lint-prepare

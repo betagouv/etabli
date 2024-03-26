@@ -23,6 +23,12 @@ const QueryParametersSchema = z.object({
   format: z.literal('raw').optional(),
 });
 
+export const config = {
+  api: {
+    responseLimit: '50mb', // Only show a Next.js warning if the response is above 50 MB (currently around ~25 MB)
+  },
+};
+
 export async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { t } = getServerTranslation('common');
 

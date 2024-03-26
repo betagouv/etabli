@@ -1,6 +1,7 @@
 // This is a duplicated and modified file to respond to the issue https://github.com/langchain-ai/langchainjs/discussions/4735
 // Original file: https://github.com/langchain-ai/langchainjs/blob/main/langchain/src/chains/combine_documents/stuff.ts
 import { LanguageModelLike } from '@langchain/core/language_models/base';
+import { BaseMessage } from '@langchain/core/messages';
 import { BaseOutputParser, StringOutputParser } from '@langchain/core/output_parsers';
 import { BasePromptTemplate } from '@langchain/core/prompts';
 import { RunnablePassthrough, RunnablePick, RunnableSequence } from '@langchain/core/runnables';
@@ -28,6 +29,8 @@ export async function createStuffDocumentsChain<RunOutput = string>({
   llm,
   prompt,
   documentsMaximum,
+  chatHistory,
+  query,
   outputParser = new StringOutputParser() as unknown as BaseOutputParser<RunOutput>,
   documentPrompt = DEFAULT_DOCUMENT_PROMPT,
   documentSeparator = DEFAULT_DOCUMENT_SEPARATOR,
@@ -35,6 +38,8 @@ export async function createStuffDocumentsChain<RunOutput = string>({
   llm: LanguageModelLike;
   prompt: BasePromptTemplate;
   documentsMaximum: number;
+  chatHistory: BaseMessage[];
+  query: string;
   outputParser?: BaseOutputParser<RunOutput>;
   documentPrompt?: BasePromptTemplate;
   documentSeparator?: string;
@@ -46,15 +51,17 @@ export async function createStuffDocumentsChain<RunOutput = string>({
   return RunnableSequence.from(
     [
       RunnablePassthrough.assign({
-        [DOCUMENTS_KEY]: new RunnablePick(DOCUMENTS_KEY).pipe((documents, metadata) =>
-          formatDocuments({
+        [DOCUMENTS_KEY]: new RunnablePick(DOCUMENTS_KEY).pipe((documents, metadata) => {
+          return formatDocuments({
             documents,
             documentPrompt,
             documentSeparator,
             documentsMaximum,
+            chatHistory,
+            query,
             config: metadata?.config,
-          })
-        ),
+          });
+        }),
       }),
       prompt,
       llm,

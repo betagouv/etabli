@@ -87,6 +87,7 @@ ENV PATH="/app/venv/bin:$PATH"
 COPY --chown=nextjs:nodejs ".next/standalone" ./
 COPY --chown=nextjs:nodejs ".next/static" "./.next/static"
 COPY --chown=nextjs:nodejs "public" "./public"
+COPY --chown=nextjs:nodejs ".cache/models" "./data/models"
 
 ENV PRISMA_VERSION $PRISMA_VERSION
 

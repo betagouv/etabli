@@ -1,5 +1,7 @@
+import { Document } from '@langchain/core/documents';
 import { Settings } from '@prisma/client';
 import EventEmitter from 'eventemitter3';
+import * as math from 'mathjs';
 
 import { LangchainWithLocalVectorStoreLlmManager } from '@etabli/src/features/llm-langchain';
 import { MockVectorStoreLlmManager } from '@etabli/src/features/llm-mock';
@@ -28,6 +30,34 @@ export type ChunkEventEmitter = EventEmitter<'chunk'>;
 export const llmManagerInstance =
   process.env.LLM_MANAGER_MOCK === 'true' ? new MockVectorStoreLlmManager() : new LangchainWithLocalVectorStoreLlmManager();
 // export const llmManagerInstance = new OpenaiWithAssistantApiLlmManager();
+
+// `D` generic cannot be more precise because langchain does not export the `SimilarityModel` type
+export function filterWithScoreThreshold<D extends Record<string, any>, T extends [Document<D>, number]>(documentsWrappers: T[]): T[] {
+  // This is not perfect science but instead of defining a fixed threshold based on a few tests
+  // that will not be relevant when having different query lengths or with different words...
+  // We prefer to approach something dynamic by using the mean and standard deviation
+  // Note: lowest scores the better
+  const scores = documentsWrappers.map(([, score]) => score);
+
+  let threshold: number;
+  if (!!true) {
+    const average = math.mean(scores);
+    const standardDeviation = math.std(scores) as unknown as number;
+    const standardDeviationCoefficient = 0;
+
+    threshold = average + standardDeviationCoefficient * standardDeviation;
+  } else {
+    // We gave a try to detecting a huge gap for consecutive scores, but it's too precise
+    const differences = (math as any).diff(scores);
+    const maxDifference = math.max(differences);
+
+    threshold = scores[differences.indexOf(maxDifference)] + maxDifference / 2;
+  }
+
+  return documentsWrappers.filter(([document, score]) => {
+    return score < threshold;
+  });
+}
 
 export function extractFirstJsonCodeContentFromMarkdown(markdown: string): string | null {
   const regex = /```json\n([\s\S]+?)\n```/;

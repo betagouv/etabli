@@ -62,6 +62,9 @@ tools-up:
 tools-down:
 	docker-compose down
 
+download-models:
+	npm run model:download
+
 format:
 	npm run format
 

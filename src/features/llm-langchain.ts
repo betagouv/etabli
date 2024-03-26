@@ -24,6 +24,7 @@ import {
   LlmManager,
   extractFirstJsonCodeContentFromMarkdown,
   extractFirstTypescriptCodeContentFromMarkdown,
+  filterWithScoreThreshold,
 } from '@etabli/src/features/llm';
 import { gptInstances, gptSeed } from '@etabli/src/gpt';
 import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
@@ -31,6 +32,7 @@ import { getServerTranslation } from '@etabli/src/i18n';
 import { llmResponseFormatError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
+import { rankDocumentsWithCrossEncoder } from '@etabli/src/utils/cross-encoder';
 import { capitalizeFirstLetter } from '@etabli/src/utils/format';
 import { sleep } from '@etabli/src/utils/sleep';
 import { getBaseUrl } from '@etabli/src/utils/url';
@@ -671,12 +673,19 @@ CONTEXTE :
 
     // We restrict the search to 50 items to no overload the database, since people probably won't look for more without precising the search
     const similaries = await this.initiativesVectorStore.similaritySearchVectorWithScore(querySession.vector, 100);
+    const filteredSimilaries = filterWithScoreThreshold(similaries);
 
-    const filteredSimilaries = similaries.filter(([document, score]) => {
-      return score < 0.3;
-    });
+    // In addition to the similarity search we perform a rerank to reorder them according to a more standard search
+    // so that a query with almost perfect match are on top on the list
+    const rerankResults = await rankDocumentsWithCrossEncoder(
+      filteredSimilaries.map(([document, score]) => document.pageContent),
+      query
+    );
 
-    return filteredSimilaries.map(([document, score]) => {
+    // Return the appropriate reranked documents
+    return rerankResults.map((rerankResult) => {
+      const [document, score] = filteredSimilaries[rerankResult.originalDocumentIndex];
+
       return document.metadata.initiativeId;
     });
   }
@@ -790,6 +799,8 @@ CONTEXTE :
         ['human', '{input}'],
       ]);
 
+      const previousMessages = await session.history.chatHistory.getMessages();
+
       // When using a stream there is no object `tokenUsage` as for the conventional way
       // So do our own logic (it should be exactly true but maybe there is a little variation with the calculation from the remote LLM)
       let totalTokensUsed = 0;
@@ -828,16 +839,18 @@ CONTEXTE :
         prompt: promptCanvas,
         documentSeparator: '\n',
         documentsMaximum: totalDocumentsToRevealToTheUser,
+        chatHistory: previousMessages,
+        query: input,
       });
 
       const chain = await createRetrievalChain({
-        retriever: this.initiativesVectorStore.asRetriever(totalDocumentsToRevealToTheUser + 1),
+        retriever: this.initiativesVectorStore.asRetriever(Math.max(5 * totalDocumentsToRevealToTheUser, 100)), // Get more since a filter and rerank will be performed, then keeping the N first
         combineDocsChain: combineDocsChain,
       });
 
       const stream = await chain.stream(
         {
-          chat_history: await session.history.chatHistory.getMessages(),
+          chat_history: previousMessages,
           input: input,
         },
         {

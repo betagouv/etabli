@@ -14,7 +14,7 @@ import jsonic from 'jsonic';
 import { LLMChain } from 'langchain/chains';
 import { createRetrievalChain } from 'langchain/chains/retrieval';
 import { BufferMemory } from 'langchain/memory';
-import { mean, std } from 'mathjs';
+import { diff, max, mean, std } from 'mathjs';
 import mistralTokenizer from 'mistral-tokenizer-js';
 import path from 'path';
 import { z } from 'zod';
@@ -32,6 +32,7 @@ import { getServerTranslation } from '@etabli/src/i18n';
 import { llmResponseFormatError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
+import { rankDocumentsWithCrossEncoder } from '@etabli/src/utils/cross-encoder';
 import { capitalizeFirstLetter } from '@etabli/src/utils/format';
 import { sleep } from '@etabli/src/utils/sleep';
 import { getBaseUrl } from '@etabli/src/utils/url';
@@ -673,11 +674,86 @@ CONTEXTE :
     // We restrict the search to 50 items to no overload the database, since people probably won't look for more without precising the search
     const similaries = await this.initiativesVectorStore.similaritySearchVectorWithScore(querySession.vector, 100);
 
+    // TODO: make an helper with generic filterAndRerankDocuments<T>(T[])
+
+    console.log('----------');
+    console.log('aaaaaaaa');
+    // console.log(math);
+
+    // This is not perfect science but instead of defining a fixed threshold based on a few tests
+    // that will not be relevant when having different query lengths or with different words...
+    // We prefer to approach something dynamic by using the mean and standard deviation
+    // Note: lowest scores the better
+    console.log('cccccccc');
+
+    const scores = similaries.map(([, score]) => score);
+    console.log('ddddddd');
+    const average = mean(scores);
+    console.log('eeeeeee');
+    const standardDeviation = std(scores) as unknown as number;
+    console.log('ffffff');
+    console.log(typeof standardDeviation);
+    console.log(standardDeviation);
+    const standardDeviationCoefficient = 0;
+    const threshold = average + standardDeviationCoefficient * standardDeviation;
+
+    //
+    // below is exact matching ... go with the above otherwise too restrictive
+    //
+    // const differences = diff(scores);
+    // console.log(differences);
+    // const maxDifference = max(differences);
+    // console.log(maxDifference);
+    // // const threshold = scores[differences.indexOf(maxDifference)] + maxDifference / 2;
+    // const threshold = scores[differences.indexOf(maxDifference)] + maxDifference / 2 + standardDeviationCoefficient * standardDeviation;
+    // console.log(scores[differences.indexOf(maxDifference)]);
+
+    console.log(scores.slice(-4));
+    // console.log(average);
+    // console.log(standardDeviation);
+    console.log(threshold);
+
+    console.log('----------');
+    console.log('bbbb');
+
+    for (const [doc, score] of similaries) {
+      if (
+        [
+          '270c6a7f-caba-46cf-b7ac-56401108b0a2', // Histologe
+          '20fcdc91-d5a0-44d5-8b0d-1630e1f45d4c', // Oz Ensemble
+        ].includes(doc.metadata.initiativeId)
+      ) {
+        console.log('----------');
+        console.log(score);
+        console.log('----------');
+      }
+    }
+
     const filteredSimilaries = similaries.filter(([document, score]) => {
-      return score < 0.3;
+      return score < threshold;
     });
 
-    return filteredSimilaries.map(([document, score]) => {
+    // In addition to the similarity search we perform a rerank to reorder them according to a more standard search
+    // so that a query with almost perfect match are on top on the list
+    const rerankResults = await rankDocumentsWithCrossEncoder(
+      filteredSimilaries.map(([document, score]) => document.pageContent),
+      query
+    );
+
+    console.log('----------');
+    console.log('cccc');
+    console.log(rerankResults[0]);
+    const aaa = rerankResults[0];
+    // aaa.
+
+    //
+    // TODO: standard deviation is not valuable, try to find "gap"
+    //
+
+    // Return the appropriate reranked documents
+    return rerankResults.map((rerankResult) => {
+      const [document, score] = filteredSimilaries[rerankResult.originalDocumentIndex];
+
       return document.metadata.initiativeId;
     });
   }
@@ -832,7 +908,7 @@ CONTEXTE :
       });
 
       const chain = await createRetrievalChain({
-        retriever: this.initiativesVectorStore.asRetriever(totalDocumentsToRevealToTheUser + 1),
+        retriever: this.initiativesVectorStore.asRetriever(5 * totalDocumentsToRevealToTheUser), // Get more since a filter and rerank will be performed, then keeping the N first
         combineDocsChain: combineDocsChain,
       });
 

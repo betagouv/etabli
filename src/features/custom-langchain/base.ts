@@ -28,6 +28,11 @@ export async function formatDocuments({
   documentsMaximum: number;
   config?: RunnableConfig;
 }) {
+  // Filter documents that are not relevant
+  // TODO: ... reuse logic
+  //
+  rerankedDocuments = ...;
+
   // This is the custom stuff needed to give the assistant the knowledge about more sheets available (ref: https://github.com/langchain-ai/langchainjs/discussions/4735)
   // Now, it also serves to format initiatives URLs so the assistant does not mess with formatting non-existing ones
   let additionalInstructionForTheAssistant: string | null;

@@ -2,16 +2,13 @@
 # The `APP_HOST` variable defaults onto what Next.js server uses in a Docker environment
 
 ARG NODE_VERSION=18.19.0
-ARG RUBY_VERSION=3.2.2-r1
-ARG PIP_VERSION=23.3.1-r0
+ARG RUBY_VERSION=1:3.1
+ARG PIP_VERSION=23.0.1+dfsg-1
 ARG PRISMA_VERSION=4.16.2
 ARG APP_HOST=172.17.0.2
 ARG PORT=3000
 
-# Note: the pandoc package version naming is completely different than the official repository so as of now
-# we are not specifying a fixed version (ref: https://pkgs.alpinelinux.org/package/edge/community/x86_64/pandoc-cli)
-
-FROM node:${NODE_VERSION}-alpine
+FROM node:${NODE_VERSION}-slim
 
 ARG RUBY_VERSION
 ARG PIP_VERSION
@@ -21,27 +18,18 @@ ARG PORT
 
 USER root
 
-RUN apk add \
-  # This is for the code we manage
-  "build-base" \
-  "libffi-dev" \
-  "libcurl" \
+# Install necessary dependencies
+RUN apt-get update && apt-get install -y \
+  "chromium" \
   "curl" \
   "git" \
-  "pandoc-cli" \
+  "pandoc" \
+  "python3-pip=${PIP_VERSION}" \
+  "python3-venv" \
   "ruby-dev=${RUBY_VERSION}" \
-  "py3-pip=${PIP_VERSION}" \
-  # This is the dependencies needed by chromium
-  "chromium" \
-  "libstdc++" \
-  "harfbuzz" \
-  "nss" \
-  "freetype" \
-  "ttf-freefont" \
-  "font-noto-emoji" \
-  "wqy-zenhei"
+  && rm -rf /var/lib/apt/lists/*
 
-ENV CHROME_BIN="/usr/bin/chromium-browser"
+ENV CHROME_BIN="/usr/bin/chromium"
 ENV CHROME_PATH="/usr/lib/chromium/"
 
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${CHROME_BIN}"
@@ -51,8 +39,8 @@ ENV CHROMIUM_BIN="${CHROME_BIN}"
 
 # Restrict the permissions
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 800 nodejs
+RUN adduser --system --home /home/nextjs --uid 800 nextjs
 
 USER nextjs
 
@@ -67,17 +55,16 @@ COPY --chown=nextjs:nodejs "src/semgrep/requirements.txt" ./
 # Note: we did not specify the `bundler` version from the `Gemfile.lock` so it may adjust it accordingly
 # We could have frozen it but it would require to fix the `bundle` version for local development too, which seems overkilled
 
-RUN gem install --user-install bundler
-
 # Docker does not allow injecting command result into an variable environment so doing it manually (ref: https://github.com/moby/moby/issues/29110)
 # ENV GEM_HOME="$(ruby -e 'puts Gem.user_dir')"
-ENV GEM_HOME="/home/nextjs/.local/share/gem/ruby/3.2.0"
+ENV GEM_HOME="/home/nextjs/.local/share/gem/ruby/3.1.0"
 ENV PATH="$GEM_HOME/bin:$PATH"
 
+RUN gem install --user-install bundler
 RUN bundle --gemfile Gemfile
 
 RUN python3 -m venv ./venv \
-  && source ./venv/bin/activate \
+  && . ./venv/bin/activate \
   && pip install -r requirements.txt
 
 ENV PATH="/app/venv/bin:$PATH"

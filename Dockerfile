@@ -27,6 +27,7 @@ RUN apk add \
   "libffi-dev" \
   "libcurl" \
   "curl" \
+  "musl" \
   "git" \
   "pandoc-cli" \
   "ruby-dev=${RUBY_VERSION}" \

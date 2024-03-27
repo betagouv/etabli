@@ -29,7 +29,6 @@ export async function createStuffDocumentsChain<RunOutput = string>({
   llm,
   prompt,
   documentsMaximum,
-  chatHistory,
   query,
   outputParser = new StringOutputParser() as unknown as BaseOutputParser<RunOutput>,
   documentPrompt = DEFAULT_DOCUMENT_PROMPT,
@@ -38,7 +37,6 @@ export async function createStuffDocumentsChain<RunOutput = string>({
   llm: LanguageModelLike;
   prompt: BasePromptTemplate;
   documentsMaximum: number;
-  chatHistory: BaseMessage[];
   query: string;
   outputParser?: BaseOutputParser<RunOutput>;
   documentPrompt?: BasePromptTemplate;
@@ -57,7 +55,6 @@ export async function createStuffDocumentsChain<RunOutput = string>({
             documentPrompt,
             documentSeparator,
             documentsMaximum,
-            chatHistory,
             query,
             config: metadata?.config,
           });

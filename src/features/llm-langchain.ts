@@ -524,25 +524,7 @@ CONTEXTE :
       // Due to using chained `.bind().withRetry()` above, callbacks and others must be defined there (here they won't be called)
     });
 
-    if (finishReason === 'length') {
-      // The model has reached its length limit
-      // The `maxTokens` property of `ChatMistralAI` indicates something important: "The token count of your prompt plus max_tokens cannot exceed the model's context length"
-      // Note: we don't want to use `maxTokens` since it caps the response tokens, and we prefer to let the LLM tells the maximum about the initiative being computed
-
-      // Just in case, we check we did configure local limit accordingly to the LLM used
-      if (tokenUsage !== null) {
-        const usage = tokenUsage as TokenUsage; // TypeScript messes up due to the assignation being into `callbacks`, it tells it's `never` without casting
-
-        if (usage.totalTokens !== undefined && usage.totalTokens > this.gptInstance.modelTokenLimit) {
-          throw new Error('the maximum model tokens length we defined locally seems to not correspond to the real model limit');
-        }
-      }
-
-      // If the settings check is fine and since we were not able to know in advance the total of the input+output length, we just throw an error so the parent can adjust the content to reduce the input length until it passes
-      throw tokensReachTheLimitError;
-    } else if (finishReason !== 'stop') {
-      throw new Error(`the generation has not completed fully according to the returned reason: ${finishReason}`);
-    }
+    this.assertSuccessfulInvoke(finishReason, tokenUsage);
 
     assert(typeof answer.text === 'string');
 
@@ -752,6 +734,74 @@ CONTEXTE :
         session.running = true;
       }
 
+      // [IMPORTANT]
+      // Before we were using passing the user input with the history to the LLM (with the retriever being based only on the query, not the history)
+      // We could have bring the full history to the retriever but it would make a mess because it's hard to determine how many previous messages to send to make sure the right context is used
+      // And if too few in case of follow-up questions it would make a mess...
+      // The idea here is to keep the retriever logic simple with just one question, but for this we first ask the LLM to rephrase a question according to the history
+      const previousMessages = await session.history.chatHistory.getMessages();
+
+      let query: string;
+      if (previousMessages.length > 0) {
+        let rephrasingFinishReason: string | null = null;
+        let rephrasingTokenUsage: TokenUsage | null = null;
+
+        const rephrasingPromptCanvas = ChatPromptTemplate.fromMessages([
+          [
+            'system',
+            `Voici une historique de conversation, et j'aimerais que tu retranscrives le dernier message sous forme de question. Il se peut que ce message soit une "follow-up question" et pour la comprendre il faille y ajouter le contexte des messages précédents. N'ajoute jamais du contexte qui n'est pas mentionné dans les messages précédents. Et n'en ajoute que quand c'est nécessaire pour que la question soit compréhensible. Si tu dois faire référence à une initiative d'un message précédent, mentionne juste son nom et son ID. Si le dernier message n'est pas assimilable à une question, alors reprends-le tel quel. Tu dois ABSOLUMENT répondre comme si tu étais l'utilisateur qui reposait sa question, il ne doit y avoir aucun commentaire de ta part.`,
+          ],
+          new MessagesPlaceholder('chat_history'),
+          ['human', '{input}'],
+        ]);
+
+        const rephrasingChain = new LLMChain({
+          llm: this.mistralaiClient
+            // Those specific settings cannot be set into the global instance directly
+            .bind({
+              // [IMPORTANT] `timeout` is not passed to the underlying Mistral client, so we had to patch the module directly with `patch-package`
+              timeout: secondsToMilliseconds(60), // It's unlikely the total call duration would take that much time, setting a limit to not block the process
+              callbacks: [
+                {
+                  handleLLMEnd: (output, runId, parentRunId?, tags?) => {
+                    if (!!output.generations[0]?.[0]?.generationInfo?.finish_reason) {
+                      rephrasingFinishReason = output.generations[0][0].generationInfo?.finish_reason;
+                    }
+
+                    if (!!output.llmOutput?.tokenUsage) {
+                      rephrasingTokenUsage = output.llmOutput.tokenUsage as unknown as TokenUsage;
+                    }
+                  },
+                },
+              ],
+            })
+            .withRetry({
+              stopAfterAttempt: 2, // This is required in addition to the `maxRetries` otherwise they are more retries than expected
+            }),
+          prompt: rephrasingPromptCanvas,
+          verbose: false,
+        });
+
+        const answer = await rephrasingChain.invoke(
+          {
+            chat_history: previousMessages,
+            input: input,
+          },
+          {
+            // Due to using chained `.bind().withRetry()` above, callbacks and others must be defined there (here they won't be called)
+          }
+        );
+
+        this.assertSuccessfulInvoke(rephrasingFinishReason, rephrasingTokenUsage);
+
+        assert(typeof answer.text === 'string');
+
+        query = answer.text;
+      } else {
+        // No history, the user query can be used directly
+        query = input;
+      }
+
       const totalDocumentsToRevealToTheUser: number = 5;
 
       // We set the instruction into a array when testing if it needs to be a monobloc texts or if a list is preferable
@@ -769,8 +819,6 @@ CONTEXTE :
         )}\` des objets JSON fournis NE SONT PAS des initiatives`,
         `tu NE DOIS PAS inventer d'initiative, et tu ne DOIS PAS non plus inventer des liens d'initiatives qui n'existent pas dans les objets JSON du contexte`,
         `fais des réponses concises (ne récite pas plusieurs fois les mêmes choses)`,
-        `si l'utilisateur te demande des détails sur une initiative que tu lui avais précédemment communiqué, il ne faut pas lui parler d'autres initiatives, demande-lui de préciser sa demande s'il te manque du contexte sur cette initiative`,
-        `quand l'utilisateur te parle sans préciser une initiative, pars du principe qu'il fait référence aux dernières initiatives que tu as cité, ne lui en propose pas celles de contexte`,
         `n'ajoute pas de note personnelle ou de commentaire à la fin de tes messages car l'utilisateur s'en moque`,
         `si l'utilisateur te demande plus de ${totalDocumentsToRevealToTheUser} initiatives, tu n'en cites au maximum que ${totalDocumentsToRevealToTheUser} (celles présentes dans le contexte). Ce n'est pas grave si tu en fournis moins que demandé, il ne faut pas inventer même si tu crois savoir`,
       ];
@@ -795,11 +843,8 @@ CONTEXTE :
 ---
 `,
         ],
-        new MessagesPlaceholder('chat_history'),
         ['human', '{input}'],
       ]);
-
-      const previousMessages = await session.history.chatHistory.getMessages();
 
       // When using a stream there is no object `tokenUsage` as for the conventional way
       // So do our own logic (it should be exactly true but maybe there is a little variation with the calculation from the remote LLM)
@@ -839,8 +884,7 @@ CONTEXTE :
         prompt: promptCanvas,
         documentSeparator: '\n',
         documentsMaximum: totalDocumentsToRevealToTheUser,
-        chatHistory: previousMessages,
-        query: input,
+        query: query,
       });
 
       const chain = await createRetrievalChain({
@@ -850,8 +894,7 @@ CONTEXTE :
 
       const stream = await chain.stream(
         {
-          chat_history: previousMessages,
-          input: input,
+          input: query,
         },
         {
           // Due to using chained `.bind().withRetry()` above, callbacks and others must be defined there (here they won't be called)
@@ -886,7 +929,7 @@ CONTEXTE :
       }
 
       // Update history in case of a next invocation
-      await session.history.chatHistory.addUserMessage(input);
+      await session.history.chatHistory.addUserMessage(input); // We add the original user message, not the `query` one that is rephrased to make the retriever better
       await session.history.chatHistory.addAIChatMessage(fullAnswer);
 
       // Truncate history for oldest messages to keep next call possible (and not too costly)
@@ -918,6 +961,28 @@ CONTEXTE :
 
     if (total === 0) {
       throw new Error('the initiatives documents must be ingested to be used by the llm system');
+    }
+  }
+
+  public assertSuccessfulInvoke(finishReason: string | null, tokenUsage: TokenUsage | null): void {
+    if (finishReason === 'length') {
+      // The model has reached its length limit
+      // The `maxTokens` property of `ChatMistralAI` indicates something important: "The token count of your prompt plus max_tokens cannot exceed the model's context length"
+      // Note: we don't want to use `maxTokens` since it caps the response tokens, and we prefer to let the LLM tells the maximum about the initiative being computed
+
+      // Just in case, we check we did configure local limit accordingly to the LLM used
+      if (tokenUsage !== null) {
+        const usage = tokenUsage as TokenUsage; // TypeScript messes up due to the assignation being into `callbacks`, it tells it's `never` without casting
+
+        if (usage.totalTokens !== undefined && usage.totalTokens > this.gptInstance.modelTokenLimit) {
+          throw new Error('the maximum model tokens length we defined locally seems to not correspond to the real model limit');
+        }
+      }
+
+      // If the settings check is fine and since we were not able to know in advance the total of the input+output length, we just throw an error so the parent can adjust the content to reduce the input length until it passes
+      throw tokensReachTheLimitError;
+    } else if (finishReason !== 'stop') {
+      throw new Error(`the generation has not completed fully according to the returned reason: ${finishReason}`);
     }
   }
 }

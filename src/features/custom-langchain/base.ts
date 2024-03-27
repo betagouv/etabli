@@ -23,7 +23,6 @@ export async function formatDocuments({
   documentSeparator,
   documents,
   documentsMaximum,
-  chatHistory,
   query,
   config,
 }: {
@@ -31,7 +30,6 @@ export async function formatDocuments({
   documentSeparator: string;
   documents: Document[];
   documentsMaximum: number;
-  chatHistory: BaseMessage[];
   query: string;
   config?: RunnableConfig;
 }) {
@@ -47,7 +45,6 @@ export async function formatDocuments({
   // so that a query with almost perfect match are on top on the list
   let rerankResults = await rankDocumentsWithCrossEncoder(
     filteredDocumentsWrappers.map(([document, score]) => document.pageContent),
-    // TODO: we did not include the chat history for searching... maybe it's necessary (if so, also check the retriever uses it). Maybe just embed 3-4 previous messages
     query
   );
 

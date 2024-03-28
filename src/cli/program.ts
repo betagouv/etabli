@@ -11,6 +11,7 @@ import {
 } from '@etabli/src/features/domain';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/src/features/llm';
+import { formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
 import {
   enhanceRepositoriesIntoDatabase,
   formatRepositoriesIntoDatabase,
@@ -27,6 +28,7 @@ program.name('etabli').description('CLI to some deal with Établi project').vers
 
 const domain = program.command('domain').description('manage domains');
 const repository = program.command('repository').alias('repo').description('manage repositories');
+const organization = program.command('organization').alias('orga').description('manage organization');
 const tool = program.command('tool').description('manage tools');
 const llm = program.command('llm').description('manage llm settings and documents');
 const model = program.command('model').description('manage pretrained models');
@@ -131,6 +133,20 @@ repository
     await saveRepositoryListFile();
     await formatRepositoriesIntoDatabase();
     await enhanceRepositoriesIntoDatabase();
+  });
+
+organization
+  .command('fetch')
+  .description('retrieve all public organization')
+  .action(async () => {
+    await saveOrganizationListFile();
+  });
+
+organization
+  .command('format')
+  .description('format organizations into the database for further analyses')
+  .action(async () => {
+    await formatOrganizationsIntoDatabase();
   });
 
 tool

@@ -1374,6 +1374,7 @@ export async function feedInitiativesFromDatabase() {
                     websites: websites,
                     repositories: repositories,
                     functionalUseCases: functionalUseCases,
+                    updateOrganizations: true,
                     ToolsOnInitiatives: {
                       deleteMany: !!existingInitiative
                         ? {
@@ -1431,6 +1432,7 @@ export async function feedInitiativesFromDatabase() {
                     websites: websites,
                     repositories: repositories,
                     functionalUseCases: functionalUseCases,
+                    updateOrganizations: true,
                     ToolsOnInitiatives: {
                       create: existingToolsInTheDatabase.map((tool) => ({ toolId: tool.id })),
                     },
@@ -1640,4 +1642,12 @@ Could you give me some context on what you are looking for?
   } finally {
     eventEmitter && eventEmitter.removeAllListeners();
   }
+}
+
+export async function updateOrganizations() {
+  // TODO: ...
+}
+
+export async function enhanceInitiativesIntoDatabase() {
+  await updateOrganizations();
 }

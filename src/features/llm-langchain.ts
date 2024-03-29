@@ -300,6 +300,13 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
                 calculatedAt: true,
               },
             },
+            OrganizationsOnInitiatives: {
+              select: {
+                // TODO:
+                // TODO: get all organization of the tree branch so they are indexed
+                // TODO:
+              },
+            },
           },
           orderBy: [
             {

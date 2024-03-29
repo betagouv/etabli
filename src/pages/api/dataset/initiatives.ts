@@ -162,6 +162,13 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
                         },
                       },
                     },
+                    OrganizationsOnInitiatives: {
+                      select: {
+                        // TODO:
+                        // TODO: get all organization of the tree branch and inject them into the CSV (either by splitting columns... or a level per line with the more precise on top?)
+                        // TODO:
+                      },
+                    },
                   },
                   orderBy: {
                     name: 'asc',

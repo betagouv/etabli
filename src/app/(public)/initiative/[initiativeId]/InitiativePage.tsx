@@ -194,6 +194,11 @@ export function InitiativePage({ params: { initiativeId } }: InitiativePageProps
             </Grid>
           </Grid>
         )}
+        {/*
+        TODO:
+        TODO: display organizations
+        TODO:
+         */}
         <Grid item xs={12}>
           <Typography component="div" variant="caption" sx={{ fontStyle: 'italic', mt: 2 }}>
             Fiche mise à jour le {t('date.longWithTime', { date: initiative.updatedAt })}

@@ -9,9 +9,14 @@ import {
   updateWebsiteDataOnDomains,
   updateWildcardCertificateOnDomains,
 } from '@etabli/src/features/domain';
-import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
+import {
+  enhanceInitiativesIntoDatabase,
+  feedInitiativesFromDatabase,
+  inferInitiativesFromDatabase,
+  runInitiativeAssistant,
+} from '@etabli/src/features/initiative';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/src/features/llm';
-import { formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
+import { enhanceOrganizationsIntoDatabase, formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
 import {
   enhanceRepositoriesIntoDatabase,
   formatRepositoriesIntoDatabase,
@@ -19,6 +24,11 @@ import {
   saveRepositoryListFile,
   updateInferredMetadataOnRepositories,
 } from '@etabli/src/features/repository';
+import {
+  enhanceRepositoryOrganizationsIntoDatabase,
+  formatRepositoryOrganizationsIntoDatabase,
+  saveRepositoryOrganizationListFile,
+} from '@etabli/src/features/repository-organization';
 import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli/src/features/tool';
 import { downloadPretrainedModels } from '@etabli/src/utils/cross-encoder';
 
@@ -28,7 +38,8 @@ program.name('etabli').description('CLI to some deal with Établi project').vers
 
 const domain = program.command('domain').description('manage domains');
 const repository = program.command('repository').alias('repo').description('manage repositories');
-const organization = program.command('organization').alias('orga').description('manage organization');
+const organization = program.command('organization').alias('orga').description('manage organizations');
+const repositoryOrganization = program.command('repository-organization').alias('repo-orga').description('manage repository organizations');
 const tool = program.command('tool').description('manage tools');
 const llm = program.command('llm').description('manage llm settings and documents');
 const model = program.command('model').description('manage pretrained models');
@@ -137,7 +148,7 @@ repository
 
 organization
   .command('fetch')
-  .description('retrieve all public organization')
+  .description('retrieve all public organizations')
   .action(async () => {
     await saveOrganizationListFile();
   });
@@ -147,6 +158,34 @@ organization
   .description('format organizations into the database for further analyses')
   .action(async () => {
     await formatOrganizationsIntoDatabase();
+  });
+
+organization
+  .command('enhance')
+  .description('do extra work to bring more organization metadata')
+  .action(async () => {
+    await enhanceOrganizationsIntoDatabase();
+  });
+
+repositoryOrganization
+  .command('fetch')
+  .description('retrieve all public repository organizations')
+  .action(async () => {
+    await saveRepositoryOrganizationListFile();
+  });
+
+repositoryOrganization
+  .command('format')
+  .description('format repository organizations into the database for further analyses')
+  .action(async () => {
+    await formatRepositoryOrganizationsIntoDatabase();
+  });
+
+repositoryOrganization
+  .command('enhance')
+  .description('do extra work to bring more organization metadata')
+  .action(async () => {
+    await enhanceRepositoryOrganizationsIntoDatabase();
   });
 
 tool
@@ -235,6 +274,13 @@ initiative
   .option('-l, --limit', 'stop feeding after a number of initatives')
   .action(async (options) => {
     await feedInitiativesFromDatabase();
+  });
+
+initiative
+  .command('enhance')
+  .description('do extra work to bring more initiative metadata')
+  .action(async () => {
+    await enhanceInitiativesIntoDatabase();
   });
 
 initiative

@@ -168,20 +168,48 @@ model RawDomain {
 }
 
 model Organization {
-  id                           String   @id @default(uuid()) @db.Uuid
-  parentOrganizationId         String?  @db.Uuid
-  level                        Int
-  dilaId                       String   @unique @db.Uuid
-  name                         String
-  domains                      String[]
-  repositoriesOrganizationUrls String[]
+  id                   String   @id @default(uuid()) @db.Uuid
+  parentOrganizationId String?  @db.Uuid
+  level                Int
+  dilaId               String   @unique @db.Uuid
+  name                 String
+  domains              String[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
 
-  parentOrganization    Organization?  @relation("ParentChildren", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
-  childrenOrganizations Organization[] @relation("ParentChildren")
+  parentOrganization                     Organization?                            @relation("ParentChildren", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
+  childrenOrganizations                  Organization[]                           @relation("ParentChildren")
+  RepositoryOrganizationsOnOrganizations RepositoryOrganizationsOnOrganizations[]
+  OrganizationsOnInitiatives             OrganizationsOnInitiatives[]
+}
+
+model RepositoryOrganizationsOnOrganizations {
+  repositoryOrganizationId String @db.Uuid
+  organizationId           String @db.Uuid
+
+  repositoryOrganization RepositoryOrganization @relation(fields: [repositoryOrganizationId], references: [id], onDelete: Cascade)
+  organization           Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([repositoryOrganizationId, organizationId])
+}
+
+model RepositoryOrganization {
+  id       String   @id @default(uuid()) @db.Uuid
+  url      String   @unique
+  entities String[]
+
+  relatedDomains       String[]
+  updateRelatedDomains Boolean  @default(true)
+
+  updateRelatedOrganizations Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  RepositoryOrganizationsOnOrganizations RepositoryOrganizationsOnOrganizations[]
 }
 
 enum ToolCategory {
@@ -306,6 +334,16 @@ model InitiativeMap {
   RawRepositoriesOnInitiativeMaps RawRepositoriesOnInitiativeMaps[]
 }
 
+model OrganizationsOnInitiatives {
+  organizationId String @db.Uuid
+  initiativeId   String @db.Uuid
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  initiative   Initiative   @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, initiativeId])
+}
+
 model Initiative {
   id                 String              @id @default(uuid()) @db.Uuid
   originId           String?             @unique @db.Uuid
@@ -315,6 +353,8 @@ model Initiative {
   repositories       String[]
   functionalUseCases FunctionalUseCase[]
 
+  updateOrganizations Boolean @default(true)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
   deletedAt DateTime?
@@ -323,4 +363,5 @@ model Initiative {
   ToolsOnInitiatives            ToolsOnInitiatives[]
   BusinessUseCasesOnInitiatives BusinessUseCasesOnInitiatives[]
   InitiativeLlmDocument         InitiativeLlmDocument?
+  OrganizationsOnInitiatives    OrganizationsOnInitiatives[]
 }

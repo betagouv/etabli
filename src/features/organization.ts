@@ -24,27 +24,44 @@ export const JsonOrganizationSchema = z
   .object({
     id: z.string().uuid(),
     nom: z.string().min(1),
-    hierarchie: z
-      .array(
-        z.object({
-          type_hierarchie: z.literal('Service Fils').or(z.literal('Autre hiérarchie')),
-          service: z.string().uuid(),
-        })
-      )
-      .nullable(),
-    site_internet: z
-      .array(
-        z.object({
-          libelle: z.string(),
-          valeur: z.preprocess((v) => {
-            // A few links are the missing protocol so using a specific library to handle this case
-            const matches = linkify.match(v as string);
+    hierarchie: z.preprocess(
+      (v: any) => {
+        // They pass it as a stringified object
+        return JSON.parse(v);
+      },
+      z
+        .array(
+          z.object({
+            type_hierarchie: z.literal('Service Fils').or(z.literal('Autre hiérarchie')),
+            service: z.string().uuid(),
+          })
+        )
+        .nullable()
+    ),
+    site_internet: z.preprocess(
+      (v: any) => {
+        // They pass it as a stringified object
+        return JSON.parse(v);
+      },
+      z
+        .array(
+          z.object({
+            libelle: z.string(),
+            valeur: z.preprocess((v) => {
+              // A few links are the missing protocol so using a specific library to handle this case
+              const matches = linkify.match(v as string);
 
-            return matches ? matches[0].url : null;
-          }, z.string().url()),
+              return matches ? matches[0].url : null; // Some domains are invalid due to having "_" so we make sure to skip them into `.transform()`
+            }, z.string().url().nullable()),
+          })
+        )
+        .transform((items) => {
+          return items.filter((items) => {
+            return !!items.valeur;
+          }) as (Omit<(typeof items)[0], 'valeur'> & { valeur: string })[]; // Adjust the type since we make sure no null URL will be present
         })
-      )
-      .nullable(),
+        .nullable()
+    ),
   })
   .strict();
 export type JsonOrganizationSchemaType = z.infer<typeof JsonOrganizationSchema>;
@@ -79,14 +96,7 @@ export async function formatOrganizationsIntoDatabase() {
 
   const jsonOrganizations = records
     .map((record: any) => {
-      console.log('-------');
-      console.log(record);
-      const jsonOrganization = JsonOrganizationSchema.parse({
-        ...record,
-        // Since they provide a few properties as stringified objects, we have to parse them (doing it with zod complicates the validation)
-        hierarchie: !!record.hierarchie ? JSON.parse(record.hierarchie) : null,
-        site_internet: !!record.site_internet ? JSON.parse(record.site_internet) : null,
-      });
+      const jsonOrganization = JsonOrganizationSchema.parse(record);
 
       // We are just looking at descendant hierarchy, we are not aware of what is "other hierarchy" despite reading their documentation
       // Ref: https://echanges.dila.gouv.fr/OPENDATA/RefOrgaAdminEtat/Documentation/Sp%C3%A9cifications-datagouv-r%C3%A9f%C3%A9rentiel-organisation-administrative-de-l-Etat_V1.1.pdf
@@ -116,22 +126,37 @@ export async function formatOrganizationsIntoDatabase() {
 
   const jsonLiteOrganizations = new Map<LiteOrganizationSchemaType['dilaId'], LiteOrganizationSchemaType>();
   jsonOrganizations.forEach((jsonOrganization) => {
-    jsonLiteOrganizations.set(
-      jsonOrganization.id,
-      LiteOrganizationSchema.parse({
-        dilaId: jsonOrganization.id,
-        parentDilaId: null,
-        level: 0,
-        name: jsonOrganization.nom,
-        domains: jsonOrganization.site_internet
-          ? jsonOrganization.site_internet.map((website) => {
+    const liteOrganization = LiteOrganizationSchema.parse({
+      dilaId: jsonOrganization.id,
+      parentDilaId: null,
+      level: 0,
+      name: jsonOrganization.nom,
+      domains: jsonOrganization.site_internet
+        ? jsonOrganization.site_internet
+            .map((website) => {
               const url = new URL(website.valeur);
+
+              // The pathname must be empty otherwise there is a risk of referencing pages that are just "presentation page" on a global website
+              // and to reference inititiatives to this "suborganization" according to the main domain whereas it should be linked to the organization of the main domain
+              if (url.pathname !== '/') {
+                return null;
+              }
 
               return url.hostname;
             })
-          : [],
-      })
-    );
+            .filter((websiteDomain) => {
+              return !!websiteDomain;
+            })
+        : [],
+    });
+
+    // If the organization has no domain to be linked to, and is also not a parent organization needed when listing children
+    // We can just skip it to reduce what's in the database (in fact, it seems to just reduce by 5 items... ridiculous)
+    if (liteOrganization.domains.length === 0 && jsonOrganization.hierarchie?.length === 0) {
+      return;
+    }
+
+    jsonLiteOrganizations.set(jsonOrganization.id, liteOrganization);
 
     if (jsonOrganization.hierarchie) {
       for (const hierarchie of jsonOrganization.hierarchie) {
@@ -155,7 +180,8 @@ export async function formatOrganizationsIntoDatabase() {
 
       child.parentDilaId = missingLink.parentId;
     } else {
-      throw new Error('the child organization should exist in the map to be bound');
+      // After checking the original dataset it's true some bindings still exist whereas the child is not listed
+      console.log(`the child organization "${missingLink.childId}" is not existing in the initial dataset, skipping this link`);
     }
   }
 
@@ -165,9 +191,6 @@ export async function formatOrganizationsIntoDatabase() {
   jsonLiteOrganizations.forEach((jsonLiteOrganization) => {
     jsonLiteOrganization.level = retrieveNestedOrganizationLevel(jsonLiteOrganizations, jsonLiteOrganization);
   });
-
-  console.log(jsonLiteOrganizations.size);
-  throw 4444;
 
   await prisma.$transaction(
     async (tx) => {
@@ -204,42 +227,68 @@ export async function formatOrganizationsIntoDatabase() {
 
       console.log(`synchronizing organizations into the database (${formatDiffResultLog(diffResult)})`);
 
+      // We make sure to delete deep children and going to the top
+      const sortedOrganizationsToDelete = diffResult.removed.sort((a, b) => {
+        return b.level - a.level;
+      });
+
       await tx.organization.deleteMany({
         where: {
           dilaId: {
-            in: diffResult.removed.map((deletedLiteOrganization) => deletedLiteOrganization.dilaId),
+            in: sortedOrganizationsToDelete.map((deletedLiteOrganization) => deletedLiteOrganization.dilaId),
           },
         },
       });
 
-      // TODO: order for delete/create/update
+      // We make sure to create top organization so deeper level can be linked to the upper level
+      const sortedOrganizationsToAdd = diffResult.added.sort((a, b) => {
+        return a.level - b.level;
+      });
 
-      await tx.organization.createMany({
-        data: diffResult.added.map((addedLiteOrganization) => {
-          return {
+      for (const addedLiteOrganization of sortedOrganizationsToAdd) {
+        watchGracefulExitInLoop();
+
+        // `createMany` cannot be used to connect the organization to its parent by using the `dilaId` (which is not the foreign key)
+        await tx.organization.create({
+          data: {
             dilaId: addedLiteOrganization.dilaId,
-            parentDilaId: addedLiteOrganization.parentDilaId,
             level: addedLiteOrganization.level,
             name: addedLiteOrganization.name,
             domains: addedLiteOrganization.domains,
-          };
-        }),
-        skipDuplicates: true,
-      });
+            parentOrganization: !!addedLiteOrganization.parentDilaId
+              ? {
+                  connect: {
+                    dilaId: addedLiteOrganization.parentDilaId,
+                  },
+                }
+              : undefined,
+          },
+          select: {
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+          },
+        });
+      }
 
       for (const updatedLiteOrganization of diffResult.updated) {
         watchGracefulExitInLoop();
 
-        const updatedOrganization = await tx.organization.update({
+        await tx.organization.update({
           where: {
             dilaId: updatedLiteOrganization.dilaId,
           },
           data: {
             dilaId: updatedLiteOrganization.dilaId,
-            parentDilaId: updatedLiteOrganization.parentDilaId,
             level: updatedLiteOrganization.level,
             name: updatedLiteOrganization.name,
             domains: updatedLiteOrganization.domains,
+            parentOrganization: {
+              connect: !!updatedLiteOrganization.parentDilaId
+                ? {
+                    dilaId: updatedLiteOrganization.parentDilaId,
+                  }
+                : undefined,
+              disconnect: !updatedLiteOrganization.parentDilaId,
+            },
           },
           select: {
             id: true, // Ref: https://github.com/prisma/prisma/issues/6252
@@ -253,3 +302,5 @@ export async function formatOrganizationsIntoDatabase() {
     }
   );
 }
+
+export async function enhanceOrganizationsIntoDatabase() {}

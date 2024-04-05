@@ -6,7 +6,7 @@
     "type": "git",
     "url": "git+https://github.com/betagouv/etabli.git"
   },
-  "license": "AGPL-3.0",
+  "license": "MIT",
   "scripts": {
     "postinstall": "patch-package",
     "dev": "only-include-used-icons && concurrently --kill-others -c \"auto\" \"npm:dev:app:command\" \"npm:dev:storybook:command\"",

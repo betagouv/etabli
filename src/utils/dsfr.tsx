@@ -63,7 +63,7 @@ export const commonFooterAttributes = {
     <>
       Sauf mention contraire, tous les contenus de ce site sont sous{' '}
       <a href="https://raw.githubusercontent.com/betagouv/etabli/main/LICENSE" target="_blank" rel="noreferrer">
-        licence AGPL-3.0
+        licence MIT
       </a>{' '}
     </>
   ),

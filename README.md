@@ -202,7 +202,7 @@ For each build and runtime (since they are shared), you should have set some env
 - `NEXT_PUBLIC_CRISP_WEBSITE_ID`: [TO_DEFINE] _(this ID is defined in your Crisp account and depends on the development or production environment)_
 - `NEXT_PUBLIC_SENTRY_DSN`: [SECRET] _(format `https://xxx.yyy.zzz/nn`)_
 - `NEXT_PUBLIC_MATOMO_URL`: [PROVIDED] _(format `https://xxx.yyy.zzz/`)_
-- `NEXT_PUBLIC_MATOMO_SITE_ID`: [GENERATED] _(format `https://xxx.yyy.zzz/`)_
+- `NEXT_PUBLIC_MATOMO_SITE_ID`: [GENERATED] _(number format)_
 
 **IMPORTANT: When building Next.js in a standalone mode the frontend `NEXT_PUBLIC_*` environement variables are hardcoded. It means you have to set them into the build environment too. For more information have a look at the build step comment into `.github/workflows/ci.yml`.**
 

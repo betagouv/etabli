@@ -22,6 +22,7 @@ USER root
 RUN apt-get update && apt-get install -y \
   "chromium" \
   "curl" \
+  "dumb-init" \
   "git" \
   "pandoc" \
   "python3-pip=${PIP_VERSION}" \
@@ -36,6 +37,9 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${CHROME_BIN}"
 
 # This one is required by Wappalyzer to launch the browser (ref: `node_modules/wappalyzer/driver.js`)
 ENV CHROMIUM_BIN="${CHROME_BIN}"
+
+# Cache "npx" dependencies to start faster
+RUN npm install -g "prisma@${PRISMA_VERSION}"
 
 # Restrict the permissions
 
@@ -82,5 +86,8 @@ ENV APP_HOST $APP_HOST
 ENV PORT $PORT
 EXPOSE $PORT
 
+# Needed to handle signals properly (due to PID 1)
+ENTRYPOINT ["dumb-init", "--"]
+
 # We use `npx` to avoid using `npm run db:migration:deploy:unsecure` since we build as standalone the entire application and we no longer want to rely application `node_modules` folder
-CMD npx --yes prisma@${PRISMA_VERSION} migrate deploy && ./start-and-wait-to-init.sh
+CMD ["bash", "-c", "npx --yes prisma@${PRISMA_VERSION} migrate deploy && exec ./start-and-wait-to-init.sh"]

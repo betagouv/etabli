@@ -65,9 +65,9 @@ function formatSecurityHeaders(nonce?: string) {
       ' '
     )};object-src 'none';script-src ${`'nonce-${nonce}'`} ${scriptSrcValues.join(' ')};script-src-attr 'none';connect-src ${connectSrcValues.join(
       ' '
-    )};style-src-elem 'unsafe-inline' ${styleSrcValues.join(' ')};style-src-attr 'self' ${libraryCompatibilityWorkaround ? "'unsafe-inline'" : ''}${
-      upgradeInsecureRequests ? ';upgrade-insecure-requests' : ''
-    }`,
+    )};style-src ${styleSrcValues.join(' ')};style-src-elem 'unsafe-inline' ${styleSrcValues.join(' ')};style-src-attr 'self' ${
+      libraryCompatibilityWorkaround ? "'unsafe-inline'" : ''
+    }${upgradeInsecureRequests ? ';upgrade-insecure-requests' : ''}`,
     'Origin-Agent-Cluster': '?1',
     'Referrer-Policy': 'no-referrer',
     'Strict-Transport-Security': 'max-age=15552000; includeSubDomains',

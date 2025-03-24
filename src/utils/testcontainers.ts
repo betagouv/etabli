@@ -15,7 +15,7 @@ export async function bindContainerLogs(container: StartedGenericContainer, opti
 }
 
 export function getContainerNameSuffix(): string {
-  return process.env.JEST_WORKER_ID !== undefined ? 'jest' : '';
+  return process.env.JEST_WORKER_ID !== undefined ? `jest_${process.env.JEST_WORKER_ID}` : '';
 }
 
 export const defaultEnvironment = {

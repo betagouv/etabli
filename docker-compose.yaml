@@ -1,5 +1,3 @@
-version: '3.5'
-
 #
 # [IMPORTANT] `container_name` properties are prefixed by the project name to avoid conflicting with other project volumes
 #

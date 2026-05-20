@@ -2,7 +2,7 @@ import { DsfrHead } from '@codegouvfr/react-dsfr/next-appdir/DsfrHead';
 import { DsfrProvider } from '@codegouvfr/react-dsfr/next-appdir/DsfrProvider';
 import { getHtmlAttributes } from '@codegouvfr/react-dsfr/next-appdir/getHtmlAttributes';
 import { withLinks } from '@storybook/addon-links';
-import { configure as testingConfigure } from '@storybook/testing-library';
+import { configure as testingConfigure } from '@storybook/test';
 import { themes } from '@storybook/theming';
 import { initialize, mswDecorator } from 'msw-storybook-addon';
 import React, { useEffect } from 'react';

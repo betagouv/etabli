@@ -1,6 +1,6 @@
 import Button from '@mui/material/Button';
 import { Meta, StoryFn } from '@storybook/react';
-import { screen, userEvent, within } from '@storybook/testing-library';
+import { screen, userEvent, within } from '@storybook/test';
 import { useState } from 'react';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';

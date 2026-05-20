@@ -1,5 +1,5 @@
 import { Meta, StoryFn } from '@storybook/react';
-import { within } from '@storybook/testing-library';
+import { within } from '@storybook/test';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { CsvViewer } from '@etabli/src/components/CsvViewer';

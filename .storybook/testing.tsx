@@ -1,5 +1,5 @@
 import { DecoratorFn } from '@storybook/react';
-import { within } from '@storybook/testing-library';
+import { within } from '@storybook/test';
 import React from 'react';
 
 export const userAgentNameToBeDetected = 'StorybookTestRunner';

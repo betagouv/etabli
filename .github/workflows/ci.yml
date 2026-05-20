@@ -13,6 +13,7 @@ env:
   NODE_VERSION: 22.22.3
   RUBY_VERSION: 3.2.2
   PYTHON_VERSION: 3.10.4
+  JEST_CACHE_FOLDER_SUFFIX: .cache/jest
   PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX: .cache/ms-playwright
 concurrency:
   # Prevent parallel builds of the same branch
@@ -125,7 +126,14 @@ jobs:
         if: ${{ env.ACT }}
         run: sudo apt-get update && sudo apt-get install -y xvfb && npm run playwright install-deps chromium
 
+      - name: Get number of CPU cores for the following test step
+        uses: SimenB/github-actions-cpu-cores@v2
+        id: cpu-cores
+
       - name: Test unit
+        env:
+          JEST_CACHE_PATH: ${{ env.STORE_PATH }}/${{ env.JEST_CACHE_FOLDER_SUFFIX }}
+          JEST_MAX_WORKERS: ${{ steps.cpu-cores.outputs.count }}
         run: make test-unit
 
       - name: Build
@@ -151,6 +159,7 @@ jobs:
       - name: Test end-to-end
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ env.STORE_PATH }}/${{ env.PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX }}
+          JEST_MAX_WORKERS: ${{ steps.cpu-cores.outputs.count }}
         run: make test-e2e
 
       # # Disabled since too long, need to consider if our Storybook e2e tests are sufficient

@@ -8,6 +8,20 @@ import { initiativePrismaToModel } from '@etabli/src/server/routers/mappers';
 import { publicProcedure, router } from '@etabli/src/server/trpc';
 import { paginate } from '@etabli/src/utils/page';
 
+// Reciprocal Rank Fusion: each ID list contributes 1/(k + rank); higher combined score wins.
+// k=60 is the value from the original Cormack et al. paper, widely used as a sensible default
+function reciprocalRankFusion(rankedLists: string[][], k = 60): string[] {
+  const scores = new Map<string, number>();
+
+  for (const list of rankedLists) {
+    list.forEach((id, index) => {
+      scores.set(id, (scores.get(id) ?? 0) + 1 / (k + index + 1));
+    });
+  }
+
+  return [...scores.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
+}
+
 export const initiativeRouter = router({
   getInitiative: publicProcedure.input(GetInitiativeSchema).query(async ({ ctx, input }) => {
     const initiative = await prisma.initiative.findUnique({
@@ -49,82 +63,89 @@ export const initiativeRouter = router({
     };
   }),
   listInitiatives: publicProcedure.input(ListInitiativesSchema).query(async ({ ctx, input }) => {
-    // TODO: for when implementing filters on associations
-    const where: Prisma.InitiativeWhereInput = {};
+    const extraWhere: Prisma.InitiativeWhereInput = {};
 
-    let homemadePaginationInitiativeIds: string[] | null = null;
-    let homemadePaginationTotalCount: number | null = null;
+    const includeRelations = {
+      ToolsOnInitiatives: { include: { tool: { select: { name: true } } } },
+      BusinessUseCasesOnInitiatives: { include: { businessUseCase: { select: { name: true } } } },
+    } satisfies Prisma.InitiativeInclude;
 
-    if (!!input.filterBy.query) {
-      // Restrict the search, the pagination will work as expected
-      const matchingInitiativesIds = await llmManagerInstance.getInitiativesFromQuery(input.filterBy.query);
-      const currentPageInitiativesIds = paginate(matchingInitiativesIds, input.pageSize, input.page);
+    // Hybrid search: when a query is provided we combine semantic embeddings with a lexical scan and merge
+    // the two ranked lists with Reciprocal Rank Fusion — exact name/keyword matches stay near the top
+    // while embeddings still surface conceptually-related items.
+    if (input.filterBy.query) {
+      const trimmedQuery = input.filterBy.query.trim();
 
-      homemadePaginationInitiativeIds = currentPageInitiativesIds;
-      homemadePaginationTotalCount = matchingInitiativesIds.length;
+      const [embeddingIds, lexicalNameMatches] = await Promise.all([
+        llmManagerInstance.getInitiativesFromQuery(trimmedQuery),
+        prisma.initiative.findMany({
+          where: { name: { contains: trimmedQuery, mode: 'insensitive' } },
+          select: { id: true },
+          orderBy: { name: 'asc' },
+          take: 100,
+        }),
+      ]);
+      const lexicalNameIds = lexicalNameMatches.map((m) => m.id);
 
-      where.id = {
-        in: homemadePaginationInitiativeIds,
+      const lexicalDescriptionMatches = await prisma.initiative.findMany({
+        where: {
+          description: { contains: trimmedQuery, mode: 'insensitive' },
+          id: { notIn: lexicalNameIds.length > 0 ? lexicalNameIds : undefined },
+        },
+        select: { id: true },
+        orderBy: { name: 'asc' },
+        take: 100,
+      });
+      const lexicalIds = [...lexicalNameIds, ...lexicalDescriptionMatches.map((m) => m.id)];
+
+      const rankedIds = reciprocalRankFusion([embeddingIds, lexicalIds]);
+
+      // Apply the extra filters to the candidate set to get the final filtered, ranked ID list — needed for
+      // an accurate total count before we paginate in memory.
+      let filteredIds = rankedIds;
+      if (rankedIds.length > 0 && extraFilters.length > 0) {
+        const kept = await prisma.initiative.findMany({
+          where: { AND: [{ id: { in: rankedIds } }, extraWhere] },
+          select: { id: true },
+        });
+        const keptSet = new Set(kept.map((k) => k.id));
+        filteredIds = rankedIds.filter((id) => keptSet.has(id));
+      }
+
+      const totalCount = filteredIds.length;
+      const pageInitiativeIds = paginate(filteredIds, input.pageSize, input.page);
+
+      const initiatives = await prisma.initiative.findMany({
+        where: { id: { in: pageInitiativeIds } },
+        include: includeRelations,
+      });
+
+      // Prisma cannot order by a given list, so we re-sort in memory to preserve the RRF ranking
+      // See https://github.com/prisma/prisma/issues/11336#issuecomment-1986031261
+      initiatives.sort((a, b) => pageInitiativeIds.indexOf(a.id) - pageInitiativeIds.indexOf(b.id));
+
+      return {
+        initiatives: initiatives.map((initiative) =>
+          initiativePrismaToModel({
+            ...initiative,
+            businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
+            tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+          })
+        ),
+        totalCount,
       };
     }
 
-    // We do a transaction to get along the total count
-    // Refs:
-    // - https://github.com/prisma/prisma/issues/7550
-    // - https://github.com/prisma/prisma/discussions/3087
-    //
-    // ---
-    // Prisma has a limitation to order by a given list (https://github.com/prisma/prisma/issues/11336#issuecomment-1986031261) and cannot only use a `whereRaw` to work around
-    // The first possibility would be to switch to a full raw query, but it's more complicated for typings and `include`... so we decided to do it in multiple steps to preverse the Prisma usage
-    // Note: in case of a full raw query we would just kept the original code and enable the logs debug mode to have 90% of the raw query written, and using a where with something like `ORDER BY array_position(ARRAY[1, 2, 3]::uuid[], table_name.id::uuid)`
-    let [initiatives, totalCount] = await prisma.$transaction([
+    const [initiatives, totalCount] = await prisma.$transaction([
       prisma.initiative.findMany({
-        where: where,
-        include: {
-          ToolsOnInitiatives: {
-            include: {
-              tool: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-          BusinessUseCasesOnInitiatives: {
-            include: {
-              businessUseCase: {
-                select: {
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-        ...(!!homemadePaginationInitiativeIds
-          ? {
-              // The pagination is done before this, and sorting will be done after
-            }
-          : {
-              orderBy: {
-                name: 'asc',
-              },
-              skip: (input.page - 1) * input.pageSize,
-              take: input.pageSize,
-            }),
+        where: extraWhere,
+        include: includeRelations,
+        orderBy: { name: 'asc' },
+        skip: (input.page - 1) * input.pageSize,
+        take: input.pageSize,
       }),
-      ...(homemadePaginationTotalCount !== null ? [] : [prisma.initiative.count({ where: where })]),
+      prisma.initiative.count({ where: extraWhere }),
     ]);
-
-    if (totalCount === undefined && homemadePaginationTotalCount !== null) {
-      totalCount = homemadePaginationTotalCount;
-    }
-
-    if (!!homemadePaginationInitiativeIds) {
-      // As explained above we need to sort them since Prisma does not handle this, in the order returned by the LLM instance since IDs are initially sorted by relevance score
-      initiatives = initiatives.sort((a, b) => {
-        return (homemadePaginationInitiativeIds as string[]).indexOf(a.id) - (homemadePaginationInitiativeIds as string[]).indexOf(b.id);
-      });
-    }
 
     return {
       initiatives: initiatives.map((initiative) =>

@@ -38,46 +38,45 @@ export default async function Page(props: InitiativePageProps) {
 
   const userAgentObject = userAgent({ headers: headers() });
 
-  // Since this page has a dynamic pathname and the data is fetched from the frontend we add a condition so search engines
-  // still have content to index in case they don't do client rendering with `puppeteer` or equivalent
+  const idResult = GetInitiativeSchema.shape.id.safeParse(props.params.initiativeId);
+  if (!idResult.success) {
+    return notFound();
+  }
+
+  const dbInitiative = await prisma.initiative.findUnique({
+    where: {
+      id: idResult.data,
+    },
+    include: {
+      ToolsOnInitiatives: {
+        include: {
+          tool: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+      BusinessUseCasesOnInitiatives: {
+        include: {
+          businessUseCase: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!dbInitiative) {
+    return notFound();
+  }
+
+  // Since this page has a dynamic pathname and the data is fetched from the frontend, we provide JSON-LD for
+  // crawlers that don't run client-side rendering (puppeteer & co).
   let initiativeJsonLd: WithContext<CreativeWork> | null = null;
   if (userAgentObject.isBot) {
-    const result = GetInitiativeSchema.shape.id.safeParse(props.params.initiativeId);
-    if (!result.success) {
-      return notFound();
-    }
-
-    // We rely on the UUID validation from `generateMetadata()`
-    const dbInitiative = await prisma.initiative.findUnique({
-      where: {
-        id: result.data,
-      },
-      include: {
-        ToolsOnInitiatives: {
-          include: {
-            tool: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-        BusinessUseCasesOnInitiatives: {
-          include: {
-            businessUseCase: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!dbInitiative) {
-      return notFound();
-    }
-
     const initiative = initiativePrismaToModel({
       ...dbInitiative,
       businessUseCases: dbInitiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),

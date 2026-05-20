@@ -22,7 +22,7 @@
     "build:app:test": "only-include-used-icons && npm run build:app:test:command",
     "build:app:test:command": "dotenv-run-script .env.test && npm run db:schema:compile && next build",
     "build:storybook": "only-include-used-icons && npm run build:storybook:command",
-    "build:storybook:command": "storybook build",
+    "build:storybook:command": "storybook build --test",
     "start:test": "concurrently --kill-others -c \"auto\" \"npm:start:app:test\" \"npm:start:storybook\"",
     "start": "concurrently --kill-others -c \"auto\" \"npm:start:app\" \"npm:start:storybook\"",
     "start:app:test": "dotenv-run-script .env.test -- start:app",

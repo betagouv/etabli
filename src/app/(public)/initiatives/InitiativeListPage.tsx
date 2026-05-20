@@ -1,12 +1,19 @@
 'use client';
 
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import ClearIcon from '@mui/icons-material/Clear';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import GridViewIcon from '@mui/icons-material/GridView';
 import SearchIcon from '@mui/icons-material/Search';
 import TableRowsIcon from '@mui/icons-material/TableRows';
+import Alert from '@mui/material/Alert';
+import Badge from '@mui/material/Badge';
+import Button from '@mui/material/Button';
 import Grid, { GridProps } from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
+import Link from '@mui/material/Link';
+import Stack from '@mui/material/Stack';
 import TablePagination from '@mui/material/TablePagination';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
@@ -14,16 +21,26 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import { push } from '@socialgouv/matomo-next';
 import debounce from 'lodash.debounce';
+import NextLink from 'next/link';
+import { parseAsArrayOf, parseAsBoolean, parseAsInteger, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { usePrevious, useUpdateEffect } from 'react-use';
 
 import { trpc } from '@etabli/src/client/trpcClient';
 import { ErrorAlert } from '@etabli/src/components/ErrorAlert';
+import {
+  InitiativeFiltersModal,
+  InitiativeFiltersValue,
+  countActiveFilters,
+  emptyInitiativeFilters,
+} from '@etabli/src/components/InitiativeFiltersModal';
 import { InitiativeList } from '@etabli/src/components/InitiativeList';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
 import { PaginationSize } from '@etabli/src/models/actions/common';
+import { FunctionalUseCaseSchema } from '@etabli/src/models/entities/initiative';
 import { ListDisplay, useLocalStorageListDisplay } from '@etabli/src/utils/display';
 import { centeredAlertContainerGridProps, wideContainerGridProps } from '@etabli/src/utils/grid';
+import { linkRegistry } from '@etabli/src/utils/routes/registry';
 import { AggregatedQueries } from '@etabli/src/utils/trpc';
 
 export enum ListFilter {
@@ -48,62 +65,106 @@ export interface InitiativeListPageProps {}
 export function InitiativeListPage(props: InitiativeListPageProps) {
   const { ContextualInitiativeList } = useContext(InitiativeListPageContext);
 
+  const assistantPath = linkRegistry.get('assistant', undefined);
+
+  const [params, setParams] = useQueryStates(
+    {
+      q: parseAsString.withDefault(''),
+      fnc: parseAsArrayOf(parseAsStringLiteral(FunctionalUseCaseSchema.options)).withDefault([]),
+      tools: parseAsArrayOf(parseAsString).withDefault([]),
+      hasWeb: parseAsBoolean.withDefault(false),
+      hasRepo: parseAsBoolean.withDefault(false),
+      page: parseAsInteger.withDefault(1),
+    },
+    { history: 'push', clearOnDefault: true }
+  );
+
+  const filtersValue: InitiativeFiltersValue = useMemo(
+    () => ({
+      functionalUseCases: params.fnc,
+      toolIds: params.tools,
+      hasWebsite: params.hasWeb,
+      hasRepository: params.hasRepo,
+    }),
+    [params.fnc, params.tools, params.hasWeb, params.hasRepo]
+  );
+
+  const activeFiltersCount = countActiveFilters(filtersValue);
+  const hasSearchQuery = params.q.trim().length > 0;
+  const hasAnyCriterion = hasSearchQuery || activeFiltersCount > 0;
+
   const queryRef = React.createRef<HTMLInputElement>();
   const [searchQueryManipulated, setSearchQueryManipulated] = useState(false);
-  const [searchQuery, setSearchQuery] = useState<string | null>(null);
+  const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [listDisplay, setListDisplay] = useLocalStorageListDisplay();
-  const [currentPage, setCurrentPage] = useState<number>(1);
   const [possiblePageSizes] = useState<PaginationSize[]>(() => [PaginationSize.size10, PaginationSize.size25, PaginationSize.size50]);
   const [pageSize, setPageSize] = useState<PaginationSize>(() => possiblePageSizes[0]);
-  const prevCurrentPage = usePrevious(currentPage);
+  const prevPage = usePrevious(params.page);
 
   const listInitiatives = trpc.listInitiatives.useQuery({
-    page: currentPage,
+    page: params.page,
     pageSize: pageSize,
     orderBy: {},
     filterBy: {
-      query: searchQuery,
+      query: hasSearchQuery ? params.q : null,
+      functionalUseCases: params.fnc.length > 0 ? params.fnc : undefined,
+      toolIds: params.tools.length > 0 ? params.tools : undefined,
+      hasWebsite: params.hasWeb || undefined,
+      hasRepository: params.hasRepo || undefined,
     },
   });
 
   useUpdateEffect(() => {
-    if (!searchQuery) {
+    if (!hasSearchQuery) {
       return;
     }
 
     // If the query is different, track the new search (without the query)
-    push(['trackEvent', 'directory', 'search', 'words', searchQuery.split(' ').length]);
-  }, [searchQuery]);
+    push(['trackEvent', 'directory', 'search', 'words', params.q.split(' ').length]);
+  }, [params.q]);
 
   useUpdateEffect(() => {
     // [WORKAROUND] For whatever reason it triggers at start despite `setCurrentPage` not being called, so have to compare the value to avoid this
-    if (prevCurrentPage === undefined || prevCurrentPage === currentPage) {
+    if (prevPage === undefined || prevPage === params.page) {
       return;
     }
 
-    push(['trackEvent', 'directory', 'changePage', 'number', currentPage]);
-  }, [currentPage, prevCurrentPage]);
+    push(['trackEvent', 'directory', 'changePage', 'number', params.page]);
+  }, [params.page, prevPage]);
 
   const aggregatedQueries = new AggregatedQueries(listInitiatives);
 
   const handleSearchQueryChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       // If this is a new query, perform necessary changes
-      if (event.target.value !== searchQuery) {
+      const next = event.target.value;
+      if (next !== params.q) {
         setSearchQueryManipulated(true);
-        setSearchQuery(event.target.value);
-        setCurrentPage(1); // Since the new query may have less total items than the current search, we bring back the user to the behinning of the pagination
+
+        // Reset to page 1 since the new query may yield a much smaller total set.
+        setParams({ q: next || null, page: 1 });
       }
     },
-    [searchQuery, setSearchQueryManipulated, setSearchQuery, setCurrentPage]
+    [params.q, setParams]
   );
 
-  const debounedHandleClearQuery = useMemo(() => debounce(handleSearchQueryChange, 1200), [handleSearchQueryChange]); // We wait more than the usual `500ms` because it reaches the LLM system to embed the query and we must comply with the rate limit for this
+  const debouncedSearchChange = useMemo(
+    () => debounce(handleSearchQueryChange, 1200), // longer than usual: the query hits the LLM and we throttle to the LLM rate limit.
+    [handleSearchQueryChange]
+  );
   useEffect(() => {
     return () => {
-      debounedHandleClearQuery.cancel();
+      debouncedSearchChange.cancel();
     };
-  }, [debounedHandleClearQuery]);
+  }, [debouncedSearchChange]);
+
+  // The input is uncontrolled (debounce-friendly) so when the URL `q` changes from outside (browser back,
+  // explore deep-link, "Réinitialiser"…) we need to push the new value back into the DOM input.
+  useEffect(() => {
+    if (queryRef.current && queryRef.current.value !== params.q) {
+      queryRef.current.value = params.q;
+    }
+  }, [params.q, queryRef]);
 
   const { initiatives, pagesCount, totalCount } = useMemo(() => {
     return !!listInitiatives.data
@@ -122,10 +183,10 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
   // Adjust the page in case the server removes some items in the meantime
   // Note: we make sure it does not apply when loading another page since values are reset
   useEffect(() => {
-    if (pagesCount && currentPage > pagesCount) {
-      setCurrentPage(pagesCount);
+    if (pagesCount && params.page > pagesCount) {
+      setParams({ page: pagesCount });
     }
-  }, [pagesCount, currentPage]);
+  }, [pagesCount, params.page, setParams]);
 
   if (aggregatedQueries.hasError) {
     return (
@@ -138,24 +199,42 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
   }
 
   const handleClearQuery = () => {
-    setSearchQuery(null);
-
-    // We did not bind the TextField to "searchQuery" to allow delaying requests
+    setParams({ q: null, page: 1 });
     if (queryRef.current) {
       queryRef.current.value = '';
     }
   };
 
+  const applyFilters = (next: InitiativeFiltersValue) => {
+    setParams({
+      fnc: next.functionalUseCases.length > 0 ? next.functionalUseCases : null,
+      tools: next.toolIds.length > 0 ? next.toolIds : null,
+      hasWeb: next.hasWebsite ? true : null,
+      hasRepo: next.hasRepository ? true : null,
+      page: 1,
+    });
+    setFiltersModalOpen(false);
+  };
+
+  const resetFilters = () => {
+    setParams({ fnc: null, tools: null, hasWeb: null, hasRepo: null, page: 1 });
+  };
+
+  const onLastPage = pagesCount !== null && pagesCount > 1 && params.page === pagesCount;
+  const hasResults = initiatives.length > 0;
+  const noResultsWithCriteria = !hasResults && hasAnyCriterion;
+
+  const assistantLink = (
+    <Link component={NextLink} href={assistantPath} underline="hover">
+      en parler à notre assistant
+    </Link>
+  );
+
   return (
     <>
       <Grid container sx={{ ...wideContainerGridProps.sx, px: 0 }} direction="column" alignContent="flex-start">
         <Grid item sx={{ width: '100%' }}>
-          <Grid
-            container
-            sx={{
-              ...reusableCentering,
-            }}
-          >
+          <Grid container sx={reusableCentering}>
             <Grid item xs={12} sx={{ pb: 3 }}>
               <Typography component="h1" variant="h5">
                 Annuaire des initiatives
@@ -167,7 +246,8 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                 name="search"
                 placeholder="Rechercher... (que ce soit un nom, un outil, un cas d'utilisation)"
                 inputRef={queryRef}
-                onChange={debounedHandleClearQuery}
+                defaultValue={params.q}
+                onChange={debouncedSearchChange}
                 fullWidth
                 InputProps={{
                   startAdornment: (
@@ -177,7 +257,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                   ),
                   endAdornment: (
                     <InputAdornment position="end">
-                      {searchQuery && searchQuery !== '' && (
+                      {hasSearchQuery && (
                         <IconButton aria-label="effacer la recherche" onClick={handleClearQuery}>
                           <ClearIcon />
                         </IconButton>
@@ -192,14 +272,31 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
         {!listInitiatives.isLoading ? (
           <>
             <Grid item sx={{ width: '100%' }}>
-              <Grid
-                container
-                sx={{
-                  ...reusableCentering,
-                }}
-              >
+              <Grid container sx={reusableCentering}>
                 <Grid item xs={12} sx={{ py: 1 }}>
-                  <Grid container spacing={1} alignContent="flex-start">
+                  <Grid container spacing={1} alignContent="flex-start" alignItems="center">
+                    <Grid item>
+                      <Button
+                        variant={activeFiltersCount > 0 ? 'contained' : 'outlined'}
+                        color="primary"
+                        startIcon={
+                          <Badge color="error" badgeContent={activeFiltersCount} invisible={activeFiltersCount === 0}>
+                            <FilterListIcon />
+                          </Badge>
+                        }
+                        onClick={() => setFiltersModalOpen(true)}
+                        sx={{ height: 40 }} // align with the ToggleButtonGroup on the right (MUI Button medium is ~36px, ToggleButton medium is ~40px).
+                      >
+                        Filtres
+                      </Button>
+                    </Grid>
+                    {activeFiltersCount > 0 && (
+                      <Grid item>
+                        <Button variant="text" size="small" onClick={resetFilters}>
+                          Réinitialiser
+                        </Button>
+                      </Grid>
+                    )}
                     <Grid item sx={{ ml: 'auto' }}>
                       <ToggleButtonGroup
                         color="primary"
@@ -224,66 +321,69 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                 </Grid>
               </Grid>
             </Grid>
-            {initiatives.length ? (
+            {hasResults ? (
               <Grid item sx={{ width: '100%' }}>
                 <Grid container direction="column">
                   <Grid
                     container
                     sx={
-                      // We changed the whole page logic to have a wide display when displaying the table (otherwise it was too compact)
                       listDisplay === ListDisplay.TABLE
-                        ? {
-                            ...reusableCentering,
-                            // width:
-                            maxWidth: 1600, // Override the default `lg` value
-                          }
-                        : {
-                            ...reusableCentering,
-                          }
+                        ? { ...reusableCentering, maxWidth: 1600 } // wider table layout — `lg` was too cramped.
+                        : reusableCentering
                     }
                   >
                     <ContextualInitiativeList initiatives={initiatives} display={listDisplay} />
                   </Grid>
-                  <Grid
-                    container
-                    justifyContent="end"
-                    sx={{
-                      ...reusableCentering,
-                    }}
-                  >
+                  {onLastPage && (
+                    <Grid container sx={reusableCentering}>
+                      <Grid item xs={12} sx={{ mt: 3 }}>
+                        <Alert severity="info">
+                          Vous n&apos;avez pas trouvé&nbsp;? Préciser votre recherche, ajouter des filtres ou {assistantLink} peut aider.
+                        </Alert>
+                      </Grid>
+                    </Grid>
+                  )}
+                  <Grid container justifyContent="end" sx={reusableCentering}>
                     <TablePagination
                       component="div"
                       rowsPerPageOptions={possiblePageSizes}
                       count={totalCount}
                       rowsPerPage={pageSize}
-                      page={currentPage - 1} // Starting at 0
+                      page={params.page - 1}
                       onPageChange={(event, pageNumber) => {
-                        setCurrentPage(pageNumber + 1);
+                        setParams({ page: pageNumber + 1 });
                       }}
                       onRowsPerPageChange={(event) => {
                         setPageSize(event.target.value as unknown as PaginationSize);
                       }}
-                      sx={{
-                        mt: 3,
-                      }}
+                      sx={{ mt: 3 }}
                     />
                   </Grid>
                 </Grid>
               </Grid>
             ) : (
               <Grid item sx={{ width: '100%' }}>
-                <Grid
-                  container
-                  sx={{
-                    ...reusableCentering,
-                  }}
-                >
+                <Grid container sx={reusableCentering}>
                   <Grid item xs={12} sx={{ py: 2 }}>
-                    <Typography variant="body2">
-                      {initiatives.length === 0 && (!searchQuery || searchQuery === '')
-                        ? `Aucune initiative n'a été indexée pour le moment`
-                        : 'Aucune initiative trouvée pour la recherche spécifiée'}
-                    </Typography>
+                    {!noResultsWithCriteria ? (
+                      <Typography variant="body2">Aucune initiative n&apos;a été indexée pour le moment</Typography>
+                    ) : (
+                      <Alert severity="info">
+                        <Typography variant="body2" sx={{ mb: 1 }}>
+                          Aucune initiative ne correspond à votre recherche ou à vos filtres.
+                        </Typography>
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ mt: 1 }}>
+                          {activeFiltersCount > 0 && (
+                            <Button size="small" variant="outlined" onClick={resetFilters}>
+                              Retirer les filtres
+                            </Button>
+                          )}
+                          <Button size="small" variant="contained" component={NextLink} href={assistantPath} startIcon={<ChatBubbleOutlineIcon />}>
+                            Parler à l&apos;assistant
+                          </Button>
+                        </Stack>
+                      </Alert>
+                    )}
                   </Grid>
                 </Grid>
               </Grid>
@@ -293,6 +393,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
           <LoadingArea ariaLabelTarget="liste des initiatives" />
         )}
       </Grid>
+      <InitiativeFiltersModal open={filtersModalOpen} value={filtersValue} onClose={() => setFiltersModalOpen(false)} onApply={applyFilters} />
     </>
   );
 }

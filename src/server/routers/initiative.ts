@@ -23,6 +23,15 @@ function reciprocalRankFusion(rankedLists: string[][], k = 60): string[] {
 }
 
 export const initiativeRouter = router({
+  listTools: publicProcedure.query(async () => {
+    const tools = await prisma.tool.findMany({
+      where: { deletedAt: null },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+
+    return { tools };
+  }),
   getInitiative: publicProcedure.input(GetInitiativeSchema).query(async ({ ctx, input }) => {
     const initiative = await prisma.initiative.findUnique({
       where: {
@@ -63,7 +72,21 @@ export const initiativeRouter = router({
     };
   }),
   listInitiatives: publicProcedure.input(ListInitiativesSchema).query(async ({ ctx, input }) => {
-    const extraWhere: Prisma.InitiativeWhereInput = {};
+    const extraFilters: Prisma.InitiativeWhereInput[] = [];
+    if (input.filterBy.functionalUseCases && input.filterBy.functionalUseCases.length > 0) {
+      extraFilters.push({ functionalUseCases: { hasSome: input.filterBy.functionalUseCases } });
+    }
+    if (input.filterBy.toolIds && input.filterBy.toolIds.length > 0) {
+      extraFilters.push({ ToolsOnInitiatives: { some: { toolId: { in: input.filterBy.toolIds } } } });
+    }
+    if (input.filterBy.hasWebsite === true) {
+      extraFilters.push({ NOT: { websites: { isEmpty: true } } });
+    }
+    if (input.filterBy.hasRepository === true) {
+      extraFilters.push({ NOT: { repositories: { isEmpty: true } } });
+    }
+
+    const extraWhere: Prisma.InitiativeWhereInput = extraFilters.length > 0 ? { AND: extraFilters } : {};
 
     const includeRelations = {
       ToolsOnInitiatives: { include: { tool: { select: { name: true } } } },

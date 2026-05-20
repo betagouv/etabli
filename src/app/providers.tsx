@@ -4,6 +4,7 @@ import createCache from '@emotion/cache';
 import { CacheProvider } from '@emotion/react';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { PropsWithChildren, createContext, useContext } from 'react';
 import { I18nextProvider } from 'react-i18next';
 
@@ -34,7 +35,9 @@ export function Providers(props: PropsWithChildren<ProvidersProps>) {
       <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateFnsLocales[i18n.language]}>
         <ClientProvider>
           <I18nextProvider i18n={i18n}>
-            <ModalProvider>{props.children}</ModalProvider>
+            <NuqsAdapter>
+              <ModalProvider>{props.children}</ModalProvider>
+            </NuqsAdapter>
           </I18nextProvider>
         </ClientProvider>
       </LocalizationProvider>

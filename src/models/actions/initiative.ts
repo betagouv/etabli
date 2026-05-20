@@ -1,7 +1,7 @@
 import z from 'zod';
 
 import { GetterInputSchema } from '@etabli/src/models/actions/common';
-import { InitiativeSchema } from '@etabli/src/models/entities/initiative';
+import { FunctionalUseCaseSchema, InitiativeSchema } from '@etabli/src/models/entities/initiative';
 
 export const GetInitiativeSchema = z
   .object({
@@ -13,6 +13,10 @@ export type GetInitiativeSchemaType = z.infer<typeof GetInitiativeSchema>;
 export const ListInitiativesSchema = GetterInputSchema.extend({
   filterBy: z.object({
     query: z.string().nullable(),
+    functionalUseCases: z.array(FunctionalUseCaseSchema).optional(),
+    toolIds: z.array(z.string().uuid()).optional(),
+    hasWebsite: z.boolean().optional(),
+    hasRepository: z.boolean().optional(),
   }),
 }).strict();
 export type ListInitiativesSchemaType = z.infer<typeof ListInitiativesSchema>;

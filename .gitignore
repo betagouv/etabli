@@ -15,6 +15,9 @@ out/
 build/
 dist/
 
+# prisma generated client
+/src/generated/
+
 # sentry
 /.sentryclirc
 /sentry.properties

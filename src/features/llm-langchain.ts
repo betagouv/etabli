@@ -3,7 +3,6 @@ import { TokenUsage } from '@langchain/core/language_models/base';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { ChainValues } from '@langchain/core/utils/types';
 import { ChatMistralAI, MistralAIEmbeddings } from '@langchain/mistralai';
-import { InitiativeLlmDocument, Prisma, Settings, ToolLlmDocument } from '@prisma/client';
 import assert from 'assert';
 import { CronJob } from 'cron';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
@@ -26,6 +25,7 @@ import {
   extractFirstTypescriptCodeContentFromMarkdown,
   filterWithScoreThreshold,
 } from '@etabli/src/features/llm';
+import { InitiativeLlmDocument, Prisma, Settings, ToolLlmDocument } from '@etabli/src/generated/prisma/client';
 import { gptInstances, gptSeed } from '@etabli/src/gpt';
 import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
 import { getServerTranslation } from '@etabli/src/i18n';
@@ -312,16 +312,8 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
           throw new Error('it seems no initiative has been computed, which is required to export them to the llm system');
         }
 
-        // Note: the deletion should be handled by the `onCascade` constraint but leaving it for record
-        // Also, for tools with used `notId` but it was not working with too many items (https://github.com/prisma/prisma/issues/12499#issuecomment-2009179865)
-        await tx.initiativeLlmDocument.deleteMany({
-          where: {
-            initiative: {
-              is: null,
-            },
-          },
-        });
-
+        // Orphan documents are removed via the schema-level `onDelete: Cascade` on the `initiative`
+        // relation — and since `initiativeId` is non-nullable, the relation can never actually be null.
         const initiativeDocumentsToCalculate: InitiativeLlmDocument[] = [];
 
         for (const initiative of initiatives) {

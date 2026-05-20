@@ -1,5 +1,4 @@
 import { input } from '@inquirer/prompts';
-import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@prisma/client';
 import * as Sentry from '@sentry/nextjs';
 import assert from 'assert';
 import { eachOfLimit } from 'async';
@@ -29,6 +28,7 @@ import Wappalyzer from 'wappalyzer';
 import manifestsEndingPatterns from '@etabli/src/bibliothecary/manifests-patterns.json';
 import { ChunkEventEmitter, llmManagerInstance } from '@etabli/src/features/llm';
 import { hasProbableGenericDomain } from '@etabli/src/features/repository';
+import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@etabli/src/generated/prisma/client';
 import {
   InitiativeTemplateSchema,
   RepositoryTemplateSchema,

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@etabli/src/generated/prisma/client';
 
 export async function seedProductionDataIntoDatabase(prismaClient: PrismaClient) {
   // ...

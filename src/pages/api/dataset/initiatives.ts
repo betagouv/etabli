@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import contentDisposition from 'content-disposition';
 import { differenceInDays } from 'date-fns/differenceInDays';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
@@ -10,6 +9,7 @@ import path from 'path';
 import { Readable, Transform, pipeline } from 'stream';
 import { z } from 'zod';
 
+import { Prisma } from '@etabli/src/generated/prisma/client';
 import { getServerTranslation } from '@etabli/src/i18n';
 import { DatasetInitiativeSchemaType, FunctionalUseCaseSchemaType } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma/client';

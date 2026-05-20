@@ -8,7 +8,7 @@
   },
   "license": "MIT",
   "scripts": {
-    "postinstall": "patch-package",
+    "postinstall": "patch-package && prisma generate",
     "dev": "only-include-used-icons && concurrently --kill-others -c \"auto\" \"npm:dev:app:command\" \"npm:dev:storybook:command\"",
     "dev:app": "only-include-used-icons && npm run dev:app:command",
     "dev:app:command": "dotenv-run-script .env.test -- dev:app:command:unsecure",
@@ -75,10 +75,6 @@
     "playwright": "playwright",
     "jest": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
   },
-  "prisma": {
-    "schema": "src/prisma/schema.prisma",
-    "seed": "tsx --tsconfig ./tsx-fallback.json src/prisma/seed.script.ts"
-  },
   "dependencies": {
     "@codegouvfr/react-dsfr": "1.5.2",
     "@commander-js/extra-typings": "^11.1.0",
@@ -93,7 +89,8 @@
     "@mui/material": "^5.15.10",
     "@mui/x-data-grid": "^6.19.4",
     "@mui/x-date-pickers": "^6.19.4",
-    "@prisma/client": "4.16.2",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "7.8.0",
     "@sentry/integrations": "^7.75.1",
     "@sentry/nextjs": "^7.75.1",
     "@sentry/rrweb": "^0.3.3",
@@ -143,10 +140,11 @@
     "openai": "^4.25.0",
     "parse-domain": "^8.0.1",
     "patch-package": "^8.0.0",
+    "pg": "^8.21.0",
     "pg-boss": "^9.0.1",
     "playwright": "1.39.0",
     "pretty-bytes": "^6.1.1",
-    "prisma": "4.16.2",
+    "prisma": "7.8.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.40.0",
@@ -283,7 +281,7 @@
     "ts-node": "^10.9.1",
     "tsconfig-paths-webpack-plugin": "^4.0.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.2.2",
+    "typescript": "^5.6.0",
     "typescript-plugin-css-modules": "^4.1.1"
   },
   "overrides": {
@@ -299,9 +297,9 @@
       "typescript": "$typescript"
     }
   },
-  "packageManager": "npm@10.4.0",
+  "packageManager": "npm@10.9.8",
   "engines": {
-    "node": "18.19.0"
+    "node": "22.22.3"
   },
   "browserslist": {
     "production": [

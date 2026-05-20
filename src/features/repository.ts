@@ -1,4 +1,3 @@
-import { Prisma, RawRepository } from '@prisma/client';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { subDays } from 'date-fns/subDays';
 import fsSync from 'fs';
@@ -8,6 +7,7 @@ import path from 'path';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/src/common';
+import { Prisma, RawRepository } from '@etabli/src/generated/prisma/client';
 import { LiteRawRepositorySchema, LiteRawRepositorySchemaType } from '@etabli/src/models/entities/raw-repository';
 import { rawRepositoryPlatformJsonToModel } from '@etabli/src/models/mappers/raw-repository';
 import { prisma } from '@etabli/src/prisma';

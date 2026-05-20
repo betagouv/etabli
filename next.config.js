@@ -55,7 +55,7 @@ const moduleExports = async () => {
     transpilePackages: commonPackages,
     experimental: {
       outputFileTracingIncludes: {
-        '*': ['./src/prisma/migrations/**/*', './src/prisma/schema.prisma', './start-and-wait-to-init.sh'], // Migration and start files are required when doing automatic migration before starting the application
+        '*': ['./src/prisma/migrations/**/*', './src/prisma/schema.prisma', './prisma.config.ts', './start-and-wait-to-init.sh'],
       },
       // It should have been the new `outputFileTracingExcludes` property but it's messing with the Next.js core (ref: https://github.com/vercel/next.js/issues/62331)
       outputFileTracingExcludes: {

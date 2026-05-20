@@ -1,6 +1,5 @@
-import { Prisma } from '@prisma/client';
-
 import { llmManagerInstance } from '@etabli/src/features/llm';
+import { Prisma } from '@etabli/src/generated/prisma/client';
 import { GetInitiativeSchema, ListInitiativesSchema } from '@etabli/src/models/actions/initiative';
 import { initiativeNotFoundError } from '@etabli/src/models/entities/errors';
 import { prisma } from '@etabli/src/prisma/client';

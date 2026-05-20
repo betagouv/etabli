@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import { parse } from 'csv-parse';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import fsSync from 'fs';
@@ -7,6 +6,7 @@ import path from 'path';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/src/common';
+import { Prisma } from '@etabli/src/generated/prisma/client';
 import { LiteToolSchema, LiteToolSchemaType, ToolCategorySchema } from '@etabli/src/models/entities/tool';
 import { toolTypeCsvToModel } from '@etabli/src/models/mappers/tool';
 import { prisma } from '@etabli/src/prisma';

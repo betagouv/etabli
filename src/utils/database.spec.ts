@@ -2,9 +2,10 @@
  * @jest-environment node
  */
 // Note: the Prisma schema must be compiled when importing, that's why we added the `test:prepare` and `lint:prepare` steps
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import concurrently from 'concurrently';
 
+import { PrismaClient } from '@etabli/src/generated/prisma/client';
 import { seedDatabase } from '@etabli/src/prisma/seed';
 import { PostgresContainer, setupPostgres } from '@etabli/src/utils/database';
 
@@ -16,7 +17,7 @@ describe('database', () => {
     postgres = await setupPostgres();
 
     process.env.DATABASE_URL = postgres.url;
-    prisma = new PrismaClient();
+    prisma = new PrismaClient({ adapter: new PrismaPg(postgres.url) });
 
     // Enable required extensions since not doing a proper "db:migration:deploy" below
     await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS "vector";`;

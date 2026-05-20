@@ -1,5 +1,3 @@
-import { Prisma, RawDomain } from '@prisma/client';
-import { PrismaClientUnknownRequestError } from '@prisma/client/runtime/library';
 import { eachOfLimit } from 'async';
 import { parse } from 'csv-parse';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
@@ -18,6 +16,7 @@ import z from 'zod';
 
 import { downloadFile } from '@etabli/src/common';
 import { getWebsiteData, getWebsiteDataResponse, guessWebsiteNameFromPageTitles } from '@etabli/src/features/website';
+import { Prisma, RawDomain } from '@etabli/src/generated/prisma/client';
 import { LitePeerCertificateSchema } from '@etabli/src/models/entities/certificate';
 import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/src/models/entities/errors';
 import { LiteRawDomainSchema, LiteRawDomainSchemaType } from '@etabli/src/models/entities/raw-domain';
@@ -503,7 +502,7 @@ export async function updateRobotsTxtOnDomains() {
         });
 
         continue;
-      } else if (error instanceof PrismaClientUnknownRequestError) {
+      } else if (error instanceof Prisma.PrismaClientUnknownRequestError) {
         handlePrismaErrorDueToContent(error);
       } else {
         throw error;
@@ -951,7 +950,7 @@ export async function updateWebsiteDataOnDomains() {
           });
 
           return;
-        } else if (error instanceof PrismaClientUnknownRequestError) {
+        } else if (error instanceof Prisma.PrismaClientUnknownRequestError) {
           handlePrismaErrorDueToContent(error);
         } else {
           throw error;

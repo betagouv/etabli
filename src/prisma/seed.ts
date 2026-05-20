@@ -1,5 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
+import { PrismaClient } from '@etabli/src/generated/prisma/client';
 import { seedProductionDataIntoDatabase } from '@etabli/src/prisma/production-seed';
 
 export async function truncateDatabase(prismaClient: PrismaClient) {

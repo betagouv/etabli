@@ -1,5 +1,4 @@
-import { Initiative } from '@prisma/client';
-
+import { Initiative } from '@etabli/src/generated/prisma/client';
 import { DatasetInitiativeSchemaType, InitiativeSchemaType } from '@etabli/src/models/entities/initiative';
 
 export function initiativePrismaToModel(

@@ -1,12 +1,17 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+
+import { PrismaClient } from '@etabli/src/generated/prisma/client';
 
 declare global {
   var prisma: PrismaClient | undefined;
 }
 
+const adapter = new PrismaPg(process.env.DATABASE_URL ?? '');
+
 export const prisma =
   global.prisma ||
   new PrismaClient({
+    adapter,
     log: process.env.APP_MODE === 'prod' ? ['error'] : ['error', 'warn'],
   });
 

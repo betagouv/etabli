@@ -1,4 +1,3 @@
-import { FunctionalUseCase, Settings } from '@prisma/client';
 import assert from 'assert';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
@@ -12,6 +11,7 @@ import path from 'path';
 import { encoding_for_model } from 'tiktoken';
 
 import { ChunkEventEmitter, LlmManager } from '@etabli/src/features/llm';
+import { FunctionalUseCase, Settings } from '@etabli/src/generated/prisma/client';
 import { gptInstances } from '@etabli/src/gpt';
 import { DocumentInitiativeTemplateSchema, DocumentInitiativesChunkTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
 import { tokensReachTheLimitError } from '@etabli/src/models/entities/errors';

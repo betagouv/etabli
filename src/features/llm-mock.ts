@@ -1,6 +1,5 @@
-import { Settings } from '@prisma/client';
-
 import { ChunkEventEmitter, LlmManager } from '@etabli/src/features/llm';
+import { Settings } from '@etabli/src/generated/prisma/client';
 import { ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
 import { sleep } from '@etabli/src/utils/sleep';
 

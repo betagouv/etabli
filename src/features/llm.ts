@@ -1,5 +1,4 @@
 import { Document } from '@langchain/core/documents';
-import { Settings } from '@prisma/client';
 import EventEmitter from 'eventemitter3';
 import * as math from 'mathjs';
 
@@ -7,6 +6,7 @@ import { LangchainWithLocalVectorStoreLlmManager } from '@etabli/src/features/ll
 import { MockVectorStoreLlmManager } from '@etabli/src/features/llm-mock';
 import { OpenaiWithAssistantApiLlmManager } from '@etabli/src/features/llm-openai';
 import { initSettingsIfNeeded } from '@etabli/src/features/settings';
+import { Settings } from '@etabli/src/generated/prisma/client';
 import { ResultSchemaType } from '@etabli/src/gpt/template';
 import { prisma } from '@etabli/src/prisma';
 

@@ -15,6 +15,13 @@ export const { MuiDsfrThemeProvider } = createMuiDsfrThemeProvider({
         ...datePickerFrFR.components,
         ...dataGridFrFR.components,
         ...coreFrFR.components,
+        MuiDialog: {
+          styleOverrides: {
+            paper: {
+              backgroundImage: `none !important`, // This comes from MUI that overrides the background color
+            },
+          },
+        },
         MuiDialogContent: {
           // TODO: remove once the issue is addressed: https://github.com/mui/material-ui/issues/31185
           styleOverrides: { root: { paddingTop: `1rem !important` } },

@@ -17,12 +17,6 @@ export const localizedRoutes = {
       en: (p) => `/dataset/${p.technicalName}`,
     }
   ),
-  explore: defineLocalizedRoute(
-    {},
-    {
-      en: (p) => `/explore`,
-    }
-  ),
   home: defineLocalizedRoute(
     {},
     {
@@ -90,7 +84,6 @@ export const routes = {
   en: createLocalizedRouter({
     assistant: defineRoute(localizedRoutes.assistant.params, localizedRoutes.assistant.paths.en),
     dataset: defineRoute(localizedRoutes.dataset.params, localizedRoutes.dataset.paths.en),
-    explore: defineRoute(localizedRoutes.explore.params, localizedRoutes.explore.paths.en),
     home: defineRoute(localizedRoutes.home.params, localizedRoutes.home.paths.en),
     initiative: defineRoute(localizedRoutes.initiative.params, localizedRoutes.initiative.paths.en),
     initiatives: defineRoute(localizedRoutes.initiatives.params, localizedRoutes.initiatives.paths.en),

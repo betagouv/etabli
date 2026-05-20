@@ -19,7 +19,6 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Listing static routes first
   const routes: string[] = [
     linkRegistry.get('assistant', undefined),
-    linkRegistry.get('explore', undefined),
     linkRegistry.get('home', undefined),
     linkRegistry.get('initiatives', undefined),
   ];

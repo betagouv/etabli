@@ -1,16 +1,19 @@
+'use client';
+
 import Button from '@mui/lab/LoadingButton';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Image from 'next/image';
-import NextLink from 'next/link';
 import * as React from 'react';
 
 import style from '@etabli/src/app/(public)/(home)/Introduction.module.scss';
 import hero from '@etabli/src/assets/images/hero.png';
+import { useSingletonExploreModal } from '@etabli/src/components/ExploreModal';
 import { IntroductionContainer } from '@etabli/src/components/IntroductionContainer';
-import { linkRegistry } from '@etabli/src/utils/routes/registry';
 
 export function Introduction() {
+  const { showExploreModal } = useSingletonExploreModal();
+
   return (
     <IntroductionContainer
       left={
@@ -28,7 +31,7 @@ export function Introduction() {
             Établi est un service qui référence les initiatives publiques numériques françaises, ce afin d&apos;augmenter leur découvrabilité et leur
             (ré)utilisation.
           </Typography>
-          <Button component={NextLink} href={linkRegistry.get('explore', undefined)} size="large" variant="contained" sx={{ mb: 3 }}>
+          <Button onClick={() => showExploreModal()} size="large" variant="contained" sx={{ mb: 3 }}>
             Commencer l&apos;exploration
           </Button>
         </Box>

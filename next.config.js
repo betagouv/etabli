@@ -92,6 +92,15 @@ const moduleExports = async () => {
         },
       ];
     },
+    async redirects() {
+      return [
+        {
+          source: '/explore', // The standalone `/explore` page was replaced by an in-app modal
+          destination: '/',
+          permanent: true,
+        },
+      ];
+    },
     images: {
       remotePatterns: [
         {

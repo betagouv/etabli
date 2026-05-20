@@ -6,6 +6,7 @@ import { PropsWithChildren } from 'react';
 
 import '@etabli/src/app/(public)/layout.scss';
 import { ContentWrapper } from '@etabli/src/components/ContentWrapper';
+import { useSingletonExploreModal } from '@etabli/src/components/ExploreModal';
 import { FlashMessage } from '@etabli/src/components/FlashMessage';
 import { useLiveChat } from '@etabli/src/components/live-chat/useLiveChat';
 import { commonFooterAttributes, commonHeaderAttributes } from '@etabli/src/utils/dsfr';
@@ -13,6 +14,7 @@ import { linkRegistry } from '@etabli/src/utils/routes/registry';
 
 export function PublicLayout(props: PropsWithChildren) {
   const { showLiveChat, isLiveChatLoading } = useLiveChat();
+  const { showExploreModal } = useSingletonExploreModal();
 
   let quickAccessItems: HeaderProps.QuickAccessItem[] = [
     {
@@ -24,8 +26,10 @@ export function PublicLayout(props: PropsWithChildren) {
     },
     {
       iconId: 'fr-icon-search-line',
-      linkProps: {
-        href: linkRegistry.get('explore', undefined),
+      buttonProps: {
+        onClick: () => {
+          showExploreModal();
+        },
       },
       text: 'Explorer...',
     },

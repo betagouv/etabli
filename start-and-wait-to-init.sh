@@ -18,15 +18,18 @@ stop_server() {
 }
 
 # Bind the callback to the SIGINT signal to shut down the background process properly
-trap stop_server SIGINT
+trap stop_server INT
 
 check_server_and_init() {
   timeout=15
   counter=0
 
+  host="$APP_HOST:$PORT"
+  healthcheck_url="http://$host"
+
   while true; do
-    response=$(curl --write-out %{http_code} --silent --output /dev/null http://$APP_HOST:$PORT)
-    if [ "$response" = "200" ]; then
+    response=$(curl --write-out %{http_code} --silent --output /dev/null "$healthcheck_url")
+    if [ "$response" = "200" ] || [ "$response" = "301" ] || [ "$response" = "302" ] || [ "$response" = "307" ]; then # Looking for redirections since the root became another page
       break
     fi
 
@@ -38,13 +41,13 @@ check_server_and_init() {
       exit 1
     fi
 
-    echo "the Next.js server is not yet ready"
+    echo "the Next.js server is not yet ready on $healthcheck_url"
 
     sleep 1
     counter=$((counter+1))
   done
 
-  curl http://$APP_HOST:$PORT/api/init
+  curl http://$host/api/init
 }
 
 # In parallel wait for the server readiness to init some services

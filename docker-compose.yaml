@@ -5,8 +5,7 @@
 services:
   postgres:
     container_name: etabli_postgres_container_${DOCKER_COMPOSE_CONTAINER_NAME_SUFFIX:-default}
-    # image: postgres:15.5
-    image: ankane/pgvector:v0.5.1 # It uses `postgres:15` including the `vector` extension, using it for local purpose (the provider Clever Cloud we chose also has this extension by default into their Postgres instances)
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}

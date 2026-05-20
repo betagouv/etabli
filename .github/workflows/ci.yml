@@ -173,7 +173,7 @@ jobs:
         if: ${{ !github.event.act }}
         env:
           CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-        run: npm run chromatic
+        run: make chromatic
 
       - name: Set up Docker buildx
         uses: docker/setup-buildx-action@v3

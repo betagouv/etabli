@@ -71,6 +71,9 @@ format:
 format-check:
 	npm run format:check
 
+chromatic:
+	npm run chromatic
+
 simulate-cicd-with-push:
 # Install `act` through a package manager to make it working
 #

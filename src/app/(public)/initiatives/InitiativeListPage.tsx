@@ -225,7 +225,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
   const noResultsWithCriteria = !hasResults && hasAnyCriterion;
 
   const assistantLink = (
-    <Link component={NextLink} href={assistantPath} underline="hover">
+    <Link component={NextLink} href={assistantPath} underline="none">
       en parler à notre assistant
     </Link>
   );

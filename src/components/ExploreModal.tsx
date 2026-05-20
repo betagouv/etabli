@@ -68,11 +68,11 @@ export function ExploreModal(props: ExploreModalProps) {
           <Alert icon={<LightbulbOutlinedIcon />} severity="info" sx={{ mt: 3, alignItems: 'flex-start' }}>
             <AlertTitle>Besoin d&apos;un coup de pouce&nbsp;?</AlertTitle>
             Si vous ne savez pas par où commencer,{' '}
-            <Link component={NextLink} href={assistantPath} underline="hover" onClick={props.onClose}>
+            <Link component={NextLink} href={assistantPath} underline="none" onClick={props.onClose}>
               parlez-en à notre assistant
             </Link>
             . Vous pouvez aussi{' '}
-            <Link component={NextLink} href={initiativesPath} underline="hover" onClick={props.onClose}>
+            <Link component={NextLink} href={initiativesPath} underline="none" onClick={props.onClose}>
               parcourir l&apos;annuaire complet
             </Link>
             .

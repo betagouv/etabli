@@ -31,3 +31,10 @@
   font-size: 0.9rem;
   text-decoration: underline;
 }
+
+// Elements that look like links but aren't `<a href>` (e.g. `<Link component="span" role="link">`)
+// don't get DSFR's `[href]` underline tweak, so their native `text-decoration: underline` ends up
+// glued to the baseline. A small offset gives them the same breathing room as DSFR-styled links.
+[role='link'] {
+  text-underline-offset: 3px;
+}

@@ -192,7 +192,7 @@ For each build and runtime (since they are shared), you should have set some env
 - `PORT`: `3000` _(since Clever Cloud has a default value for this variable we have to override it)_
 - `NODE_OPTIONS`: `--max-old-space-size=1536` _(since we do some exports that fetch the whole database with post-processing, we expliticly tells Node.js our memory capacity (in this case we have 2 GB, but minus a few for Docker memory usage and minus the free memory to allocate))_
 - `APP_MODE`: `prod` _(can be `dev` in case you would like to deploy a development environment)_
-- `DATABASE_URL`: `$POSTGRESQL_ADDON_URI` _(you must copy/paste the value provided by Clever Cloud into `$POSTGRESQL_ADDON_URI`, and note you must add as query parameter `sslmode=prefer`)_
+- `DATABASE_URL`: `$POSTGRESQL_ADDON_URI` _(you must copy/paste the value of `$POSTGRESQL_ADDON_URI` provided by Clever Cloud, and append `?sslmode=no-verify` as query parameter since they use a self-signed certificate. Indeed, since Prisma v7 the usage of `sslmode=prefer` is no longer possible)_
 - `MAINTENANCE_API_KEY`: [SECRET] _(random string that can be generated with `openssl rand -base64 32`. Note this is needed to perform maintenance through dedicated API endpoints)_
 - `MISTRAL_API_KEY`: [SECRET] _(you can create an API key from your MistralAI "La plateforme" account)_
 - `LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND`: [TO_DEFINE] _(by default the MistralAI platform has a limit of `5` request per second, but they may increase this limit on-demand. If so, you can increase the rate limit here to parallelize underlying requests)_

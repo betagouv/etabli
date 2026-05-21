@@ -7,26 +7,30 @@ jobs:
   clean:
     name: Docker images clean
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       - name: Delete old production images
-        uses: snok/container-retention-policy@v2
+        uses: dataaxiom/ghcr-cleanup-action@v1
         with:
-          image-names: etabli/etabli-main # Since using `token-type: github-token` only 1 image name can be specified
-          cut-off: A week ago UTC
-          account-type: org
-          org-name: betagouv
-          keep-at-least: 5
-          skip-tags: latest
-          token-type: github-token
-          token: ${{ secrets.GITHUB_TOKEN }}
+          owner: betagouv
+          packages: etabli/etabli-main
+          keep-n-tagged: 5
+          exclude-tags: latest
+          older-than: 1 week
+          delete-untagged: true # safe to enable: children of kept tags are auto-protected
+          delete-orphaned-images: true # drop SLSA / cosign manifests whose parent was deleted
+          validate: true # post-run sanity check that no kept tag was broken
+
+
       # - name: Delete old development images
-      #   uses: snok/container-retention-policy@v2
+      #   uses: dataaxiom/ghcr-cleanup-action@v1
       #   with:
-      #     image-names: etabli/etabli-dev # Since using `token-type: github-token` only 1 image name can be specified
-      #     cut-off: A week ago UTC
-      #     account-type: org
-      #     org-name: betagouv
-      #     keep-at-least: 5
-      #     skip-tags: latest
-      #     token-type: github-token
-      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     owner: betagouv
+      #     packages: etabli/etabli-dev
+      #     keep-n-tagged: 5
+      #     exclude-tags: latest
+      #     older-than: 1 week
+      #     delete-untagged: true
+      #     delete-orphaned-images: true
+      #     validate: true

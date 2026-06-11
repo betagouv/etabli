@@ -9,7 +9,6 @@ import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import { subHours } from 'date-fns/subHours';
 import fs from 'fs/promises';
-import jsonic from 'jsonic';
 import { LLMChain } from 'langchain/chains';
 import { createRetrievalChain } from 'langchain/chains/retrieval';
 import { BufferMemory } from 'langchain/memory';
@@ -18,12 +17,7 @@ import path from 'path';
 import { z } from 'zod';
 
 import { createStuffDocumentsChain } from '@etabli/src/features/custom-langchain/stuff';
-import {
-  ChunkEventEmitter,
-  LlmManager,
-  extractFirstJsonCodeContentFromMarkdown,
-  extractFirstTypescriptCodeContentFromMarkdown,
-} from '@etabli/src/features/llm';
+import { ChunkEventEmitter, LlmManager } from '@etabli/src/features/llm';
 import { InitiativeLlmDocument, Prisma, Settings, ToolLlmDocument } from '@etabli/src/generated/prisma/client';
 import { gptInstances, gptSeed } from '@etabli/src/gpt';
 import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
@@ -426,32 +420,9 @@ CONTEXTE :
     let finishReason: string | null = null;
     let tokenUsage: TokenUsage | null = null;
 
-    const chain = new LLMChain({
-      llm: this.mistralaiClient
-        // Those specific settings cannot be set into the global instance directly
-        .bind({
-          // [IMPORTANT] `timeout` is not passed to the underlying Mistral client, so we had to patch the module directly with `patch-package`
-          timeout: secondsToMilliseconds(60), // It's unlikely the total call duration would take that much time, setting a limit to not block the process
-          callbacks: [
-            {
-              handleLLMEnd: (output, runId, parentRunId?, tags?) => {
-                if (!!output.generations[0]?.[0]?.generationInfo?.finish_reason) {
-                  finishReason = output.generations[0][0].generationInfo?.finish_reason;
-                }
-
-                if (!!output.llmOutput?.tokenUsage) {
-                  tokenUsage = output.llmOutput.tokenUsage as unknown as TokenUsage;
-                }
-              },
-            },
-          ],
-        })
-        .withRetry({
-          stopAfterAttempt: 2, // This is required in addition to the `maxRetries` otherwise they are more retries than expected
-        }),
-      prompt: promptCanvas,
-      verbose: false,
-    });
+    const structuredLlm = this.mistralaiClient
+      .withStructuredOutput<ResultSchemaType>(ResultSchema as any, { name: 'initiative_sheet' })
+      .withRetry({ stopAfterAttempt: 2 }); // in addition to `maxRetries`, otherwise there are more retries than expected
 
     // To help the LLM we give inside the context tools we are looking for
     // Since we cannot give the 8k+ tools from our database, we try to provide a subset meaningful according to extracted tech references we retrieved
@@ -478,7 +449,7 @@ CONTEXTE :
     };
 
     // Store the prompt for debug
-    const contentToSend = await chain.prompt.format(invocationInputs);
+    const contentToSend = await promptCanvas.format(invocationInputs);
     const gptPromptPath = path.resolve(projectDirectory, 'langchain-prompt.md');
     await fs.mkdir(path.dirname(gptPromptPath), { recursive: true });
     await fs.writeFile(gptPromptPath, contentToSend);
@@ -493,17 +464,42 @@ CONTEXTE :
       throw tokensReachTheLimitError;
     }
 
-    const answer = await chain.invoke(invocationInputs, {
-      // Due to using chained `.bind().withRetry()` above, callbacks and others must be defined there (here they won't be called)
-    });
+    let result: ResultSchemaType;
+    try {
+      const rawResult = await structuredLlm.invoke(await promptCanvas.formatMessages(invocationInputs), {
+        callbacks: [
+          {
+            handleLLMEnd: (output) => {
+              if (!!output.generations[0]?.[0]?.generationInfo?.finish_reason) {
+                finishReason = output.generations[0][0].generationInfo?.finish_reason;
+              }
+
+              if (!!output.llmOutput?.tokenUsage) {
+                tokenUsage = output.llmOutput.tokenUsage as unknown as TokenUsage;
+              }
+            },
+          },
+        ],
+        signal: AbortSignal.timeout(secondsToMilliseconds(60)), // do not let a hanging API call block the process
+      });
+
+      // The structured output is already validated against `ResultSchema` by the parser, but we re-parse to be safe
+      result = ResultSchema.parse(rawResult);
+    } catch (error) {
+      // A truncated answer (length limit) must be surfaced as such so the caller reduces the input and retries
+      this.assertSuccessfulInvoke(finishReason, tokenUsage);
+
+      console.log(`unable to obtain a schema-valid answer from the api`);
+      console.log(error);
+
+      throw llmResponseFormatError;
+    }
 
     this.assertSuccessfulInvoke(finishReason, tokenUsage);
 
-    assert(typeof answer.text === 'string');
-
     // For debug
     const gptAnswerPath = path.resolve(projectDirectory, 'gpt-answer.md');
-    await fs.writeFile(gptAnswerPath, answer.text);
+    await fs.writeFile(gptAnswerPath, JSON.stringify(result, null, 2));
 
     if (tokenUsage !== null) {
       const usage = tokenUsage as TokenUsage; // TypeScript messes up due to the assignation being into `callbacks`, it tells it's `never` without casting
@@ -520,64 +516,6 @@ CONTEXTE :
         console.warn('it seemed to process more token than the limit, the content may be truncated and invalid');
         throw tokensReachTheLimitError;
       }
-    }
-
-    // With MistralAI the JSON will be between ```json and ``` delimiters so extracting them
-    // We find a way for it to directly answer with JSON string by passing a TypeScript definition model
-    // Before when passing a JSON model it tried to add a code block (```json and ```) with text around
-    let jsonString: string | null = null;
-    if (answer.text.includes('```json')) {
-      jsonString = extractFirstJsonCodeContentFromMarkdown(answer.text);
-
-      if (!jsonString) {
-        console.log(answer.text);
-
-        console.error(`the json code block is not present in the answer or the answer has been truncated while saying it's complete`);
-
-        throw llmResponseFormatError;
-      }
-    } else if (answer.text.includes('```ts')) {
-      const typescriptCode = extractFirstTypescriptCodeContentFromMarkdown(answer.text);
-
-      if (!typescriptCode) {
-        console.log(answer.text);
-
-        console.error(`the typescript code block is not present in the answer or the answer has been truncated while saying it's complete`);
-
-        throw llmResponseFormatError;
-      }
-
-      // That's the pattern MistralAI seems to always provide when returning TypeScript format
-      const jsonStringNotStrict = typescriptCode.replace('type ResultSchemaType =', '').trim();
-
-      // A JSON object in TypeScript cannot be parsed due to missing quotes on properties, ending comma... so using a helper for this
-      jsonString = jsonStringNotStrict;
-    } else if (answer.text.includes('```')) {
-      // Sometimes it forgets about the starting delimiter but has the one for the end, so we strip it
-      jsonString = answer.text.replace('```', '');
-    }
-
-    if (!jsonString) {
-      // Last attempt, hoping it has provided a pseudo-JSON we way parse
-      jsonString = answer.text;
-    }
-
-    let answerObject: any;
-    let result: ResultSchemaType;
-    try {
-      // To avoid issues with wrong syntax or missing wrapper delimiter, we use a library that may help in parsing the whole
-      answerObject = jsonic(jsonString);
-      result = ResultSchema.parse(answerObject);
-    } catch (error) {
-      console.log(`unable to parse the following content returned by the api`);
-      console.log('------------');
-      console.log(answer.text);
-      console.log('------------');
-      console.log(jsonString);
-      console.log('------------');
-      console.log(error);
-
-      throw llmResponseFormatError;
     }
 
     // We add correction to tools in case the LLM processed them poorly and to adjust to our own internal naming
@@ -774,6 +712,7 @@ CONTEXTE :
 ---
 `,
         ],
+        new MessagesPlaceholder('chat_history'),
         ['human', '{input}'],
       ]);
 
@@ -826,6 +765,7 @@ CONTEXTE :
       const stream = await chain.stream(
         {
           input: query,
+          chat_history: previousMessages,
         },
         {
           // Due to using chained `.bind().withRetry()` above, callbacks and others must be defined there (here they won't be called)
@@ -896,7 +836,7 @@ CONTEXTE :
   }
 
   public assertSuccessfulInvoke(finishReason: string | null, tokenUsage: TokenUsage | null): void {
-    if (finishReason === 'length') {
+    if (finishReason === 'length' || finishReason === 'model_length') {
       // The model has reached its length limit
       // The `maxTokens` property of `ChatMistralAI` indicates something important: "The token count of your prompt plus max_tokens cannot exceed the model's context length"
       // Note: we don't want to use `maxTokens` since it caps the response tokens, and we prefer to let the LLM tells the maximum about the initiative being computed
@@ -912,7 +852,7 @@ CONTEXTE :
 
       // If the settings check is fine and since we were not able to know in advance the total of the input+output length, we just throw an error so the parent can adjust the content to reduce the input length until it passes
       throw tokensReachTheLimitError;
-    } else if (finishReason !== 'stop') {
+    } else if (finishReason !== null && finishReason !== 'stop' && finishReason !== 'tool_calls') {
       throw new Error(`the generation has not completed fully according to the returned reason: ${finishReason}`);
     }
   }

@@ -4,7 +4,7 @@ import { LanguageModelLike } from '@langchain/core/language_models/base';
 import { BaseMessage } from '@langchain/core/messages';
 import { BaseOutputParser, StringOutputParser } from '@langchain/core/output_parsers';
 import { BasePromptTemplate } from '@langchain/core/prompts';
-import { RunnablePassthrough, RunnablePick, RunnableSequence } from '@langchain/core/runnables';
+import { RunnableConfig, RunnablePassthrough, RunnablePick, RunnableSequence } from '@langchain/core/runnables';
 
 import { DEFAULT_DOCUMENT_PROMPT, DEFAULT_DOCUMENT_SEPARATOR, DOCUMENTS_KEY, formatDocuments } from './base';
 
@@ -49,14 +49,14 @@ export async function createStuffDocumentsChain<RunOutput = string>({
   return RunnableSequence.from(
     [
       RunnablePassthrough.assign({
-        [DOCUMENTS_KEY]: new RunnablePick(DOCUMENTS_KEY).pipe((documents, metadata) => {
+        [DOCUMENTS_KEY]: new RunnablePick(DOCUMENTS_KEY).pipe((documents, config) => {
           return formatDocuments({
             documents,
             documentPrompt,
             documentSeparator,
             documentsMaximum,
             query,
-            config: metadata?.config,
+            config: config as RunnableConfig,
           });
         }),
       }),

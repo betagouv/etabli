@@ -289,13 +289,14 @@ model InitiativeMap {
 }
 
 model Initiative {
-  id                 String              @id @default(uuid()) @db.Uuid
-  originId           String?             @unique @db.Uuid
+  id                 String                   @id @default(uuid()) @db.Uuid
+  originId           String?                  @unique @db.Uuid
   name               String
   description        String
   websites           String[]
   repositories       String[]
   functionalUseCases FunctionalUseCase[]
+  searchableText     Unsupported("tsvector")? // based on `name` + `description` taking into account french and english (see migration)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt

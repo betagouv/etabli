@@ -18,7 +18,6 @@ export interface LlmManager {
   ingestTools(settings: Settings): Promise<void>;
   ingestInitiatives(settings: Settings): Promise<void>;
   computeInitiative(settings: Settings, projectDirectory: string, prompt: string, rawToolsFromAnalysis: string[]): Promise<ResultSchemaType>;
-  getInitiativesFromQuery(query: string): Promise<string[]>;
   truncateContentBasedOnTokens(content: string, maximumTokens: number): string;
   assertToolsDocumentsAreReady(settings: Settings): Promise<void>;
   requestAssistant(settings: Settings, sessionId: string, input: string, eventEmitter: ChunkEventEmitter): Promise<string>;

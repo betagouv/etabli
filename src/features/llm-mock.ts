@@ -26,12 +26,6 @@ export class MockVectorStoreLlmManager implements LlmManager {
     console.warn(warningMessage);
   }
 
-  public async getInitiativesFromQuery(query: string): Promise<string[]> {
-    console.warn(warningMessage);
-
-    return [];
-  }
-
   public async computeInitiative(
     settings: Settings,
     projectDirectory: string,

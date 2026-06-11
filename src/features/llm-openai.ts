@@ -575,10 +575,6 @@ export class OpenaiWithAssistantApiLlmManager implements LlmManager {
     return ResultSchema.parse(answerObject);
   }
 
-  public async getInitiativesFromQuery(query: string): Promise<string[]> {
-    throw new Error('not implemented yet');
-  }
-
   public truncateContentBasedOnTokens(content: string, maximumTokens: number): string {
     throw new Error('not implemented yet');
   }

@@ -52,7 +52,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
     ? parseInt(process.env.LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND, 10)
     : 5; // 5 is the default when creating an account onto the MistralAI platform
   public readonly initiativesVectorStore;
-  public readonly gptInstance = gptInstances['mistral8x7b'];
+  public readonly gptInstance = gptInstances['mistralSmall'];
   public readonly sessions: Sessions = {}; // To not overcomplexify the logic we go with memory history considering just 1 instance of the product (or if more, with sticky IP to target the same instance for the same user)
   public readonly cleanHistoryJob;
 

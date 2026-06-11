@@ -3,24 +3,13 @@ import { TiktokenModel } from 'tiktoken';
 export interface GptSettings {
   model: string;
   countModel: TiktokenModel; // The counter does not understand precise GPT versions
-  modelTokenLimit: number; // Precise token maximum can be found on https://www.scriptbyai.com/token-limit-openai-chatgpt/
-  embeddingsTokenLimit: number; // Didn't find a list but considering `16384` as default is good enough, and adjust if needed according to the provider
-  per1000TokensCost: number; // This is about input tokens (since our outputs should be small, we don't consider them here)
+  modelTokenLimit: number; // Context window of the chat model (input + output), in tokens
+  embeddingsTokenLimit: number; // Max input tokens of the embeddings model (`mistral-embed` is 8192)
+  per1000TokensCost: number; // Average of input + output price per 1000 tokens (see https://mistral.ai/pricing/#api)
 }
 
-export type GptInstance =
-  | 'v3.5'
-  | 'v4'
-  | 'deprecatedMistralTiny'
-  | 'deprecatedMistralSmall'
-  | 'deprecatedMistralMedium'
-  | 'mistral7b'
-  | 'mistral8x7b'
-  | 'mistralSmall'
-  | 'mistralMedium'
-  | 'mistralLarge';
+export type GptInstance = 'v3.5' | 'v4' | 'mistralSmall' | 'mistralMedium' | 'mistralLarge';
 
-// TODO: split properly MistralAI models
 export const gptInstances: Record<GptInstance, GptSettings> = {
   // GPT
   'v3.5': {
@@ -37,64 +26,28 @@ export const gptInstances: Record<GptInstance, GptSettings> = {
     embeddingsTokenLimit: 16384,
     per1000TokensCost: 0.01,
   },
-  // MistralAI
-  deprecatedMistralTiny: {
-    model: 'mistral-tiny', // mistral7b
+  // MistralAI — only models supporting native `json_schema` structured outputs are kept
+  // We used `/v1/models` to get real tokens limit
+  mistralSmall: {
+    model: 'mistral-small-latest', // currently Mistral Small 4 (`mistral-small-2603`)
     countModel: 'gpt-4',
-    modelTokenLimit: 16384,
-    embeddingsTokenLimit: 16384,
-    per1000TokensCost: 0.00014,
-  },
-  deprecatedMistralSmall: {
-    model: 'mistral-small', // mixtral8x7b
-    countModel: 'gpt-4',
-    modelTokenLimit: 16384,
-    embeddingsTokenLimit: 16384,
-    per1000TokensCost: 0.0006,
-  },
-  deprecatedMistralMedium: {
-    model: 'mistral-medium', // ...
-    countModel: 'gpt-4',
-    modelTokenLimit: 16384,
-    embeddingsTokenLimit: 16384,
-    per1000TokensCost: 0.0025,
-  },
-  mistral7b: {
-    // New version of `tiny` a bit more expensive with more tokens capacity
-    model: 'open-mistral-7b', // mistral7b
-    countModel: 'gpt-4',
-    modelTokenLimit: 32768,
-    embeddingsTokenLimit: 16384,
+    modelTokenLimit: 262144,
+    embeddingsTokenLimit: 8192,
     per1000TokensCost: 0.0002,
   },
-  mistral8x7b: {
-    // New version of `small` a bit more expensive with more tokens capacity
-    model: 'open-mixtral-8x7b', // mixtral8x7b
-    countModel: 'gpt-4',
-    modelTokenLimit: 32768,
-    embeddingsTokenLimit: 16384,
-    per1000TokensCost: 0.00065,
-  },
-  mistralSmall: {
-    model: 'mistral-small-latest',
-    countModel: 'gpt-4',
-    modelTokenLimit: 32768,
-    embeddingsTokenLimit: 16384,
-    per1000TokensCost: 0.0055,
-  },
   mistralMedium: {
-    model: 'mistral-medium-latest',
+    model: 'mistral-medium-latest', // currently `mistral-medium-2604`
     countModel: 'gpt-4',
-    modelTokenLimit: 32768,
-    embeddingsTokenLimit: 16384,
-    per1000TokensCost: 0.0075,
+    modelTokenLimit: 262144,
+    embeddingsTokenLimit: 8192,
+    per1000TokensCost: 0.0045,
   },
   mistralLarge: {
-    model: 'mistral-large-latest',
+    model: 'mistral-large-latest', // currently `mistral-large-2512`
     countModel: 'gpt-4',
-    modelTokenLimit: 32768,
-    embeddingsTokenLimit: 16384,
-    per1000TokensCost: 0.022,
+    modelTokenLimit: 262144,
+    embeddingsTokenLimit: 8192,
+    per1000TokensCost: 0.001,
   },
 };
 

@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/nextjs';
 
 import { llmManagerInstance } from '@etabli/src/features/llm';
 import { programRequestedToShutDownError } from '@etabli/src/models/entities/errors';
+import { dbPool } from '@etabli/src/prisma/pool';
 import { stopBossClientInstance } from '@etabli/src/server/queueing/client';
 
 export let gracefulExitRequested: boolean = false;
@@ -29,6 +30,9 @@ export async function gracefulExit(error?: Error) {
   // Perform any necessary cleanup or finalization tasks here
   try {
     await Promise.all([stopBossClientInstance(), llmManagerInstance.stopHistoryCleaner(), Sentry.close(2000)]);
+
+    // Close the shared pool once pg-boss and any in-flight Prisma query no longer need it
+    await dbPool.end();
 
     console.log('The application has terminated gracefully');
   } finally {

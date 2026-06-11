@@ -1,12 +1,13 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '@etabli/src/generated/prisma/client';
+import { dbPool } from '@etabli/src/prisma/pool';
 
 declare global {
   var prisma: PrismaClient | undefined;
 }
 
-const adapter = new PrismaPg(process.env.DATABASE_URL ?? '');
+const adapter = new PrismaPg(dbPool);
 
 export const prisma =
   global.prisma ||

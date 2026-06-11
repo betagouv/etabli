@@ -2,26 +2,9 @@ import * as Sentry from '@sentry/nextjs';
 import PgBoss from 'pg-boss';
 
 import { BusinessError } from '@etabli/src/models/entities/errors';
+import { dbPool } from '@etabli/src/prisma/pool';
 import { updateEntitiesData, updateEntitiesDataTopic } from '@etabli/src/server/queueing/workers/update-entities-data';
 import { gracefulExit } from '@etabli/src/server/system';
-
-// It appears the PostgreSQL client for `pg-boss` acts differently than the `prisma` ORM one about SSL connection
-// For now the only solution we found is to not check certificates because we had the following thrown from `bossClient.start()`:
-//
-// ```
-// > curl http://localhost:$PORT/api/init
-// Error: self signed certificate in certificate chain
-// at TLSSocket._finishInit (node:_tls_wrap:946:8)
-// at TLSSocket.onConnectSecure (node:_tls_wrap:1532:34)
-// at TLSWrap.callbackTrampoline (node:internal/async_hooks:130:17) {
-// at TLSWrap.ssl.onhandshakedone (node:_tls_wrap:727:12)
-// }
-// code: 'SELF_SIGNED_CERT_IN_CHAIN'
-// at TLSSocket.emit (node:events:527:28)
-// Failed to initialize some services
-// ```
-let databaseUrl = process.env.DATABASE_URL || '';
-databaseUrl = databaseUrl.replace('sslmode=prefer', 'sslmode=no-verify');
 
 declare global {
   var bossClient: PgBoss | undefined;
@@ -31,7 +14,14 @@ declare global {
 export let bossClient =
   global.bossClient ||
   new PgBoss({
-    connectionString: databaseUrl,
+    db: {
+      executeSql: async (text, values) => {
+        const result = await dbPool.query(text, values);
+
+        // `pg` types `rowCount` as `number | null`, while pg-boss expects a plain `number`
+        return { rows: result.rows, rowCount: result.rowCount ?? 0 };
+      },
+    },
     newJobCheckIntervalSeconds: 30, // No need to check every 2 seconds as set by default to look at new jobs
     deleteAfterDays: 45, // Give some time before cleaning archives so an issue can be investigated without dealing with database backups
   });

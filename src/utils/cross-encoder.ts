@@ -1,7 +1,9 @@
 import { AutoModelForSequenceClassification, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, env } from '@xenova/transformers';
+import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import path from 'path';
 
 import { crossEncoderModelId } from '@etabli/src/utils/pretrained-models';
+import { sleep } from '@etabli/src/utils/sleep';
 
 const __root_dirname = process.cwd();
 
@@ -98,9 +100,35 @@ export async function downloadPretrainedModels() {
   const previousAllowRemoteModels = env.allowRemoteModels;
   env.allowRemoteModels = true;
 
+  // HuggingFace rate-limits unauthenticated downloads (HTTP 429), and CI runs share IPs so a fresh download
+  // (e.g. right after the model id changed and invalidated the CI cache) often gets throttled. The download is
+  // otherwise reliable and gets cached afterwards, so we just retry the transient failures with a backoff.
+  const maxAttempts = 5;
+
   try {
-    // Just getting the instance will download missing models and wait to complete
-    await CrossEncoderSingleton.getInstance();
+    for (let attempt = 1; ; attempt++) {
+      try {
+        // Just getting the instance will download missing models and wait to complete
+        await CrossEncoderSingleton.getInstance();
+
+        break;
+      } catch (error) {
+        // The singleton memoizes the (now rejected) promises, so we must reset it before retrying otherwise the
+        // next `getInstance()` call would just return the cached rejection.
+        CrossEncoderSingleton.model = null;
+        CrossEncoderSingleton.tokenizer = null;
+
+        if (attempt >= maxAttempts) {
+          throw error;
+        }
+
+        const delay = secondsToMilliseconds(Math.min(60, 5 * 2 ** (attempt - 1))); // 5s, 10s, 20s, 40s, then capped at 60s
+        console.warn(`unable to download the pretrained models (attempt ${attempt}/${maxAttempts}), retrying in ${delay / 1000}s`);
+        console.warn(error);
+
+        await sleep(delay);
+      }
+    }
   } finally {
     env.allowRemoteModels = previousAllowRemoteModels;
   }

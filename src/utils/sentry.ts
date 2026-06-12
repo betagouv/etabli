@@ -1,4 +1,4 @@
-import type { ErrorEvent, Event, EventHint } from '@sentry/types';
+import type { ClientOptions } from '@sentry/core';
 
 // An empty DSN will disable Sentry
 // We want it to be enabled only when deployed
@@ -11,7 +11,7 @@ export const environment = process.env.NEXT_PUBLIC_APP_MODE;
 export const release = process.env.SENTRY_RELEASE_TAG;
 
 // To have the same behavior on frontend and backend
-export function beforeSend(event: ErrorEvent, hint: EventHint): PromiseLike<Event | null> | Event | null {
+export const beforeSend: ClientOptions['beforeSend'] = (event, hint) => {
   // For whatever reason in production Sentry is by default recording the request body going to Next.js endpoints (`pages/api` folder)
   // ... whereas it's not when testing locally. So to prevent this we make sure to mask any input that would be collected
   // Note: did not find a parameter to prevent this easily (only for their client in .NET or Python)
@@ -20,4 +20,4 @@ export function beforeSend(event: ErrorEvent, hint: EventHint): PromiseLike<Even
   }
 
   return event;
-}
+};

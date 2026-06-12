@@ -1,23 +1,23 @@
-import { Offline as OfflineIntegration } from '@sentry/integrations';
+import type { Integration } from '@sentry/core';
 import * as Sentry from '@sentry/nextjs';
-import SentryRRWeb from '@sentry/rrweb';
 
 import { beforeSend, dsn, environment, release } from '@etabli/src/utils/sentry';
 
+// [NOTE] On Next 14 we keep this `sentry.client.config.ts` file (the `instrumentation-client.ts` convention requires
+// Next 15.3+). The Sentry v9 webpack plugin still picks it up; the only caveat is Turbopack, which we do not use.
+
 const hasReplays = true;
-const integrations: any[] = [new OfflineIntegration({})];
+const integrations: Integration[] = [];
 
 if (hasReplays) {
   integrations.push(
-    new SentryRRWeb({
-      // Browse the app and force a manual error to be able to check the rrweb record.
-      // You may find some elements not hidden and need to use `data-sentry-block` or `data-sentry-mask`
+    Sentry.replayIntegration({
+      // Browse the app and force a manual error to be able to check the replay record.
+      // You may find some elements not hidden and need to use `data-sentry-block` or `data-sentry-mask`.
+      // Note: the class is the only way for us to target the Crisp client to keep conversations private.
       maskAllInputs: true,
-      blockSelector: '[data-sentry-block]',
-      maskTextSelector: '[data-sentry-mask]',
-      // We rely only on attribute values to block elements because class is the only way for us to target Crisp client to keep conversations private
-      blockClass: 'crisp-client',
-      maskTextClass: 'crisp-client',
+      block: ['[data-sentry-block]', '.crisp-client'],
+      mask: ['[data-sentry-mask]', '.crisp-client'],
     })
   );
 }
@@ -27,10 +27,10 @@ Sentry.init({
   environment: environment,
   debug: false,
   release: release,
-  autoSessionTracking: true,
   integrations,
+  replaysSessionSampleRate: 1.0,
+  replaysOnErrorSampleRate: 1.0,
+  transport: Sentry.makeBrowserOfflineTransport(Sentry.makeFetchTransport),
+  transportOptions: {},
   beforeSend: beforeSend,
 });
-
-// Help to distinguish in the UI an extension resource is available
-Sentry.setTag('rrweb.active', hasReplays ? 'yes' : 'no');

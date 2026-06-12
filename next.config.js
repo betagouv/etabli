@@ -71,6 +71,7 @@ const moduleExports = async () => {
         ], // Note that folders starting with a dot are already ignored after verification
       },
       swcPlugins: [['next-superjson-plugin', { excluded: [] }]],
+      instrumentationHook: true, // [Next 14] required so `instrumentation.ts` `register()` runs server-side (it becomes the default in Next 15)
     },
     async rewrites() {
       return [
@@ -142,11 +143,6 @@ const moduleExports = async () => {
 
       return config;
     },
-    sentry: {
-      hideSourceMaps: mode === 'prod', // Do not serve sourcemaps in `prod`
-      // disableServerWebpackPlugin: true, // TODO
-      // disableClientWebpackPlugin: true, // TODO
-    },
     poweredByHeader: false,
     generateBuildId: async () => {
       return await getTechnicalVersion();
@@ -155,30 +151,36 @@ const moduleExports = async () => {
 
   const uploadToSentry = process.env.SENTRY_RELEASE_UPLOAD === 'true' && process.env.NODE_ENV === 'production';
 
-  const sentryWebpackPluginOptions = {
-    dryRun: !uploadToSentry,
+  const sentryBuildOptions = {
+    unstable_sentryWebpackPluginOptions: {
+      disable: !uploadToSentry,
+    },
     debug: false,
     silent: false,
-    release: appHumanVersion,
-    setCommits: {
-      // TODO: get error: caused by: sentry reported an error: You do not have permission to perform this action. (http status: 403)
-      // Possible ref: https://github.com/getsentry/sentry-cli/issues/1388#issuecomment-1306137835
-      // Note: not able to bind our repository to our on-premise Sentry as specified in the article... leaving it manual for now (no commit details...)
-      auto: false,
-      commit: getCommitSha(),
-      // auto: true,
+    release: {
+      name: appHumanVersion,
+      setCommits: {
+        // TODO: get error: caused by: sentry reported an error: You do not have permission to perform this action. (http status: 403)
+        // Possible ref: https://github.com/getsentry/sentry-cli/issues/1388#issuecomment-1306137835
+        // Note: not able to bind our repository to our on-premise Sentry as specified in the article... leaving it manual for now (no commit details...)
+        auto: false,
+        repo: 'betagouv/etabli',
+        commit: getCommitSha(),
+      },
+      deploy: {
+        env: mode,
+      },
     },
-    deploy: {
-      env: mode,
+    widenClientFileUpload: false,
+    // tunnelRoute: '/monitoring', // Helpful to avoid adblockers, but requires Sentry SaaS
+    sourcemaps: {
+      disable: process.env.NODE_ENV === 'development',
+      deleteSourcemapsAfterUpload: mode === 'prod', // do not serve sourcemaps in `prod` (replaces the former `hideSourceMaps`)
     },
+    disableLogger: false,
   };
 
-  return withSentryConfig(standardModuleExports, sentryWebpackPluginOptions, {
-    transpileClientSDK: true,
-    // tunnelRoute: '/monitoring', // Helpful to avoid adblockers, but requires Sentry SaaS
-    hideSourceMaps: false,
-    disableLogger: false,
-  });
+  return withSentryConfig(standardModuleExports, sentryBuildOptions);
 };
 
 module.exports = moduleExports;

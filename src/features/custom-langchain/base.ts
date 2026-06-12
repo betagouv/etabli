@@ -59,6 +59,14 @@ export async function formatDocuments({
   }
   const pool = Array.from(poolById.values());
 
+  // Nothing to rank (e.g. a non-topical message where we skipped retrieval, with no carried-over documents): return an
+  // empty context. The cross-encoder below cannot run on an empty batch, and there is nothing for the assistant to cite.
+  if (pool.length === 0) {
+    onSelectedDocuments?.([]);
+
+    return '';
+  }
+
   // In addition to the similarity search we perform a rerank to reorder them according to a more standard search
   // so that a query with almost perfect match are on top on the list
   let rerankResults = await rankDocumentsWithCrossEncoder(

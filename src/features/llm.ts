@@ -36,6 +36,13 @@ export function filterWithScoreThreshold<D extends Record<string, any>, T extend
   // that will not be relevant when having different query lengths or with different words...
   // We prefer to approach something dynamic by using the mean and standard deviation
   // Note: lowest scores the better
+
+  // Nothing to filter (e.g. retrieval was skipped for a non-topical message): bail out early, otherwise `math.mean`
+  // throws "Cannot calculate the mean of an empty array".
+  if (documentsWrappers.length === 0) {
+    return [];
+  }
+
   const scores = documentsWrappers.map(([, score]) => score);
 
   let threshold: number;

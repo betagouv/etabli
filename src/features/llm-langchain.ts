@@ -2,6 +2,7 @@ import { PrismaVectorStore } from '@langchain/community/vectorstores/prisma';
 import { Document } from '@langchain/core/documents';
 import { TokenUsage } from '@langchain/core/language_models/base';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
+import { RunnableLambda } from '@langchain/core/runnables';
 import { ChainValues } from '@langchain/core/utils/types';
 import { ChatMistralAI, MistralAIEmbeddings } from '@langchain/mistralai';
 import assert from 'assert';
@@ -852,6 +853,18 @@ Tu dois renseigner les trois champs suivants :
         };
       }
 
+      // A non-topical message (e.g. "bonjour", "merci", "peux-tu m'aider ?") has no thematic terms to extract, so the
+      // LLM returns an empty `searchQuery` and empty `searchKeywords`. In that case there is genuinely nothing to
+      // retrieve: we skip the vector search entirely (see the conditional retriever below) so the assistant just
+      // answers conversationally instead of surfacing arbitrary initiatives.
+      const hasSearchableIntent = searchIntent.searchQuery.trim() !== '' || searchIntent.searchKeywords.some((keyword) => keyword.trim() !== '');
+
+      // When we DO search, embedding an empty string makes the MistralAI embeddings endpoint answer
+      // `400 "Please provide at least one input element."` (which crashes the chain). The `searchQuery` can be empty
+      // even when there is intent (e.g. the LLM only filled `searchKeywords`), so for retrieval (vector + rerank) we
+      // fall back to the standalone question, then the raw message, to guarantee we always embed something non-empty.
+      const retrievalQuery = searchIntent.searchQuery.trim() || searchIntent.standaloneQuestion.trim() || input;
+
       const totalDocumentsToRevealToTheUser: number = 5;
 
       // We set the instruction into a array when testing if it needs to be a monobloc texts or if a list is preferable
@@ -937,7 +950,7 @@ CONTEXTE :
         prompt: promptCanvas,
         documentSeparator: '\n',
         documentsMaximum: totalDocumentsToRevealToTheUser,
-        query: searchIntent.searchQuery, // drives the cross-encoder rerank: the distilled topical query, not the verbose sentence
+        query: retrievalQuery, // drives the cross-encoder rerank: the distilled topical query, not the verbose sentence (guaranteed non-empty)
         lexicalDocuments: await this.retrieveLexicalInitiativeDocuments(searchIntent.searchKeywords), // keyword search gets the synonyms too
         previouslyShownDocuments: Array.from(session.documents.values()),
         onSelectedDocuments: (selectedDocuments) => {
@@ -957,14 +970,26 @@ CONTEXTE :
         },
       });
 
+      const baseRetriever = this.initiativesVectorStore.asRetriever(Math.max(5 * totalDocumentsToRevealToTheUser, 100)); // Get more since a filter and rerank will be performed, then keeping the N first
+
       const chain = await createRetrievalChain({
-        retriever: this.initiativesVectorStore.asRetriever(Math.max(5 * totalDocumentsToRevealToTheUser, 100)), // Get more since a filter and rerank will be performed, then keeping the N first
+        // When the message has no topical intent, skip the vector search entirely: no embeddings call (which would
+        // otherwise 400 on an empty input) and no arbitrary initiatives polluting the context — the assistant just
+        // answers conversationally. `createRetrievalChain` passes the whole input object to a non-retriever Runnable,
+        // so we read the query from `input.input` and only hit the real retriever when there is something to search.
+        retriever: RunnableLambda.from(async (chainInput: { input: string }): Promise<Document[]> => {
+          if (!hasSearchableIntent) {
+            return [];
+          }
+
+          return baseRetriever.invoke(chainInput.input);
+        }),
         combineDocsChain: combineDocsChain,
       });
 
       const stream = await chain.stream(
         {
-          input: searchIntent.searchQuery, // `createRetrievalChain` feeds this to the embeddings retriever; the distilled query avoids dilution
+          input: retrievalQuery, // `createRetrievalChain` feeds this to the embeddings retriever; the distilled query avoids dilution (guaranteed non-empty)
           question: searchIntent.standaloneQuestion, // passed through to the generation prompt's `{question}` (the natural user-facing question)
           chat_history: previousMessages,
         },

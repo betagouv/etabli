@@ -990,7 +990,7 @@ CONTEXTE :
       const stream = await chain.stream(
         {
           input: retrievalQuery, // `createRetrievalChain` feeds this to the embeddings retriever; the distilled query avoids dilution (guaranteed non-empty)
-          question: searchIntent.standaloneQuestion, // passed through to the generation prompt's `{question}` (the natural user-facing question)
+          question: input, // use the original user message so the LLM can follow up properly
           chat_history: previousMessages,
         },
         {

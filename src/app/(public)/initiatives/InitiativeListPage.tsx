@@ -220,7 +220,6 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     setParams({ fnc: null, tools: null, hasWeb: null, hasRepo: null, page: 1 });
   };
 
-  const onLastPage = pagesCount !== null && pagesCount > 1 && params.page === pagesCount;
   const hasResults = initiatives.length > 0;
   const noResultsWithCriteria = !hasResults && hasAnyCriterion;
 
@@ -238,6 +237,13 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
             <Grid item xs={12} sx={{ pb: 3 }}>
               <Typography component="h1" variant="h5">
                 Annuaire des initiatives
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Vous ne trouvez pas l&apos;initiative qui correspond à votre besoin&nbsp;?{' '}
+                <Link component={NextLink} href={assistantPath} underline="none">
+                  Notre assistant
+                </Link>{' '}
+                peut vous aider.
               </Typography>
             </Grid>
             <Grid item xs={12} sx={{ mb: 3 }}>
@@ -334,7 +340,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                   >
                     <ContextualInitiativeList initiatives={initiatives} display={listDisplay} />
                   </Grid>
-                  {onLastPage && (
+                  {params.page >= 2 && (
                     <Grid container sx={reusableCentering}>
                       <Grid item xs={12} sx={{ mt: 3 }}>
                         <Alert severity="info">

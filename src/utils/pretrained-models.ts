@@ -1,7 +1,6 @@
 // This file centralized used models because they are cached during the CI/CD and cache invalidation is triggered when this file hash changes
 
-// At start we wanted to use model specialized in french like https://huggingface.co/antoinelouis/crossencoder-camembert-base-mmarcoFR through
-// the ONNX version of https://huggingface.co/antoinelouis/crossencoder-camembert-base-mmarcoFR but they are not compatible with Transformers.js
-// so we ended using the 2 following ones provided directly by the Transformers.js author
-export const crossEncoderModelId = 'xenova/ms-marco-TinyBERT-L-2-v2'; // Widely used and seems to have acceptable result
-// export const crossEncoderModelId = 'mixedbread-ai/mxbai-rerank-xsmall-v1';
+// We use a French cross-encoder (CamemBERT-base trained on mMARCO-fr) because the initiatives and queries are in French
+// and because the previous English `ms-marco-TinyBERT-L-2-v2` reranked French content poorly...
+// The reference model is https://huggingface.co/antoinelouis/crossencoder-camembert-base-mmarcoFR but not compatible with Transformers.js so we converted it to work as ONNX
+export const crossEncoderModelId = 'sneko/crossencoder-camembert-base-mmarcoFR-onnx';

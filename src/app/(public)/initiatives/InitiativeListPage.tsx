@@ -13,8 +13,9 @@ import Grid, { GridProps } from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import Link from '@mui/material/Link';
+import MenuItem from '@mui/material/MenuItem';
+import Pagination from '@mui/material/Pagination';
 import Stack from '@mui/material/Stack';
-import TablePagination from '@mui/material/TablePagination';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
@@ -349,21 +350,61 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                       </Grid>
                     </Grid>
                   )}
-                  <Grid container justifyContent="end" sx={reusableCentering}>
-                    <TablePagination
-                      component="div"
-                      rowsPerPageOptions={possiblePageSizes}
-                      count={totalCount}
-                      rowsPerPage={pageSize}
-                      page={params.page - 1}
-                      onPageChange={(event, pageNumber) => {
-                        setParams({ page: pageNumber + 1 });
-                      }}
-                      onRowsPerPageChange={(event) => {
-                        setPageSize(event.target.value as unknown as PaginationSize);
-                      }}
-                      sx={{ mt: 3 }}
-                    />
+                  <Grid container justifyContent="space-between" alignItems="center" rowSpacing={2} sx={{ ...reusableCentering, mt: 3 }}>
+                    <Grid item>
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        {totalCount >= 0 && (
+                          <Typography variant="body2" color="text.secondary">
+                            {totalCount}&nbsp;initiative{totalCount > 1 ? 's' : ''}
+                          </Typography>
+                        )}
+                        <TextField
+                          select
+                          size="small"
+                          label="Par page"
+                          value={pageSize}
+                          onChange={(event) => {
+                            setPageSize(event.target.value as unknown as PaginationSize);
+                            setParams({ page: 1 }); // a bigger page size shrinks the total pages, so go back to a guaranteed-valid page
+                          }}
+                          sx={{ minWidth: 110 }}
+                        >
+                          {possiblePageSizes.map((size) => (
+                            <MenuItem key={size} value={size}>
+                              {size}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Stack>
+                    </Grid>
+                    <Grid item>
+                      <Pagination
+                        count={pagesCount ?? 1}
+                        page={params.page}
+                        onChange={(event, pageNumber) => {
+                          setParams({ page: pageNumber });
+                        }}
+                        color="primary"
+                        showFirstButton
+                        showLastButton
+                        siblingCount={1}
+                        boundaryCount={1}
+                        getItemAriaLabel={(type, page) => {
+                          switch (type) {
+                            case 'first':
+                              return 'première page';
+                            case 'last':
+                              return 'dernière page';
+                            case 'previous':
+                              return 'page précédente';
+                            case 'next':
+                              return 'page suivante';
+                            default:
+                              return `page ${page}`;
+                          }
+                        }}
+                      />
+                    </Grid>
                   </Grid>
                 </Grid>
               </Grid>

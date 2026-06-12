@@ -779,7 +779,13 @@ CONTEXTE :
         const rephrasingPromptCanvas = ChatPromptTemplate.fromMessages([
           [
             'system',
-            `Voici une historique de conversation, et j'aimerais que tu retranscrives le dernier message sous forme de question. Il se peut que ce message soit une "follow-up question" et pour la comprendre il faille y ajouter le contexte des messages précédents. N'ajoute jamais du contexte qui n'est pas mentionné dans les messages précédents. Et n'en ajoute que quand c'est nécessaire pour que la question soit compréhensible. Si tu dois faire référence à une initiative d'un message précédent, mentionne juste son nom et son ID. Si le dernier message n'est pas assimilable à une question, alors reprends-le tel quel. Tu dois ABSOLUMENT répondre comme si tu étais l'utilisateur qui reposait sa question, il ne doit y avoir aucun commentaire de ta part.`,
+            `Voici une historique de conversation, et j'aimerais que tu retranscrives le dernier message sous forme de question autonome, compréhensible sans avoir lu l'historique. Il se peut que ce message soit une "follow-up question" qui fait référence à des éléments des messages précédents.
+
+Règles :
+- N'ajoute jamais de contexte qui n'est pas présent dans les messages précédents, et n'en ajoute que si c'est nécessaire pour rendre la question compréhensible seule.
+- Si le dernier message fait référence à une ou plusieurs initiatives déjà mentionnées — que ce soit par leur nom, par leur nombre, par leur position ou par un pronom (par exemple « les trois », « la première », « la dernière », « celui-là », « ceux-ci ») — tu DOIS remplacer cette référence par les NOMS EXACTS de TOUTES les initiatives concernées, tels qu'ils apparaissent dans l'historique (avec leur ID s'il est disponible). Par exemple, si l'historique a listé les initiatives « A », « B » et « C » et que le dernier message est « le site des trois ? », tu dois répondre « Quels sont les sites web des initiatives A, B et C ? ».
+- Si le dernier message n'est pas assimilable à une question, reprends-le tel quel.
+- Tu dois ABSOLUMENT répondre comme si tu étais l'utilisateur qui repose sa question, sans aucun commentaire de ta part.`,
           ],
           new MessagesPlaceholder('chat_history'),
           ['human', '{input}'],

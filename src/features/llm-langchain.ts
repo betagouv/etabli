@@ -41,6 +41,114 @@ export type Sessions = {
   [key in string]: Session;
 };
 
+// Words that carry no topical signal for keyword search: common French stop words + "domain-meta" words (in this
+// directory every entry is a "projet"/"service"/"outil"..., so those describe nothing). Stripping them lets the
+// full-text search focus on the meaningful term(s) of a question (e.g. "des projets sur l'alcool" -> "alcool").
+const nonTopicalWords = new Set<string>([
+  'le',
+  'la',
+  'les',
+  'un',
+  'une',
+  'des',
+  'de',
+  'du',
+  'd',
+  'l',
+  'et',
+  'ou',
+  'sur',
+  'pour',
+  'dans',
+  'avec',
+  'sans',
+  'par',
+  'au',
+  'aux',
+  'en',
+  'a',
+  'ce',
+  'cette',
+  'ces',
+  'mon',
+  'ma',
+  'mes',
+  'ton',
+  'sa',
+  'ses',
+  'nos',
+  'vos',
+  'leur',
+  'leurs',
+  'je',
+  'tu',
+  'il',
+  'elle',
+  'on',
+  'nous',
+  'vous',
+  'ils',
+  'elles',
+  'est',
+  'sont',
+  'que',
+  'qui',
+  'quoi',
+  'quel',
+  'quelle',
+  'quels',
+  'quelles',
+  'comment',
+  'plus',
+  'moins',
+  'y',
+  'as',
+  'ai',
+  'avez',
+  'ont',
+  'propos',
+  'concernant',
+  'sujet',
+  'projet',
+  'projets',
+  'initiative',
+  'initiatives',
+  'service',
+  'services',
+  'outil',
+  'outils',
+  'application',
+  'applications',
+  'appli',
+  'app',
+  'apps',
+  'plateforme',
+  'plateformes',
+  'logiciel',
+  'logiciels',
+  'site',
+  'sites',
+  'dispositif',
+  'dispositifs',
+  'solution',
+  'solutions',
+  'numerique',
+  'numeriques',
+  'public',
+  'publics',
+  'publique',
+  'publiques',
+  'demarche',
+  'demarches',
+  'produit',
+  'produits',
+  'systeme',
+  'systemes',
+  'liste',
+  'exemple',
+  'exemples',
+]);
+
 export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
   public readonly mistralaiClient;
   public readonly toolsVectorStore;
@@ -574,6 +682,56 @@ CONTEXTE :
     }
   }
 
+  // Keyword (full-text) retrieval to complement the embeddings, which miss rare/topical terms — e.g. for "alcool" the
+  // matching initiatives' vectors are far from the query yet their description clearly mentions it. We strip
+  // non-topical words and search each remaining salient word separately (so a common word does not drown a rare one);
+  // the cross-encoder then re-ranks the merged pool, so noise from a too-common word simply falls off.
+  public async retrieveLexicalInitiativeDocuments(query: string, perWordLimit: number = 20, totalLimit: number = 40): Promise<Document[]> {
+    const salientWords = [
+      ...new Set(
+        query
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '') // strip accents so words match the (unaccented) non-topical list
+          .split(/[\s'’-]+/) // split on whitespace, French elision apostrophes ("l'alcool" -> "alcool"), and hyphens
+          .map((word) => word.replace(/[^a-z0-9]/g, ''))
+          .filter((word) => word.length >= 3 && !nonTopicalWords.has(word))
+      ),
+    ];
+
+    if (salientWords.length === 0) {
+      return [];
+    }
+
+    const documentsById = new Map<string, Document>();
+    for (const word of salientWords) {
+      if (documentsById.size >= totalLimit) {
+        break;
+      }
+
+      const tsQueryString = `${word}:*`;
+      const rows = await prisma.$queryRaw<{ id: string; content: string }[]>`
+        SELECT d."initiativeId"::text AS id, d."content" AS content
+        FROM "InitiativeLlmDocument" d
+        JOIN "Initiative" i ON i."id" = d."initiativeId",
+          (
+            SELECT to_tsquery('french_unaccent', ${tsQueryString}) || to_tsquery('english_unaccent', ${tsQueryString}) AS query
+          ) q
+        WHERE i."searchableText" @@ q.query AND i."deletedAt" IS NULL
+        ORDER BY ts_rank(i."searchableText", q.query) DESC
+        LIMIT ${perWordLimit}
+      `;
+
+      for (const row of rows) {
+        if (!documentsById.has(row.id)) {
+          documentsById.set(row.id, new Document({ pageContent: row.content, metadata: { initiativeId: row.id, _distance: 0 } }));
+        }
+      }
+    }
+
+    return Array.from(documentsById.values());
+  }
+
   public async requestAssistant(settings: Settings, sessionId: string, input: string, eventEmitter: ChunkEventEmitter): Promise<string> {
     z.string().uuid().parse(sessionId); // Make sure of the type since used as index
 
@@ -758,6 +916,7 @@ CONTEXTE :
         documentSeparator: '\n',
         documentsMaximum: totalDocumentsToRevealToTheUser,
         query: query,
+        lexicalDocuments: await this.retrieveLexicalInitiativeDocuments(query),
         previouslyShownDocuments: Array.from(session.documents.values()),
         onSelectedDocuments: (selectedDocuments) => {
           for (const document of selectedDocuments) {

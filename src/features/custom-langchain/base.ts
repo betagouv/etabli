@@ -26,6 +26,7 @@ export async function formatDocuments({
   query,
   config,
   previouslyShownDocuments = [],
+  lexicalDocuments = [],
   onSelectedDocuments,
 }: {
   documentPrompt: BasePromptTemplate;
@@ -35,6 +36,7 @@ export async function formatDocuments({
   query: string;
   config?: RunnableConfig;
   previouslyShownDocuments?: Document[]; // initiatives surfaced in earlier turns of the same conversation
+  lexicalDocuments?: Document[]; // initiatives found by keyword full-text search (recall for topics the embeddings miss)
   onSelectedDocuments?: (documents: Document[]) => void; // lets the caller remember what was shown for the next turn
 }) {
   // Filter the freshly-retrieved documents by their similarity to the current query
@@ -45,12 +47,14 @@ export async function formatDocuments({
     })
   ).map(([document]) => document);
 
-  // Build the candidate pool: the just-filtered fresh documents PLUS the ones already shown in earlier turns, so a
-  // follow-up like "give their descriptions" keeps access to initiatives the fresh retrieval may have missed. The
-  // remembered ones intentionally bypass the similarity threshold above (their distance is stale); the cross-encoder
-  // below re-ranks the WHOLE pool against the current query, so irrelevant carried-over ones simply fall off.
+  // Build the candidate pool: the just-filtered fresh (vector) documents PLUS
+  //  - the ones already shown in earlier turns (so a follow-up like "give their descriptions" keeps them), and
+  //  - keyword/full-text matches (so topics the embeddings fail to surface — e.g. a rare word like "alcool" — are
+  //    still candidates).
+  // These extra ones intentionally bypass the similarity threshold above; the cross-encoder below re-ranks the WHOLE
+  // pool against the current query, so irrelevant carried-over/keyword ones simply fall off.
   const poolById = new Map<string, Document>();
-  for (const document of [...previouslyShownDocuments, ...freshFilteredDocuments]) {
+  for (const document of [...previouslyShownDocuments, ...lexicalDocuments, ...freshFilteredDocuments]) {
     poolById.set(document.metadata.initiativeId, document);
   }
   const pool = Array.from(poolById.values());

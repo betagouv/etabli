@@ -35,6 +35,7 @@ export async function createStuffDocumentsChain<RunOutput = string>({
   documentPrompt = DEFAULT_DOCUMENT_PROMPT,
   documentSeparator = DEFAULT_DOCUMENT_SEPARATOR,
   previouslyShownDocuments,
+  lexicalDocuments,
   onSelectedDocuments,
 }: {
   llm: LanguageModelLike;
@@ -45,6 +46,7 @@ export async function createStuffDocumentsChain<RunOutput = string>({
   documentPrompt?: BasePromptTemplate;
   documentSeparator?: string;
   previouslyShownDocuments?: Document[]; // initiatives surfaced in earlier turns, carried into the candidate pool
+  lexicalDocuments?: Document[]; // initiatives found by keyword full-text search, added to the candidate pool
   onSelectedDocuments?: (documents: Document[]) => void; // reports which initiatives were shown this turn
 }) {
   if (!prompt.inputVariables.includes(DOCUMENTS_KEY)) {
@@ -63,6 +65,7 @@ export async function createStuffDocumentsChain<RunOutput = string>({
             query,
             config: config as RunnableConfig,
             previouslyShownDocuments,
+            lexicalDocuments,
             onSelectedDocuments,
           });
         }),

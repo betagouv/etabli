@@ -1,4 +1,5 @@
 import { PrismaVectorStore } from '@langchain/community/vectorstores/prisma';
+import { Document } from '@langchain/core/documents';
 import { TokenUsage } from '@langchain/core/language_models/base';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { ChainValues } from '@langchain/core/utils/types';
@@ -31,6 +32,7 @@ import { getBaseUrl } from '@etabli/src/utils/url';
 
 export interface Session {
   history: BufferMemory;
+  documents: Map<string, Document>; // initiatives shown so far this conversation (keyed by initiative id), to carry across turns
   lastRequestAt: Date;
   running: boolean;
 }
@@ -583,6 +585,7 @@ CONTEXTE :
           memoryKey: 'chat_history',
           returnMessages: true,
         }),
+        documents: new Map(),
         lastRequestAt: new Date(),
         running: false,
       };
@@ -755,6 +758,22 @@ CONTEXTE :
         documentSeparator: '\n',
         documentsMaximum: totalDocumentsToRevealToTheUser,
         query: query,
+        previouslyShownDocuments: Array.from(session.documents.values()),
+        onSelectedDocuments: (selectedDocuments) => {
+          for (const document of selectedDocuments) {
+            const initiativeId = document.metadata.initiativeId as string;
+
+            // Re-insert to mark as most-recently shown (Map keeps insertion order)
+            session.documents.delete(initiativeId);
+            session.documents.set(initiativeId, document);
+          }
+
+          // Cap the memory to avoid unbounded growth and keep the cross-encoder pool small
+          while (session.documents.size > 20) {
+            const oldestId = session.documents.keys().next().value as string;
+            session.documents.delete(oldestId);
+          }
+        },
       });
 
       const chain = await createRetrievalChain({

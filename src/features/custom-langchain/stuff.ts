@@ -1,5 +1,6 @@
 // This is a duplicated and modified file to respond to the issue https://github.com/langchain-ai/langchainjs/discussions/4735
 // Original file: https://github.com/langchain-ai/langchainjs/blob/main/langchain/src/chains/combine_documents/stuff.ts
+import { Document } from '@langchain/core/documents';
 import { LanguageModelLike } from '@langchain/core/language_models/base';
 import { BaseMessage } from '@langchain/core/messages';
 import { BaseOutputParser, StringOutputParser } from '@langchain/core/output_parsers';
@@ -33,6 +34,8 @@ export async function createStuffDocumentsChain<RunOutput = string>({
   outputParser = new StringOutputParser() as unknown as BaseOutputParser<RunOutput>,
   documentPrompt = DEFAULT_DOCUMENT_PROMPT,
   documentSeparator = DEFAULT_DOCUMENT_SEPARATOR,
+  previouslyShownDocuments,
+  onSelectedDocuments,
 }: {
   llm: LanguageModelLike;
   prompt: BasePromptTemplate;
@@ -41,6 +44,8 @@ export async function createStuffDocumentsChain<RunOutput = string>({
   outputParser?: BaseOutputParser<RunOutput>;
   documentPrompt?: BasePromptTemplate;
   documentSeparator?: string;
+  previouslyShownDocuments?: Document[]; // initiatives surfaced in earlier turns, carried into the candidate pool
+  onSelectedDocuments?: (documents: Document[]) => void; // reports which initiatives were shown this turn
 }) {
   if (!prompt.inputVariables.includes(DOCUMENTS_KEY)) {
     throw new Error(`Prompt must include a "${DOCUMENTS_KEY}" variable`);
@@ -57,6 +62,8 @@ export async function createStuffDocumentsChain<RunOutput = string>({
             documentsMaximum,
             query,
             config: config as RunnableConfig,
+            previouslyShownDocuments,
+            onSelectedDocuments,
           });
         }),
       }),

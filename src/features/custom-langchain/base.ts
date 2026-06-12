@@ -25,6 +25,8 @@ export async function formatDocuments({
   documentsMaximum,
   query,
   config,
+  previouslyShownDocuments = [],
+  onSelectedDocuments,
 }: {
   documentPrompt: BasePromptTemplate;
   documentSeparator: string;
@@ -32,19 +34,31 @@ export async function formatDocuments({
   documentsMaximum: number;
   query: string;
   config?: RunnableConfig;
+  previouslyShownDocuments?: Document[]; // initiatives surfaced in earlier turns of the same conversation
+  onSelectedDocuments?: (documents: Document[]) => void; // lets the caller remember what was shown for the next turn
 }) {
-  // Filter documents that are not relevant
-  const filteredDocumentsWrappers = filterWithScoreThreshold(
+  // Filter the freshly-retrieved documents by their similarity to the current query
+  const freshFilteredDocuments = filterWithScoreThreshold(
     documents.map((document) => {
       // To respect the expected format
       return [document, document.metadata._distance];
     })
-  );
+  ).map(([document]) => document);
+
+  // Build the candidate pool: the just-filtered fresh documents PLUS the ones already shown in earlier turns, so a
+  // follow-up like "give their descriptions" keeps access to initiatives the fresh retrieval may have missed. The
+  // remembered ones intentionally bypass the similarity threshold above (their distance is stale); the cross-encoder
+  // below re-ranks the WHOLE pool against the current query, so irrelevant carried-over ones simply fall off.
+  const poolById = new Map<string, Document>();
+  for (const document of [...previouslyShownDocuments, ...freshFilteredDocuments]) {
+    poolById.set(document.metadata.initiativeId, document);
+  }
+  const pool = Array.from(poolById.values());
 
   // In addition to the similarity search we perform a rerank to reorder them according to a more standard search
   // so that a query with almost perfect match are on top on the list
   let rerankResults = await rankDocumentsWithCrossEncoder(
-    filteredDocumentsWrappers.map(([document, score]) => document.pageContent),
+    pool.map((document) => document.pageContent),
     query
   );
 
@@ -54,12 +68,17 @@ export async function formatDocuments({
   if (rerankResults.length > documentsMaximum) {
     rerankResults = rerankResults.slice(0, documentsMaximum); // The first are those we the highest scoring
 
-    additionalInstructionForTheAssistant = `Nous ne t'avons pas fourni plus de ${documents.length} initiatives car c'est ta limite. Mais ne dis pas à l'utilisateur que tu as une limite, dis-lui seulement qu'il existe d'autres initiatives et qu'il peut préciser sa recherche pour en savoir plus.`;
+    additionalInstructionForTheAssistant = `Nous ne t'avons pas fourni plus de ${pool.length} initiatives car c'est ta limite. Mais ne dis pas à l'utilisateur que tu as une limite, dis-lui seulement qu'il existe d'autres initiatives et qu'il peut préciser sa recherche pour en savoir plus.`;
   } else {
     // At start we tried to tell the assistant this is the only initiatives corresponding to the conversation
     // but it was messing telling it to the user. Specifying nothing achieves the goal
     additionalInstructionForTheAssistant = null;
   }
+
+  const selectedDocuments = rerankResults.map((rerankResult) => pool[rerankResult.originalDocumentIndex]);
+
+  // Report which initiatives were actually shown so the caller can carry them into the next turn
+  onSelectedDocuments?.(selectedDocuments);
 
   // TODO: should depend on the user interface local
   const { t } = getServerTranslation('common', {
@@ -67,9 +86,7 @@ export async function formatDocuments({
   });
 
   const formattedDocs = await Promise.all(
-    rerankResults.map((rerankResult) => {
-      const [document, score] = filteredDocumentsWrappers[rerankResult.originalDocumentIndex];
-
+    selectedDocuments.map((document) => {
       // We remove the `id` so the assistant does not mess trying to infer anything
       const { id, ...jsonSheetWithoutId } = DocumentInitiativeTemplateSchema.parse(JSON.parse(document.pageContent));
 

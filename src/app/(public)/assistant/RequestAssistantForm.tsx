@@ -46,7 +46,7 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting }, // `isSubmitting` stays true for the whole async `onSubmit` (i.e. until the streamed answer is fully received)
     control,
     setValue,
     reset,
@@ -164,6 +164,7 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
         minRows={3}
         maxRows={10}
         fullWidth
+        disabled={isSubmitting} // lock the input while the assistant is generating its answer
         onKeyDown={(event) => {
           // Needed because multine TextField provides no way to submit on Enter (and to use Enter+Shift for a new line)
           if (event.key === 'Enter' && !event.shiftKey) {
@@ -182,11 +183,11 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
                 justifyContent: 'center',
               }}
             >
-              <IconButton type="submit" aria-label="envoyer le message">
-                {mutex.isLocked ? <CircularProgress size={20} aria-label="la réponse est en train d'être générée" /> : <SendIcon />}
+              <IconButton type="submit" disabled={isSubmitting} aria-label="envoyer le message">
+                {isSubmitting ? <CircularProgress size={20} aria-label="la réponse est en train d'être générée" /> : <SendIcon />}
               </IconButton>
               {!!props.canBeReset && (
-                <IconButton onClick={props.onResetSession} color="error" disabled={mutex.isLocked} aria-label="redémarrer une session" sx={{ mt: 1 }}>
+                <IconButton onClick={props.onResetSession} color="error" disabled={isSubmitting} aria-label="redémarrer une session" sx={{ mt: 1 }}>
                   <RestartAltIcon />
                 </IconButton>
               )}

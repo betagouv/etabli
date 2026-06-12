@@ -10,7 +10,6 @@ import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import { subHours } from 'date-fns/subHours';
 import fs from 'fs/promises';
-import { LLMChain } from 'langchain/chains';
 import { createRetrievalChain } from 'langchain/chains/retrieval';
 import { BufferMemory } from 'langchain/memory';
 import mistralTokenizer from 'mistral-tokenizer-js';
@@ -21,7 +20,13 @@ import { createStuffDocumentsChain } from '@etabli/src/features/custom-langchain
 import { ChunkEventEmitter, LlmManager } from '@etabli/src/features/llm';
 import { InitiativeLlmDocument, Prisma, Settings, ToolLlmDocument } from '@etabli/src/generated/prisma/client';
 import { gptInstances, gptSeed } from '@etabli/src/gpt';
-import { DocumentInitiativeTemplateSchema, ResultSchema, ResultSchemaType } from '@etabli/src/gpt/template';
+import {
+  AssistantSearchIntentSchema,
+  AssistantSearchIntentSchemaType,
+  DocumentInitiativeTemplateSchema,
+  ResultSchema,
+  ResultSchemaType,
+} from '@etabli/src/gpt/template';
 import { getServerTranslation } from '@etabli/src/i18n';
 import { llmResponseFormatError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { prisma } from '@etabli/src/prisma';
@@ -686,10 +691,11 @@ CONTEXTE :
   // matching initiatives' vectors are far from the query yet their description clearly mentions it. We strip
   // non-topical words and search each remaining salient word separately (so a common word does not drown a rare one);
   // the cross-encoder then re-ranks the merged pool, so noise from a too-common word simply falls off.
-  public async retrieveLexicalInitiativeDocuments(query: string, perWordLimit: number = 20, totalLimit: number = 40): Promise<Document[]> {
+  public async retrieveLexicalInitiativeDocuments(keywords: string[], perWordLimit: number = 20, totalLimit: number = 40): Promise<Document[]> {
     const salientWords = [
       ...new Set(
-        query
+        keywords
+          .join(' ') // the LLM provides main topical terms + synonyms (e.g. "police", "gendarmerie", "forces de l'ordre"); we split multi-word ones into individual searchable words below
           .toLowerCase()
           .normalize('NFD')
           .replace(/\p{Diacritic}/gu, '') // strip accents so words match the (unaccented) non-topical list
@@ -765,77 +771,85 @@ CONTEXTE :
       }
 
       // [IMPORTANT]
-      // Before we were using passing the user input with the history to the LLM (with the retriever being based only on the query, not the history)
-      // We could have bring the full history to the retriever but it would make a mess because it's hard to determine how many previous messages to send to make sure the right context is used
+      // Before we were passing the user input with the history to the LLM (with the retriever being based only on the query, not the history).
+      // We could have brought the full history to the retriever but it would make a mess because it's hard to determine how many previous messages to send to make sure the right context is used.
       // And if too few in case of follow-up questions it would make a mess...
-      // The idea here is to keep the retriever logic simple with just one question, but for this we first ask the LLM to rephrase a question according to the history
+      // The idea here is to keep the retriever logic simple with just one question, but for this we first ask the LLM to extract a structured "search intent" according to the history.
+      //
+      // This single extraction produces 3 distinct values because retrieval and generation want opposite things from the wording:
+      //  - `standaloneQuestion`: the natural, context-resolved question — fed to the assistant to generate the final answer (and what the user "asked");
+      //  - `searchQuery`: a distilled topical query (no politeness, no filler, no synonyms) — fed to the semantic/embeddings retriever AND to the cross-encoder rerank, so a rare topical word (e.g. "police") is not drowned by filler ("j'aimerais trouver beaucoup de choses sur...") and diluted in the averaged vector;
+      //  - `searchKeywords`: the salient terms PLUS their French synonyms — fed to the keyword/full-text search only (the embeddings already place synonyms close, but `to_tsquery` matches exact tokens so "police" alone would never reach a sheet mentioning "gendarmerie").
+      // Unlike before, we run this even without history because the dilution problem already exists on the very first message.
       const previousMessages = await session.history.chatHistory.getMessages();
 
-      let query: string;
-      if (previousMessages.length > 0) {
-        let rephrasingFinishReason: string | null = null;
-        let rephrasingTokenUsage: TokenUsage | null = null;
+      let searchIntent: AssistantSearchIntentSchemaType;
+      try {
+        let intentFinishReason: string | null = null;
+        let intentTokenUsage: TokenUsage | null = null;
 
-        const rephrasingPromptCanvas = ChatPromptTemplate.fromMessages([
+        const searchIntentPromptCanvas = ChatPromptTemplate.fromMessages([
           [
             'system',
-            `Voici une historique de conversation, et j'aimerais que tu retranscrives le dernier message sous forme de question autonome, compréhensible sans avoir lu l'historique. Il se peut que ce message soit une "follow-up question" qui fait référence à des éléments des messages précédents.
+            `Tu prépares la recherche dans un annuaire d'initiatives (services et projets numériques gérés par l'État ou des collectivités territoriales). À partir de l'historique de conversation et du dernier message de l'utilisateur, tu dois produire un objet structuré qui servira d'abord à retrouver les bonnes initiatives, puis à répondre à l'utilisateur.
 
-Règles :
-- N'ajoute jamais de contexte qui n'est pas présent dans les messages précédents, et n'en ajoute que si c'est nécessaire pour rendre la question compréhensible seule.
-- Si le dernier message fait référence à une ou plusieurs initiatives déjà mentionnées — que ce soit par leur nom, par leur nombre, par leur position ou par un pronom (par exemple « les trois », « la première », « la dernière », « celui-là », « ceux-ci ») — tu DOIS remplacer cette référence par les NOMS EXACTS de TOUTES les initiatives concernées, tels qu'ils apparaissent dans l'historique (avec leur ID s'il est disponible). Par exemple, si l'historique a listé les initiatives « A », « B » et « C » et que le dernier message est « le site des trois ? », tu dois répondre « Quels sont les sites web des initiatives A, B et C ? ».
-- Si le dernier message n'est pas assimilable à une question, reprends-le tel quel.
-- Tu dois ABSOLUMENT répondre comme si tu étais l'utilisateur qui repose sa question, sans aucun commentaire de ta part.`,
+Tu dois renseigner les trois champs suivants :
+
+1. \`standaloneQuestion\` : le dernier message reformulé en une question autonome, compréhensible sans avoir lu l'historique. C'est cette question qui sera présentée comme étant celle de l'utilisateur pour générer la réponse finale.
+   - N'ajoute jamais de contexte qui n'est pas présent dans les messages précédents, et n'en ajoute que si c'est nécessaire pour rendre la question compréhensible seule.
+   - Si le dernier message fait référence à une ou plusieurs initiatives déjà mentionnées — que ce soit par leur nom, par leur nombre, par leur position ou par un pronom (par exemple « les trois », « la première », « la dernière », « celui-là », « ceux-ci ») — tu DOIS remplacer cette référence par les NOMS EXACTS de TOUTES les initiatives concernées, tels qu'ils apparaissent dans l'historique (avec leur ID s'il est disponible).
+   - Si le dernier message n'est pas assimilable à une question, reprends-le tel quel.
+
+2. \`searchQuery\` : une version courte et distillée du SUJET de la recherche, uniquement les termes thématiques, SANS les formules de politesse ni les tournures vagues (« j'aimerais », « peux-tu me trouver », « beaucoup de choses sur »). Par exemple, pour « j'aimerais trouver beaucoup de choses sur la police », \`searchQuery\` vaut « police ». Garde-la concise et n'y ajoute PAS de synonymes.
+
+3. \`searchKeywords\` : la liste des mots-clés thématiques principaux ET leurs synonymes ou termes proches en français. Par exemple pour « police » : ["police", "gendarmerie", "forces de l'ordre", "sécurité intérieure"]. N'inclus que des termes pertinents (entre 1 et 8 environ), pas de mots vides ni de termes génériques sans rapport.`,
           ],
           new MessagesPlaceholder('chat_history'),
           ['human', '{input}'],
         ]);
 
-        const rephrasingChain = new LLMChain({
-          llm: this.mistralaiClient
-            // Those specific settings cannot be set into the global instance directly
-            .bind({
-              // [IMPORTANT] `timeout` is not passed to the underlying Mistral client, so we had to patch the module directly with `patch-package`
-              timeout: secondsToMilliseconds(60), // It's unlikely the total call duration would take that much time, setting a limit to not block the process
-              callbacks: [
-                {
-                  handleLLMEnd: (output, runId, parentRunId?, tags?) => {
-                    if (!!output.generations[0]?.[0]?.generationInfo?.finish_reason) {
-                      rephrasingFinishReason = output.generations[0][0].generationInfo?.finish_reason;
-                    }
+        const searchIntentLlm = this.mistralaiClient
+          .withStructuredOutput<AssistantSearchIntentSchemaType>(AssistantSearchIntentSchema as any, { name: 'assistant_search_intent' })
+          .withRetry({ stopAfterAttempt: 2 }); // in addition to `maxRetries`, otherwise there are more retries than expected
 
-                    if (!!output.llmOutput?.tokenUsage) {
-                      rephrasingTokenUsage = output.llmOutput.tokenUsage as unknown as TokenUsage;
-                    }
-                  },
-                },
-              ],
-            })
-            .withRetry({
-              stopAfterAttempt: 2, // This is required in addition to the `maxRetries` otherwise they are more retries than expected
-            }),
-          prompt: rephrasingPromptCanvas,
-          verbose: false,
-        });
-
-        const answer = await rephrasingChain.invoke(
-          {
+        const rawSearchIntent = await searchIntentLlm.invoke(
+          await searchIntentPromptCanvas.formatMessages({
             chat_history: previousMessages,
             input: input,
-          },
+          }),
           {
-            // Due to using chained `.bind().withRetry()` above, callbacks and others must be defined there (here they won't be called)
+            callbacks: [
+              {
+                handleLLMEnd: (output) => {
+                  if (!!output.generations[0]?.[0]?.generationInfo?.finish_reason) {
+                    intentFinishReason = output.generations[0][0].generationInfo?.finish_reason;
+                  }
+
+                  if (!!output.llmOutput?.tokenUsage) {
+                    intentTokenUsage = output.llmOutput.tokenUsage as unknown as TokenUsage;
+                  }
+                },
+              },
+            ],
+            signal: AbortSignal.timeout(secondsToMilliseconds(60)), // do not let a hanging API call block the process
           }
         );
 
-        this.assertSuccessfulInvoke(rephrasingFinishReason, rephrasingTokenUsage);
+        this.assertSuccessfulInvoke(intentFinishReason, intentTokenUsage);
 
-        assert(typeof answer.text === 'string');
+        // The structured output is already validated against the schema by the parser, but we re-parse to be safe
+        searchIntent = AssistantSearchIntentSchema.parse(rawSearchIntent);
+      } catch (error) {
+        // The search intent is an optimization, not a hard requirement: if the extraction fails we degrade gracefully to
+        // using the raw user message (roughly the previous behavior) rather than breaking the whole assistant request.
+        console.warn('unable to extract a structured search intent, falling back to the raw user message');
+        console.warn(error);
 
-        query = answer.text;
-      } else {
-        // No history, the user query can be used directly
-        query = input;
+        searchIntent = {
+          standaloneQuestion: input,
+          searchQuery: input,
+          searchKeywords: [input],
+        };
       }
 
       const totalDocumentsToRevealToTheUser: number = 5;
@@ -880,7 +894,9 @@ CONTEXTE :
 `,
         ],
         new MessagesPlaceholder('chat_history'),
-        ['human', '{input}'],
+        // We feed the natural standalone question here (not the distilled `searchQuery`), so the assistant answers a real
+        // question instead of a bag of keywords. Retrieval uses `searchQuery`/`searchKeywords` separately (see below).
+        ['human', '{question}'],
       ]);
 
       // When using a stream there is no object `tokenUsage` as for the conventional way
@@ -921,8 +937,8 @@ CONTEXTE :
         prompt: promptCanvas,
         documentSeparator: '\n',
         documentsMaximum: totalDocumentsToRevealToTheUser,
-        query: query,
-        lexicalDocuments: await this.retrieveLexicalInitiativeDocuments(query),
+        query: searchIntent.searchQuery, // drives the cross-encoder rerank: the distilled topical query, not the verbose sentence
+        lexicalDocuments: await this.retrieveLexicalInitiativeDocuments(searchIntent.searchKeywords), // keyword search gets the synonyms too
         previouslyShownDocuments: Array.from(session.documents.values()),
         onSelectedDocuments: (selectedDocuments) => {
           for (const document of selectedDocuments) {
@@ -948,7 +964,8 @@ CONTEXTE :
 
       const stream = await chain.stream(
         {
-          input: query,
+          input: searchIntent.searchQuery, // `createRetrievalChain` feeds this to the embeddings retriever; the distilled query avoids dilution
+          question: searchIntent.standaloneQuestion, // passed through to the generation prompt's `{question}` (the natural user-facing question)
           chat_history: previousMessages,
         },
         {

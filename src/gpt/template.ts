@@ -101,6 +101,27 @@ export const DocumentInitiativeTemplateSchema = z
   .strict();
 export type DocumentInitiativeTemplateSchemaType = z.infer<typeof DocumentInitiativeTemplateSchema>;
 
+export const AssistantSearchIntentSchema = z
+  .object({
+    standaloneQuestion: z
+      .string()
+      .describe(
+        "Le dernier message de l'utilisateur reformulé en une question autonome, compréhensible sans avoir lu l'historique (les références aux initiatives déjà mentionnées sont remplacées par leurs noms exacts). Sert à générer la réponse finale."
+      ),
+    searchQuery: z
+      .string()
+      .describe(
+        'Version courte et distillée du sujet de la recherche : uniquement les termes thématiques, sans formules de politesse ni tournures vagues, et SANS synonymes. Sert à la recherche sémantique (embeddings).'
+      ),
+    searchKeywords: z
+      .array(z.string())
+      .describe(
+        'Mots-clés thématiques principaux ET leurs synonymes ou termes proches en français. Sert à la recherche par mots-clés (full-text). Exemple pour « police » : ["police", "gendarmerie", "forces de l\'ordre", "sécurité intérieure"].'
+      ),
+  })
+  .strict();
+export type AssistantSearchIntentSchemaType = z.infer<typeof AssistantSearchIntentSchema>;
+
 export const DocumentInitiativesChunkTemplateSchema = z
   .object({
     currentChunkNumber: z.number().nonnegative(),

@@ -67,31 +67,49 @@ export class CrossEncoderSingleton {
   }
 }
 
-// Listen for messages from the main thread
+// The model max sequence length (CamemBERT). Every pair is padded/truncated to exactly this — see below.
+const CROSS_ENCODER_MAX_LENGTH = 512;
+
+// We rerank the WHOLE candidate pool (up to ~100 initiatives: vector + lexical + previously-shown). We score ONE
+// (query, document) pair at a time, each padded to a FIXED length, instead of feeding the whole pool as one big batch.
+//
+//  1. MEMORY: a single forward pass over N sequences padded to the longest one allocates attention activations that
+//     scale with `N * length²`. For ~100 documents that transiently reaches >1 GB of NATIVE (off-heap) ONNX memory,
+//     which is NOT bounded by `--max-old-space-size` (that only caps the V8 JS heap). On the 2 GB production instance
+//     this pushed the process past the cgroup limit and got it OOM-killed (SIGKILL → 503 → restart → model reload).
+//     One pair at a time keeps peak memory at the model weights (~600 MB) plus a single 512-token sequence (~tens of MB).
+//  2. CORRECTNESS / DETERMINISM: this converted ONNX model is padding-sensitive — scoring a pair with NO padding gives
+//     mushy, poorly-separated scores (verified empirically), so per-pair scoring must still pad. But padding to the
+//     longest doc *in the batch* (the old behavior) makes each score depend on whatever else is in the pool, which is
+//     both non-deterministic and the reason batching distorts the ranking. Padding every pair to a FIXED length instead
+//     restores the discriminative scores AND makes each (query, document) score independent and reproducible. The score
+//     is stable for any fixed length above the document's real token count (extra padding is masked), so we simply use
+//     the model max.
 export async function rankDocumentsWithCrossEncoder(documents: string[], query: string): Promise<RankResult[]> {
   const [tokenizer, model] = await CrossEncoderSingleton.getInstance();
 
-  const inputs = tokenizer(new Array(documents.length).fill(query), {
-    text_pair: documents,
-    padding: true,
-    truncation: true,
-  });
+  const results: RankResult[] = [];
 
-  const { logits } = await model(inputs);
+  for (let i = 0; i < documents.length; i++) {
+    const inputs = tokenizer([query], {
+      text_pair: [documents[i]],
+      padding: 'max_length', // pad to a FIXED length (not to other docs in a batch) so scores are deterministic and well-separated
+      max_length: CROSS_ENCODER_MAX_LENGTH,
+      truncation: true,
+    });
 
-  const results = logits
-    .sigmoid()
-    .tolist()
-    .map(
-      ([score]: [number], i: number): RankResult => ({
-        originalDocumentIndex: i,
-        score: score,
-        document: documents[i],
-      })
-    )
-    .sort((a: { score: number }, b: { score: number }) => b.score - a.score);
+    const { logits } = await model(inputs);
 
-  return results;
+    const [[score]] = logits.sigmoid().tolist();
+
+    results.push({
+      originalDocumentIndex: i,
+      score: score,
+      document: documents[i],
+    });
+  }
+
+  return results.sort((a, b) => b.score - a.score);
 }
 
 // This should be called during the CI/CD since we forbid downloads from the production

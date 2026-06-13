@@ -31,8 +31,10 @@ describe('CrossEncoder', () => {
         'accessibilité'
       );
 
-      // Check the order
-      expect(rankResults.map((result) => result.originalDocumentIndex)).toStrictEqual([1, 2, 0]);
+      // The query "accessibilité" matches the "Acceslibre" initiative (index 1), which must be reranked first. We only
+      // assert that the relevant one tops the list: the other two are both unrelated to accessibility, so their relative
+      // order carries no meaning and is within the model's scoring noise.
+      expect(rankResults[0].originalDocumentIndex).toBe(1);
     },
     15 * 1000
   );

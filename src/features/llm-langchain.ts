@@ -867,6 +867,12 @@ Tu dois renseigner les trois champs suivants :
 
       const totalDocumentsToRevealToTheUser: number = 5;
 
+      // How many candidates we hand to the cross-encoder rerank. We only ever SHOW `totalDocumentsToRevealToTheUser` (5),
+      // so we just need enough candidates that the truly best 5 are in the set. The cross-encoder reranks them one by one
+      // (~30 ms each), so the pool size is the main driver of the response latency — reranking ~150 candidates added
+      // several seconds for no quality gain. ~6x the shown count is a standard reranking ratio and keeps it ~1s.
+      const rerankCandidatesMaximum: number = 6 * totalDocumentsToRevealToTheUser;
+
       // We set the instruction into a array when testing if it needs to be a monobloc texts or if a list is preferable
       const instructions: string[] = [
         `l'utilisateur nous a dit parler français, il faut donc lui parler en français (surtout pas en anglais)`,
@@ -951,7 +957,11 @@ CONTEXTE :
         documentSeparator: '\n',
         documentsMaximum: totalDocumentsToRevealToTheUser,
         query: retrievalQuery, // drives the cross-encoder rerank: the distilled topical query, not the verbose sentence (guaranteed non-empty)
-        lexicalDocuments: await this.retrieveLexicalInitiativeDocuments(searchIntent.searchKeywords), // keyword search gets the synonyms too
+        lexicalDocuments: await this.retrieveLexicalInitiativeDocuments(
+          searchIntent.searchKeywords,
+          totalDocumentsToRevealToTheUser, // per keyword: a handful is enough, these are just recall candidates for the rerank
+          2 * totalDocumentsToRevealToTheUser // total lexical candidates added to the pool (keyword search gets the synonyms too)
+        ),
         previouslyShownDocuments: Array.from(session.documents.values()),
         onSelectedDocuments: (selectedDocuments) => {
           for (const document of selectedDocuments) {
@@ -970,7 +980,7 @@ CONTEXTE :
         },
       });
 
-      const baseRetriever = this.initiativesVectorStore.asRetriever(Math.max(5 * totalDocumentsToRevealToTheUser, 100)); // Get more since a filter and rerank will be performed, then keeping the N first
+      const baseRetriever = this.initiativesVectorStore.asRetriever(rerankCandidatesMaximum); // Get more than we show since a threshold filter and a rerank narrow it down, but not so many that the rerank gets slow
 
       const chain = await createRetrievalChain({
         // When the message has no topical intent, skip the vector search entirely: no embeddings call (which would

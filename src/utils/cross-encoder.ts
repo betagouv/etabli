@@ -67,34 +67,53 @@ export class CrossEncoderSingleton {
   }
 }
 
-// The model max sequence length (CamemBERT). Every pair is padded/truncated to exactly this — see below.
+// The model max sequence length (CamemBERT). Pairs longer than this are truncated.
 const CROSS_ENCODER_MAX_LENGTH = 512;
 
-// We rerank the WHOLE candidate pool (up to ~100 initiatives: vector + lexical + previously-shown). We score ONE
-// (query, document) pair at a time, each padded to a FIXED length, instead of feeding the whole pool as one big batch.
+// Candidate padded lengths. We pad each pair to the smallest bucket strictly above its real token count (see below).
+// Only a few distinct shapes keep ONNX Runtime from re-optimizing/reallocating per unique length.
+const CROSS_ENCODER_LENGTH_BUCKETS = [128, 256, 384, CROSS_ENCODER_MAX_LENGTH];
+
+// We rerank the candidate pool (vector + lexical + previously-shown) by scoring ONE (query, document) pair at a time,
+// each padded to a FIXED length, instead of feeding the whole pool as one big batch.
 //
 //  1. MEMORY: a single forward pass over N sequences padded to the longest one allocates attention activations that
-//     scale with `N * length²`. For ~100 documents that transiently reaches >1 GB of NATIVE (off-heap) ONNX memory,
+//     scale with `N * length²`. For a large pool that transiently reaches >1 GB of NATIVE (off-heap) ONNX memory,
 //     which is NOT bounded by `--max-old-space-size` (that only caps the V8 JS heap). On the 2 GB production instance
 //     this pushed the process past the cgroup limit and got it OOM-killed (SIGKILL → 503 → restart → model reload).
-//     One pair at a time keeps peak memory at the model weights (~600 MB) plus a single 512-token sequence (~tens of MB).
+//     One pair at a time keeps peak memory at the model weights plus a single sequence (~tens of MB).
 //  2. CORRECTNESS / DETERMINISM: this converted ONNX model is padding-sensitive — scoring a pair with NO padding gives
 //     mushy, poorly-separated scores (verified empirically), so per-pair scoring must still pad. But padding to the
 //     longest doc *in the batch* (the old behavior) makes each score depend on whatever else is in the pool, which is
 //     both non-deterministic and the reason batching distorts the ranking. Padding every pair to a FIXED length instead
-//     restores the discriminative scores AND makes each (query, document) score independent and reproducible. The score
-//     is stable for any fixed length above the document's real token count (extra padding is masked), so we simply use
-//     the model max.
+//     restores the discriminative scores AND makes each (query, document) score independent and reproducible.
+//  3. SPEED: the score is invariant to the padded length as long as there is at least one padding token (the extra
+//     positions are masked), so instead of always padding to the model max (512) — where attention costs O(512²) per
+//     layer even for a short document — we pad to the smallest bucket strictly above the pair's real token count. Most
+//     initiative sheets are ~300-400 tokens, so this is typically a 384-length pass instead of 512, with identical
+//     ranking but noticeably less compute (which is what matters on the CPU-only production instance).
 export async function rankDocumentsWithCrossEncoder(documents: string[], query: string): Promise<RankResult[]> {
   const [tokenizer, model] = await CrossEncoderSingleton.getInstance();
 
   const results: RankResult[] = [];
 
   for (let i = 0; i < documents.length; i++) {
+    // Cheap first pass just to measure the real token count (no model inference here)
+    const measured = tokenizer([query], {
+      text_pair: [documents[i]],
+      truncation: true,
+      max_length: CROSS_ENCODER_MAX_LENGTH,
+    });
+    const realLength = measured.input_ids.dims.at(-1) as number;
+
+    // Smallest bucket strictly above the real length so there is always at least one padding token (required for
+    // well-separated scores). Falls back to the model max when the pair fills/exceeds it (then it is just truncated).
+    const paddedLength = CROSS_ENCODER_LENGTH_BUCKETS.find((bucket) => bucket > realLength) ?? CROSS_ENCODER_MAX_LENGTH;
+
     const inputs = tokenizer([query], {
       text_pair: [documents[i]],
       padding: 'max_length', // pad to a FIXED length (not to other docs in a batch) so scores are deterministic and well-separated
-      max_length: CROSS_ENCODER_MAX_LENGTH,
+      max_length: paddedLength,
       truncation: true,
     });
 

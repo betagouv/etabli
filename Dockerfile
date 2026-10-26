@@ -2,13 +2,13 @@
 # The `APP_HOST` variable defaults onto what Next.js server uses in a Docker environment
 
 ARG NODE_VERSION=22.23.4
-ARG RUBY_VERSION=1:3.1
-ARG PIP_VERSION=23.0.1+dfsg-1
+ARG RUBY_VERSION=1:3.3+b1
+ARG PIP_VERSION=25.1.1+dfsg-1
 ARG PRISMA_VERSION=7.8.0
 ARG APP_HOST=172.17.0.2
 ARG PORT=3000
 
-FROM node:${NODE_VERSION}-slim
+FROM node:${NODE_VERSION}-trixie-slim
 
 ARG RUBY_VERSION
 ARG PIP_VERSION
@@ -65,7 +65,7 @@ COPY --chown=nextjs:nodejs "src/semgrep/requirements.txt" ./
 
 # Docker does not allow injecting command result into an variable environment so doing it manually (ref: https://github.com/moby/moby/issues/29110)
 # ENV GEM_HOME="$(ruby -e 'puts Gem.user_dir')"
-ENV GEM_HOME="/home/nextjs/.local/share/gem/ruby/3.1.0"
+ENV GEM_HOME="/home/nextjs/.local/share/gem/ruby/3.3.0"
 ENV PATH="$GEM_HOME/bin:$PATH"
 
 RUN gem install --user-install bundler

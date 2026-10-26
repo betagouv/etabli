@@ -11,7 +11,7 @@ env:
   CONTAINER_IMAGE_FOLDER: ghcr.io/${{ github.repository }}
   NODE_OPTIONS: --max_old_space_size=4096
   NODE_VERSION: 22.23.4
-  RUBY_VERSION: 3.2.2
+  RUBY_VERSION: 3.2.11
   PYTHON_VERSION: 3.10.4
   JEST_CACHE_FOLDER_SUFFIX: .cache/jest
   PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX: .cache/ms-playwright

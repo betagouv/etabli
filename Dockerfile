@@ -1,7 +1,7 @@
 # [IMPORTANT] Must be built from the root of the project for the COPY/paths to work
 # The `APP_HOST` variable defaults onto what Next.js server uses in a Docker environment
 
-ARG NODE_VERSION=22.22.3
+ARG NODE_VERSION=22.23.4
 ARG RUBY_VERSION=1:3.1
 ARG PIP_VERSION=23.0.1+dfsg-1
 ARG PRISMA_VERSION=7.8.0

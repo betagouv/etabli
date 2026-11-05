@@ -11,12 +11,7 @@ import {
 } from '@etabli/src/features/domain';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/src/features/llm';
-import {
-  bindOrganizationsToInitiatives,
-  formatOrganizationsIntoDatabase,
-  saveOrganizationListFile,
-  updateOrganizationsInitiativesCount,
-} from '@etabli/src/features/organization';
+import { bindOrganizationsToInitiatives, formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
 import {
   enhanceRepositoriesIntoDatabase,
   formatRepositoriesIntoDatabase,
@@ -166,13 +161,6 @@ organization
   .description('bind initiatives to organizations according to their websites and repositories')
   .action(async () => {
     await bindOrganizationsToInitiatives();
-  });
-
-organization
-  .command('count')
-  .description('refresh the number of initiatives per organization')
-  .action(async () => {
-    await updateOrganizationsInitiativesCount();
   });
 
 organization

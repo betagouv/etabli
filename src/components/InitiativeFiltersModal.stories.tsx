@@ -38,6 +38,7 @@ const defaultMswParameters = {
         path: ['searchOrganizations'] as ['searchOrganizations'],
         response: {
           organizations: organizationOptions,
+          matchedThrough: {},
         },
       }),
       getTRPCMock({

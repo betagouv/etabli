@@ -93,8 +93,15 @@ export function InitiativeCard(props: InitiativeCardProps) {
               {props.initiative.name}
             </Link>
           </Grid>
-          <Grid item xs={12} sx={{ pt: '8px !important' }}>
-            <OrganizationChips summaries={organizationSummaries} linkToInitiatives sx={interactiveLayer} />
+          {/* In a column grid `xs` sets no width, so the width is forced for names to be truncated instead of widening the card */}
+          <Grid item xs={12} sx={{ pt: '8px !important', width: '100%', minWidth: 0 }}>
+            <OrganizationChips
+              summaries={organizationSummaries}
+              websitesCount={props.initiative.websites.length}
+              repositoriesCount={props.initiative.repositories.length}
+              linkToInitiatives
+              sx={interactiveLayer}
+            />
           </Grid>
           <Grid item xs={12}>
             <Typography component="div">

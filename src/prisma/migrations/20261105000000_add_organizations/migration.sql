@@ -12,6 +12,7 @@ CREATE TABLE "Organization" (
     "acronym" TEXT,
     "domains" TEXT[],
     "directoryUrl" TEXT,
+    "localServiceType" TEXT,
     "initiativesCount" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -40,6 +41,9 @@ CREATE TABLE "OrganizationsOnInitiatives" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Organization_dilaId_key" ON "Organization"("dilaId");
+
+-- CreateIndex
+CREATE INDEX "Organization_parentOrganizationId_idx" ON "Organization"("parentOrganizationId");
 
 -- CreateIndex
 CREATE INDEX "Organization_ancestorIds_idx" ON "Organization" USING GIN ("ancestorIds");

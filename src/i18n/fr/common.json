@@ -67,6 +67,28 @@
     }
   },
   "model": {
+    "tool": {
+      "category": {
+        "enum": {
+          "ANALYTICS": "Mesure d'audience et analyses",
+          "APPLICATION_HOSTING": "Hébergement",
+          "APPLICATION_UTILITIES": "Utilitaires applicatifs",
+          "ASSETS_AND_MEDIA": "Fichiers et médias",
+          "BACK_OFFICE": "Back-office",
+          "BUILD_TEST_DEPLOY": "Construction, tests et déploiement",
+          "COLLABORATION": "Collaboration",
+          "COMMUNICATIONS": "Communication",
+          "DATA_STORES": "Bases de données",
+          "DESIGN": "Design",
+          "LANGUAGES_AND_FRAMEWORKS": "Langages et frameworks",
+          "LIBRARIES": "Bibliothèques",
+          "MOBILE": "Mobile",
+          "MONITORING": "Supervision",
+          "PAYMENTS": "Paiement",
+          "SUPPORT_SALES_AND_MARKETING": "Support, ventes et marketing"
+        }
+      }
+    },
     "initiative": {
       "businessUseCase_one": "Cas d'utilisation métier",
       "businessUseCase_other": "Cas d'utilisation métiers",

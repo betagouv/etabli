@@ -11,6 +11,7 @@ export const LiteOrganizationSchema = z
     acronym: z.string().min(1).nullable(),
     domains: z.array(z.string().min(1)),
     directoryUrl: z.string().url().nullable(),
+    localServiceType: z.string().min(1).nullable(),
   })
   .strict();
 export type LiteOrganizationSchemaType = z.infer<typeof LiteOrganizationSchema>;
@@ -73,6 +74,17 @@ export const InitiativesCompositionSchema = z
   .strict();
 export type InitiativesCompositionSchemaType = z.infer<typeof InitiativesCompositionSchema>;
 
+// How much the initiatives directly bound to an organization weigh on the map: an initiative bound to N organizations gives
+// 1/N to each one, so the surface of circles is not inflated by cross-organization initiatives
+export const InitiativesCompositionWeightsSchema = z
+  .object({
+    websitesOnly: z.number().nonnegative(),
+    repositoriesOnly: z.number().nonnegative(),
+    both: z.number().nonnegative(),
+  })
+  .strict();
+export type InitiativesCompositionWeightsSchemaType = z.infer<typeof InitiativesCompositionWeightsSchema>;
+
 export const OrganizationsMapItemSchema = z
   .object({
     id: z.string().uuid(),
@@ -80,8 +92,20 @@ export const OrganizationsMapItemSchema = z
     name: z.string().min(1),
     acronym: z.string().min(1).nullable(),
     level: z.number().int().positive(),
-    initiativesCount: z.number().int().nonnegative(), // Distinct initiatives of the whole subtree
+    isHierarchyRoot: z.boolean(), // A root category of the directory (others at level 1 are standalone organizations)
+    composition: InitiativesCompositionSchema, // Distinct initiatives of the whole subtree
     own: InitiativesCompositionSchema, // Initiatives directly bound to this organization
+    ownWeights: InitiativesCompositionWeightsSchema,
   })
   .strict();
 export type OrganizationsMapItemSchemaType = z.infer<typeof OrganizationsMapItemSchema>;
+
+export const OrganizationsMapSchema = z
+  .object({
+    organizations: z.array(OrganizationsMapItemSchema),
+    composition: InitiativesCompositionSchema, // Distinct initiatives of the whole map
+    standalone: InitiativesCompositionSchema, // Distinct initiatives bound to organizations outside of the directory hierarchy
+    unclassified: InitiativesCompositionSchema,
+  })
+  .strict();
+export type OrganizationsMapSchemaType = z.infer<typeof OrganizationsMapSchema>;

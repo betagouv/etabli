@@ -6,9 +6,11 @@ import NextLink from 'next/link';
 
 import { BusinessUseCaseChip } from '@etabli/src/components/BusinessUseCaseChip';
 import { InitiativeCard } from '@etabli/src/components/InitiativeCard';
+import { OrganizationChips } from '@etabli/src/components/OrganizationChip';
 import { InitiativeSchemaType } from '@etabli/src/models/entities/initiative';
 import { ListDisplay } from '@etabli/src/utils/display';
 import { ulComponentResetStyles } from '@etabli/src/utils/grid';
+import { summarizeOrganizations } from '@etabli/src/utils/organization';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 import { nameof } from '@etabli/src/utils/typescript';
 
@@ -17,6 +19,7 @@ const typedNameof = nameof<InitiativeSchemaType>;
 export interface InitiativeListProps {
   initiatives: InitiativeSchemaType[];
   display: ListDisplay;
+  focusedOrganizationsIds?: string[];
 }
 
 export function InitiativeList(props: InitiativeListProps) {
@@ -41,6 +44,26 @@ export function InitiativeList(props: InitiativeListProps) {
           >
             {params.row.name}
           </Link>
+        );
+      },
+    },
+    {
+      field: typedNameof('organizations'),
+      headerName: 'Organisations',
+      flex: 0.7,
+      minWidth: 200,
+      sortable: false,
+      renderCell: (params) => {
+        const organizationSummaries = summarizeOrganizations(params.row.organizations, props.focusedOrganizationsIds);
+
+        return (
+          <OrganizationChips
+            summaries={organizationSummaries}
+            websitesCount={params.row.websites.length}
+            repositoriesCount={params.row.repositories.length}
+            linkToInitiatives
+            sx={{ py: 1 }}
+          />
         );
       },
     },
@@ -129,6 +152,7 @@ export function InitiativeList(props: InitiativeListProps) {
                     initiativeId: initiative.id,
                   })}
                   initiative={initiative}
+                  focusedOrganizationsIds={props.focusedOrganizationsIds}
                 />
               </Grid>
             ))}

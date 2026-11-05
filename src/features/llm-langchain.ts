@@ -406,7 +406,10 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
         }
 
         // Organizations help answering questions about who manages an initiative, or about a territory (regions, departments, towns...)
-        const organizationsByInitiativeId = await retrieveInitiativesOrganizations(initiatives.map((initiative) => initiative.id));
+        const organizationsByInitiativeId = await retrieveInitiativesOrganizations(
+          initiatives.map((initiative) => initiative.id),
+          tx
+        );
 
         // Orphan documents are removed via the schema-level `onDelete: Cascade` on the `initiative`
         // relation — and since `initiativeId` is non-nullable, the relation can never actually be null.

@@ -3,36 +3,40 @@
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import Box from '@mui/material/Box';
-import Chip from '@mui/material/Chip';
 import Tooltip, { TooltipProps } from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { SxProps, Theme } from '@mui/material/styles';
 import NextLink from 'next/link';
 
 import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
-import { OrganizationSummary, formatOrganizationPath } from '@etabli/src/utils/organization';
+import { OrganizationSummary, formatOrganizationPath, getUnclassifiedExplanation } from '@etabli/src/utils/organization';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 
 export function getOrganizationInitiativesLink(organizationId: string): string {
   return `${linkRegistry.get('initiatives', undefined)}?orgs=${encodeURIComponent(organizationId)}`;
 }
 
+// Organizations are deduced from websites and repositories (declared domains in the DILA directory, forge accounts listed
+// by code.gouv.fr), so users must know it may be inaccurate
+export const organizationsBindingDisclaimer =
+  "Organisations déduites automatiquement des sites internet (annuaire de l'administration) et des comptes de dépôts de code (code.gouv.fr), le rattachement peut comporter des erreurs.";
+
 export function getUnclassifiedInitiativesLink(): string {
   return `${linkRegistry.get('initiatives', undefined)}?nc=true`;
 }
 
 // A light tooltip is more readable than the default dark one for structured content
-const tooltipSlotProps: TooltipProps['componentsProps'] = {
-  tooltip: {
-    sx: {
-      bgcolor: 'var(--background-default-grey)',
-      color: 'var(--text-default-grey)',
-      border: '1px solid var(--border-default-grey)',
-      boxShadow: 3,
-      maxWidth: 420,
-      p: 1.5,
-    },
-  },
+export const lightTooltipSx = {
+  bgcolor: 'var(--background-default-grey)',
+  color: 'var(--text-default-grey)',
+  border: '1px solid var(--border-default-grey)',
+  boxShadow: 3,
+  maxWidth: 420,
+  p: '10px 14px !important', // The DSFR overrides the tooltip padding
+};
+
+export const lightTooltipSlotProps: TooltipProps['componentsProps'] = {
+  tooltip: { sx: lightTooltipSx },
   arrow: {
     sx: {
       color: 'var(--background-default-grey)',
@@ -41,26 +45,26 @@ const tooltipSlotProps: TooltipProps['componentsProps'] = {
   },
 };
 
-const chipSx = {
-  bgcolor: 'var(--background-contrast-grey)',
+// Displayed as a plain line (icon and text) aligned on the other rows of a card, instead of a pill which looked indented
+const lineSx = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 1,
   maxWidth: '100%',
-  height: 'auto',
-  // Same look as other chips (e.g. business use cases), with `!important` because DSFR resets the padding of links
-  p: '5px !important',
-  fontSize: '0.8125rem',
-  lineHeight: 1.4,
+  minWidth: 0,
+  color: 'var(--text-mention-grey)',
   backgroundImage: 'none !important', // DSFR paints a link underline as a background
-  '&.MuiChip-clickable:hover, &.MuiChip-clickable:focus-visible': {
-    bgcolor: 'var(--background-contrast-grey-hover)',
+  textDecoration: 'none',
+  '&[href]:hover, &[href]:focus-visible': {
+    backgroundColor: 'transparent !important',
+    color: 'var(--text-default-grey)',
+    '& > .organization-line-name': { textDecoration: 'underline' },
   },
-  '& > .MuiChip-icon': {
-    fontSize: '1.1rem',
-    ml: '6px',
-    mr: '-2px',
-  },
+  '& > svg': { fontSize: 16, flexShrink: 0 },
   // One line whatever the name length so all cards look alike, the full information is in the tooltip
-  '& > .MuiChip-label': {
-    display: 'block',
+  '& > .organization-line-name': {
+    fontSize: '0.8125rem',
+    lineHeight: 1.4,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -81,36 +85,44 @@ export function OrganizationChip(props: OrganizationChipProps) {
   return (
     <Tooltip
       arrow
-      componentsProps={tooltipSlotProps}
+      describeChild // The tooltip describes the chip instead of replacing its accessible name
+      componentsProps={lightTooltipSlotProps}
       title={
         <>
           <Typography variant="caption" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
             {paths.length > 1 ? 'Organisations rattachées' : 'Organisation rattachée'}
           </Typography>
           <OrganizationTree paths={paths} />
+          <Typography variant="caption" component="div" color="text.secondary" sx={{ mt: 1, fontSize: '0.7rem', lineHeight: 1.3 }}>
+            Rattachement déduit automatiquement, il peut comporter des erreurs.
+          </Typography>
         </>
       }
     >
-      <Chip
-        icon={<AccountBalanceIcon />}
-        label={organization.name}
+      <Box
         {...(props.linkToInitiatives
           ? {
               component: NextLink,
               href: getOrganizationInitiativesLink(organization.id),
-              clickable: true,
               'aria-label': `Voir les initiatives de « ${organization.name} » (${accessiblePaths.join(' ; ')})`,
             }
           : {
+              component: 'span',
+              role: 'group',
               'aria-label': `${organization.name} (${accessiblePaths.join(' ; ')})`,
             })}
-        sx={chipSx}
-      />
+        sx={lineSx}
+      >
+        <AccountBalanceIcon aria-hidden="true" />
+        <span className="organization-line-name">{organization.name}</span>
+      </Box>
     </Tooltip>
   );
 }
 
 export interface UnclassifiedOrganizationChipProps {
+  websitesCount: number;
+  repositoriesCount: number;
   linkToInitiatives?: boolean;
 }
 
@@ -118,38 +130,35 @@ export function UnclassifiedOrganizationChip(props: UnclassifiedOrganizationChip
   return (
     <Tooltip
       arrow
-      componentsProps={tooltipSlotProps}
+      describeChild // The tooltip describes the chip instead of replacing its accessible name
+      componentsProps={lightTooltipSlotProps}
       title={
         <Typography variant="caption" component="div">
-          Aucune organisation publique n&apos;a pu être reconnue à partir des sites internet et des dépôts de code de cette initiative.
+          {getUnclassifiedExplanation(props.websitesCount, props.repositoriesCount)}
         </Typography>
       }
     >
-      <Chip
-        icon={<HelpOutlineIcon />}
-        label="Non classée"
-        variant="outlined"
+      <Box
         {...(props.linkToInitiatives
           ? {
               component: NextLink,
               href: getUnclassifiedInitiativesLink(),
-              clickable: true,
               'aria-label': 'Voir les initiatives non classées (aucune organisation reconnue)',
             }
-          : {})}
-        sx={{
-          ...chipSx,
-          bgcolor: 'transparent',
-          color: 'text.secondary',
-          borderStyle: 'dashed',
-        }}
-      />
+          : { component: 'span' })}
+        sx={lineSx}
+      >
+        <HelpOutlineIcon aria-hidden="true" />
+        <span className="organization-line-name">Non classée</span>
+      </Box>
     </Tooltip>
   );
 }
 
 export interface OrganizationChipsProps {
   summaries: OrganizationSummary[];
+  websitesCount: number;
+  repositoriesCount: number;
   linkToInitiatives?: boolean;
   sx?: SxProps<Theme>;
 }
@@ -163,7 +172,20 @@ export function OrganizationChips(props: OrganizationChipsProps) {
       component="ul"
       aria-label="organisations"
       sx={[
-        { display: 'flex', flexWrap: 'wrap', gap: 1, listStyle: 'none', m: 0, p: 0, minWidth: 0, maxWidth: '100%' },
+        {
+          display: 'flex',
+          flexWrap: 'wrap',
+          columnGap: 2,
+          rowGap: 0.5,
+          listStyle: 'none',
+          minWidth: 0,
+          maxWidth: '100%',
+          // Being a scroll container cancels the width the unwrapped names would impose on the parent layout,
+          // the padding/negative margin pair keeps room for the focus outline
+          overflow: 'hidden',
+          p: '3px',
+          m: '-3px',
+        },
         ...(Array.isArray(props.sx) ? props.sx : [props.sx]),
       ]}
     >
@@ -175,7 +197,11 @@ export function OrganizationChips(props: OrganizationChipsProps) {
         ))
       ) : (
         <Box component="li" sx={itemSx}>
-          <UnclassifiedOrganizationChip linkToInitiatives={props.linkToInitiatives} />
+          <UnclassifiedOrganizationChip
+            websitesCount={props.websitesCount}
+            repositoriesCount={props.repositoriesCount}
+            linkToInitiatives={props.linkToInitiatives}
+          />
         </Box>
       )}
     </Box>

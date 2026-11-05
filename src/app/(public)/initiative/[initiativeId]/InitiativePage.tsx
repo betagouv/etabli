@@ -1,9 +1,13 @@
 'use client';
 
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import DataObjectIcon from '@mui/icons-material/DataObject';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import LanguageIcon from '@mui/icons-material/Language';
 import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
 import Link from '@mui/material/Link';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import NextLink from 'next/link';
 import { useTranslation } from 'react-i18next';
@@ -13,9 +17,12 @@ import { BusinessUseCaseChip } from '@etabli/src/components/BusinessUseCaseChip'
 import { ErrorAlert } from '@etabli/src/components/ErrorAlert';
 import { FunctionalUseCaseChip } from '@etabli/src/components/FunctionalUseCaseChip';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
+import { getOrganizationInitiativesLink, organizationsBindingDisclaimer } from '@etabli/src/components/OrganizationChip';
+import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
 import { ToolChip } from '@etabli/src/components/ToolChip';
 import { initiativeNotFoundError } from '@etabli/src/models/entities/errors';
 import { centeredAlertContainerGridProps, centeredContainerGridProps, ulComponentResetStyles } from '@etabli/src/utils/grid';
+import { getOrganizationPath } from '@etabli/src/utils/organization';
 
 export interface InitiativePageProps {
   params: {
@@ -176,6 +183,31 @@ export function InitiativePage({ params: { initiativeId } }: InitiativePageProps
                 );
               })}
             </Grid>
+          </Grid>
+        )}
+        {initiative.organizations.length > 0 && (
+          <Grid item xs={12}>
+            <Typography
+              component="div"
+              variant="overline"
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {t('model.initiative.organization', { count: initiative.organizations.length })} <AccountBalanceIcon sx={{ ml: 1 }} />
+              <Tooltip title={organizationsBindingDisclaimer}>
+                <IconButton size="small" aria-label={`À propos du rattachement : ${organizationsBindingDisclaimer}`} sx={{ ml: 0.5 }}>
+                  <InfoOutlinedIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            </Typography>
+            <OrganizationTree
+              variant="body2"
+              paths={initiative.organizations.map((organization) => getOrganizationPath(organization))}
+              getLink={getOrganizationInitiativesLink}
+              directoryUrls={Object.fromEntries(initiative.organizations.map((organization) => [organization.id, organization.directoryUrl]))}
+            />
           </Grid>
         )}
         {initiative.tools.length > 0 && (

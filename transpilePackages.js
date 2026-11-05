@@ -1,17 +1,6 @@
 module.exports = {
   commonPackages: ['@codegouvfr/react-dsfr', '@mui/x-data-grid', '@mui/x-date-pickers', 'tss-react'],
-  additionalJestPackages: [
-    // ESM-only packages (and their ESM-only dependencies) used by unit-tested code
-    'parse-domain',
-    'is-ip',
-    'ip-regex',
-    'super-regex',
-    'clone-regexp',
-    'is-regexp',
-    'function-timeout',
-    'time-span',
-    'convert-hrtime',
-  ],
+  additionalJestPackages: [],
   formatTransformIgnorePatterns(packagesToTranspile, previousPatterns) {
     // Inspired from `next.js/packages/next/src/build/jest/jest.ts`
 

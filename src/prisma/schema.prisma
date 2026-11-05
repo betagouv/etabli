@@ -178,6 +178,7 @@ model Organization {
   acronym              String?
   domains              String[] // Normalized hostnames (without `www.`) the organization declares as websites
   directoryUrl         String? // The organization page on the DILA directory
+  localServiceType     String? // For local services, their type in the DILA directory (`mairie`, `ccas`, `epci`...)
   initiativesCount     Int      @default(0) // Number of initiatives bound to this organization or to any of its descendants (refreshed when binding initiatives)
 
   createdAt DateTime @default(now())
@@ -187,6 +188,7 @@ model Organization {
   childrenOrganizations      Organization[]               @relation("ParentChildren")
   OrganizationsOnInitiatives OrganizationsOnInitiatives[]
 
+  @@index([parentOrganizationId])
   @@index([ancestorIds], type: Gin)
   @@index([initiativesCount])
 }

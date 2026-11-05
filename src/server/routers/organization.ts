@@ -1,0 +1,512 @@
+import { retrieveOrganizationsAncestors } from '@etabli/src/features/organization-read';
+import { Prisma } from '@etabli/src/generated/prisma/client';
+import {
+  GetOrganizationsMapSchema,
+  GetOrganizationsSchema,
+  GetToolsBreakdownSchema,
+  ListOrganizationChildrenSchema,
+  SearchOrganizationsSchema,
+  allInitiativesNodeId,
+  standaloneOrganizationsNodeId,
+  unclassifiedInitiativesNodeId,
+} from '@etabli/src/models/actions/initiative';
+import {
+  InitiativesCompositionSchemaType,
+  OrganizationNodeSchema,
+  OrganizationNodeSchemaType,
+  OrganizationOptionSchema,
+  OrganizationOptionSchemaType,
+  OrganizationsMapSchema,
+  OrganizationsMapSchemaType,
+} from '@etabli/src/models/entities/organization';
+import { prisma } from '@etabli/src/prisma/client';
+import { retrieveFilteredInitiativesIds } from '@etabli/src/server/routers/common/initiative-filters';
+import { publicProcedure, router } from '@etabli/src/server/trpc';
+import { SUMMARY_ORGANIZATION_LEVEL } from '@etabli/src/utils/organization';
+import { computeToolsBreakdown } from '@etabli/src/utils/tools-breakdown';
+
+const organizationOptionSelect = {
+  id: true,
+  name: true,
+  acronym: true,
+  level: true,
+  initiativesCount: true,
+  ancestorIds: true,
+} satisfies Prisma.OrganizationSelect;
+
+type OrganizationOptionPayload = Prisma.OrganizationGetPayload<{ select: typeof organizationOptionSelect }>;
+
+async function toOrganizationOptions(organizations: OrganizationOptionPayload[]): Promise<OrganizationOptionSchemaType[]> {
+  const ancestorsById = await retrieveOrganizationsAncestors(organizations.flatMap((organization) => organization.ancestorIds));
+
+  return organizations.map((organization) =>
+    OrganizationOptionSchema.parse({
+      id: organization.id,
+      name: organization.name,
+      acronym: organization.acronym,
+      level: organization.level,
+      initiativesCount: organization.initiativesCount,
+      ancestors: organization.ancestorIds.flatMap((ancestorId) => {
+        const ancestor = ancestorsById.get(ancestorId);
+
+        return ancestor ? [ancestor] : [];
+      }),
+    })
+  );
+}
+
+// Fetch organizations by identifiers while keeping the given order (Prisma cannot order by a list)
+async function getOrderedOrganizationOptions(organizationsIds: string[]): Promise<OrganizationOptionPayload[]> {
+  const organizations = await prisma.organization.findMany({
+    where: { id: { in: organizationsIds } },
+    select: organizationOptionSelect,
+  });
+
+  return organizations.sort((a, b) => organizationsIds.indexOf(a.id) - organizationsIds.indexOf(b.id));
+}
+
+// Accents, case and typographic apostrophes (the directory mixes `’` and `'`) must not matter when searching
+function normalizedSql(expression: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`lower(translate(unaccent(${expression}), '’', ''''))`;
+}
+
+function normalizeQuery(value: string): string {
+  return value.replace(/’/g, "'");
+}
+
+const childrenPageSize = 50;
+
+// The directory roots are categories ("Administration centrale", "Administrations locales"...) having a deep hierarchy,
+// whereas some organizations are just missing their parent in the directory and only have a few direct services
+// (e.g. departmental education services), those are grouped with standalone organizations
+export const isHierarchyRootSql = Prisma.sql`EXISTS (SELECT 1 FROM "Organization" d WHERE d."ancestorIds" @> ARRAY[o."id"] AND d."level" >= ${SUMMARY_ORGANIZATION_LEVEL})`;
+
+// Cache since computing the composition of the whole tree takes a bit of time, and it only changes when data is synchronized
+// The cache is invalidated as soon as the data changes (the signature combines the bindings and the last organizations update,
+// knowing the initiatives count refresh at the end of a binding updates the organizations)
+let organizationsMapCache: {
+  signature: string;
+  value: OrganizationsMapSchemaType;
+} | null = null;
+
+async function getOrganizationsMapSignature(): Promise<string> {
+  const rows = await prisma.$queryRaw<{ signature: string }[]>`
+    SELECT concat_ws(
+      '|',
+      (SELECT max("updatedAt")::text FROM "Organization"),
+      (SELECT count(*)::text FROM "OrganizationsOnInitiatives"),
+      (SELECT count(*)::text FROM "Initiative" WHERE "deletedAt" IS NULL)
+    ) AS "signature"
+  `;
+
+  return rows[0]?.signature ?? '';
+}
+
+export const organizationRouter = router({
+  searchOrganizations: publicProcedure.input(SearchOrganizationsSchema).query(async ({ input }) => {
+    const maximumResults = 30;
+    const words = normalizeQuery(input.query || '')
+      .trim()
+      .split(/\s+/)
+      .filter((word) => word !== '')
+      .slice(0, 10)
+      .map((word) => word.replace(/[\\%_]/g, '\\$&')); // Escape `LIKE` wildcards since it is user input
+
+    let organizationsIds: string[];
+    const matchedThrough: Record<string, string[]> = {}; // For a result only found through organizations without initiatives under it, their names
+    if (words.length === 0) {
+      // Without query we suggest the most represented organizations, skipping generic upper levels of the directory
+      const organizations = await prisma.organization.findMany({
+        where: {
+          initiativesCount: { gt: 0 },
+          level: { gte: SUMMARY_ORGANIZATION_LEVEL },
+        },
+        select: { id: true },
+        orderBy: [{ initiativesCount: 'desc' }, { name: 'asc' }],
+        take: maximumResults,
+      });
+
+      organizationsIds = organizations.map((organization) => organization.id);
+    } else {
+      // Each word must be found in the name, the acronym or a declared domain (so `beta.gouv.fr` finds teams declaring it).
+      // A matching organization without initiatives is replaced by its closest meaningful ancestor having some, since
+      // initiatives are often bound to the parent (e.g. teams sharing the same website are bound to their department)
+      const searchableText = normalizedSql(Prisma.sql`o."name" || ' ' || coalesce(o."acronym", '') || ' ' || array_to_string(o."domains", ' ')`);
+      const conditions = words.map((word) => Prisma.sql`${searchableText} LIKE lower(unaccent(${`%${word}%`}))`);
+      const fullQuery = words.join(' ');
+
+      const rows = await prisma.$queryRaw<{ id: string; matchedThrough: string[] | null }[]>`
+        WITH matched AS (
+          SELECT
+            o."id",
+            o."name",
+            o."ancestorIds",
+            o."initiativesCount" > 0 AS "isDirect",
+            ${normalizedSql(Prisma.sql`coalesce(o."acronym", '')`)} = lower(unaccent(${fullQuery})) AS "isExactAcronym",
+            ${normalizedSql(Prisma.sql`o."name"`)} LIKE lower(unaccent(${`${fullQuery}%`})) AS "isNamePrefix"
+          FROM "Organization" o
+          -- Organizations without initiatives are only useful through a meaningful ancestor, which excludes thousands of
+          -- standalone ones (town halls...) early and keeps the text matching cheap
+          WHERE (o."initiativesCount" > 0 OR o."level" > ${SUMMARY_ORGANIZATION_LEVEL}) AND ${Prisma.join(conditions, ' AND ')}
+        ),
+        resolved AS (
+          SELECT
+            CASE
+              WHEN m."isDirect" THEN m."id"
+              ELSE (
+                SELECT a."id"
+                FROM unnest(m."ancestorIds") WITH ORDINALITY AS ancestor("id", "position")
+                JOIN "Organization" a ON a."id" = ancestor."id"
+                WHERE a."initiativesCount" > 0 AND a."level" >= ${SUMMARY_ORGANIZATION_LEVEL}
+                ORDER BY ancestor."position" DESC
+                LIMIT 1
+              )
+            END AS "id",
+            m."name" AS "matchedName",
+            m."isDirect",
+            m."isExactAcronym",
+            m."isNamePrefix"
+          FROM matched m
+        )
+        SELECT
+          r."id",
+          CASE WHEN bool_or(r."isDirect") THEN NULL ELSE array_agg(r."matchedName" ORDER BY r."matchedName") END AS "matchedThrough"
+        FROM resolved r
+        JOIN "Organization" o ON o."id" = r."id"
+        GROUP BY r."id", o."initiativesCount", o."name"
+        ORDER BY
+          bool_or(r."isExactAcronym" AND r."isDirect") DESC,
+          bool_or(r."isNamePrefix" AND r."isDirect") DESC,
+          bool_or(r."isDirect") DESC,
+          o."initiativesCount" DESC,
+          o."name" ASC
+        LIMIT ${maximumResults}
+      `;
+
+      organizationsIds = rows.map((row) => row.id);
+
+      for (const row of rows) {
+        if (row.matchedThrough) {
+          matchedThrough[row.id] = row.matchedThrough;
+        }
+      }
+    }
+
+    return {
+      organizations: await toOrganizationOptions(await getOrderedOrganizationOptions(organizationsIds)),
+      matchedThrough: matchedThrough,
+    };
+  }),
+  getOrganizations: publicProcedure.input(GetOrganizationsSchema).query(async ({ input }) => {
+    const organizations = await prisma.organization.findMany({
+      where: { id: { in: input.ids } },
+      select: organizationOptionSelect,
+      orderBy: { name: 'asc' },
+    });
+
+    return {
+      organizations: await toOrganizationOptions(organizations),
+    };
+  }),
+  listOrganizationChildren: publicProcedure.input(ListOrganizationChildrenSchema).query(async ({ input }) => {
+    // Only organizations having initiatives are browsable, the most represented first
+    let where: Prisma.Sql;
+    if (input.parentId === null) {
+      // Top of the tree: roots of the hierarchy (standalone organizations are grouped into a virtual node below)
+      where = Prisma.sql`o."level" = 1 AND ${isHierarchyRootSql}`;
+    } else if (input.parentId === standaloneOrganizationsNodeId) {
+      where = Prisma.sql`o."level" = 1 AND NOT ${isHierarchyRootSql}`;
+    } else {
+      where = Prisma.sql`o."parentOrganizationId" = ${input.parentId}::uuid`;
+    }
+
+    const [rows, totalRows] = await Promise.all([
+      prisma.$queryRaw<{ id: string; hasChildren: boolean }[]>`
+        SELECT
+          o."id",
+          EXISTS (SELECT 1 FROM "Organization" c WHERE c."parentOrganizationId" = o."id" AND c."initiativesCount" > 0) AS "hasChildren"
+        FROM "Organization" o
+        WHERE o."initiativesCount" > 0 AND ${where}
+        ORDER BY o."initiativesCount" DESC, o."name" ASC, o."id" ASC -- the identifier makes the order stable across pages
+        OFFSET ${input.offset}
+        LIMIT ${childrenPageSize}
+      `,
+      prisma.$queryRaw<{ total: number }[]>`
+        SELECT COUNT(*)::int AS "total"
+        FROM "Organization" o
+        WHERE o."initiativesCount" > 0 AND ${where}
+      `,
+    ]);
+
+    const hasChildrenById = new Map(rows.map((row) => [row.id, row.hasChildren]));
+    const options = await toOrganizationOptions(await getOrderedOrganizationOptions(rows.map((row) => row.id)));
+
+    const organizations: OrganizationNodeSchemaType[] = options.map((option) =>
+      OrganizationNodeSchema.parse({
+        ...option,
+        hasChildren: hasChildrenById.get(option.id) === true,
+      })
+    );
+
+    let standaloneOrganizationsCount: number | null = null;
+    let unclassifiedInitiativesCount: number | null = null;
+    if (input.parentId === null) {
+      const [standaloneRows, unclassifiedCount] = await Promise.all([
+        prisma.$queryRaw<{ total: number }[]>`
+          SELECT COUNT(*)::int AS "total"
+          FROM "Organization" o
+          WHERE o."initiativesCount" > 0 AND o."level" = 1 AND NOT ${isHierarchyRootSql}
+        `,
+        prisma.initiative.count({
+          where: {
+            deletedAt: null,
+            OrganizationsOnInitiatives: { none: {} },
+          },
+        }),
+      ]);
+
+      standaloneOrganizationsCount = standaloneRows[0]?.total ?? 0;
+      unclassifiedInitiativesCount = unclassifiedCount;
+    }
+
+    return {
+      organizations: organizations,
+      total: totalRows[0]?.total ?? 0,
+      pageSize: childrenPageSize,
+      standaloneOrganizationsCount: standaloneOrganizationsCount,
+      unclassifiedInitiativesCount: unclassifiedInitiativesCount,
+    };
+  }),
+  getToolsBreakdown: publicProcedure.input(GetToolsBreakdownSchema).query(async ({ input }) => {
+    const maximumTools = 8;
+
+    // The initiatives of the map node (an organization includes its descendants)
+    let scope: Prisma.Sql;
+    if (input.nodeId === allInitiativesNodeId) {
+      scope = Prisma.sql`TRUE`;
+    } else if (input.nodeId === unclassifiedInitiativesNodeId) {
+      scope = Prisma.sql`NOT EXISTS (SELECT 1 FROM "OrganizationsOnInitiatives" oi WHERE oi."initiativeId" = i."id")`;
+    } else {
+      const organizationCondition =
+        input.nodeId === standaloneOrganizationsNodeId
+          ? Prisma.sql`NOT EXISTS (
+              SELECT 1 FROM "Organization" d
+              WHERE d."ancestorIds" @> ARRAY[coalesce(o."ancestorIds"[1], o."id")] AND d."level" >= ${SUMMARY_ORGANIZATION_LEVEL}
+            )`
+          : Prisma.sql`o."id" = ${input.nodeId}::uuid OR o."ancestorIds" @> ARRAY[${input.nodeId}::uuid]`;
+
+      scope = Prisma.sql`EXISTS (
+        SELECT 1
+        FROM "OrganizationsOnInitiatives" oi
+        JOIN "Organization" o ON o."id" = oi."organizationId"
+        WHERE oi."initiativeId" = i."id" AND (${organizationCondition})
+      )`;
+    }
+
+    const filteredIds = await retrieveFilteredInitiativesIds(input.filterBy);
+    const filterCondition = filteredIds ? Prisma.sql`i."id" = ANY(${filteredIds}::uuid[])` : Prisma.sql`TRUE`;
+
+    // An initiative counts fully for each of its tools (using 2 frameworks does not make it half a user of each)
+    const scopedTools = Prisma.sql`
+      WITH scoped AS (
+        SELECT i."id" FROM "Initiative" i WHERE i."deletedAt" IS NULL AND ${filterCondition} AND ${scope}
+      ),
+      used AS (
+        SELECT t."name", ti."initiativeId"
+        FROM "ToolsOnInitiatives" ti
+        JOIN "Tool" t ON t."id" = ti."toolId"
+        JOIN scoped s ON s."id" = ti."initiativeId"
+        WHERE t."category" = ${input.category}::"ToolCategory"
+      ),
+      listed AS (
+        SELECT u."name", COUNT(DISTINCT u."initiativeId")::int AS "initiativesCount"
+        FROM used u
+        GROUP BY u."name"
+        ORDER BY "initiativesCount" DESC, u."name" ASC
+        LIMIT ${maximumTools}
+      )
+    `;
+
+    const [rows, usages, counts] = await Promise.all([
+      prisma.$queryRaw<{ name: string; initiativesCount: number }[]>`
+        ${scopedTools}
+        SELECT l."name", l."initiativesCount" FROM listed l ORDER BY l."initiativesCount" DESC, l."name" ASC
+      `,
+      prisma.$queryRaw<{ covered: number; others: number }[]>`
+        ${scopedTools}
+        SELECT
+          COUNT(DISTINCT u."initiativeId")::int AS "covered",
+          COUNT(DISTINCT u."initiativeId") FILTER (WHERE u."name" NOT IN (SELECT l."name" FROM listed l))::int AS "others"
+        FROM used u
+      `,
+      prisma.$queryRaw<{ total: number }[]>`
+        SELECT COUNT(*)::int AS "total" FROM "Initiative" i WHERE i."deletedAt" IS NULL AND ${filterCondition} AND ${scope}
+      `,
+    ]);
+
+    const initiativesCount = counts[0]?.total ?? 0;
+
+    return {
+      initiativesCount: initiativesCount,
+      ...computeToolsBreakdown(rows, {
+        initiativesCount: initiativesCount,
+        initiativesWithToolCount: usages[0]?.covered ?? 0,
+        initiativesWithOtherToolCount: usages[0]?.others ?? 0,
+      }),
+    };
+  }),
+  getOrganizationsMap: publicProcedure.input(GetOrganizationsMapSchema).query(async ({ input }) => {
+    const filteredIds = await retrieveFilteredInitiativesIds(input.filterBy);
+
+    // Only the map without criteria is kept, it is the one displayed the most and combinations of filters are countless
+    const signature = filteredIds === null ? await getOrganizationsMapSignature() : null;
+    if (signature !== null && organizationsMapCache && organizationsMapCache.signature === signature) {
+      return organizationsMapCache.value;
+    }
+
+    const filterCondition = filteredIds ? Prisma.sql`i."id" = ANY(${filteredIds}::uuid[])` : Prisma.sql`TRUE`;
+    const compositionColumns = Prisma.sql`
+      COUNT(DISTINCT s."id") FILTER (WHERE s."hasWebsite" AND NOT s."hasRepository")::int AS "websitesOnly",
+      COUNT(DISTINCT s."id") FILTER (WHERE NOT s."hasWebsite" AND s."hasRepository")::int AS "repositoriesOnly",
+      COUNT(DISTINCT s."id") FILTER (WHERE s."hasWebsite" AND s."hasRepository")::int AS "both"
+    `;
+    const scopedInitiatives = Prisma.sql`
+      SELECT i."id", cardinality(i."websites") > 0 AS "hasWebsite", cardinality(i."repositories") > 0 AS "hasRepository"
+      FROM "Initiative" i
+      WHERE i."deletedAt" IS NULL AND ${filterCondition}
+    `;
+
+    // Filtering on organizations must not bring their co-owners on the map (an initiative can also be bound elsewhere)
+    const selectedOrganizationIds = input.filterBy.organizationIds ?? [];
+    const bindings =
+      selectedOrganizationIds.length > 0
+        ? Prisma.sql`(
+            SELECT oi.*
+            FROM "OrganizationsOnInitiatives" oi
+            JOIN "Organization" o ON o."id" = oi."organizationId"
+            WHERE o."id" = ANY(${selectedOrganizationIds}::uuid[]) OR o."ancestorIds" && ${selectedOrganizationIds}::uuid[]
+          )`
+        : Prisma.sql`"OrganizationsOnInitiatives"`;
+
+    const [ownRows, subtreeRows, overallRows, standaloneRows, hierarchyRoots] = await Promise.all([
+      // Initiatives directly bound to each organization, with their weight (shared between the organizations of an initiative)
+      prisma.$queryRaw<
+        (InitiativesCompositionSchemaType & { id: string; websitesOnlyWeight: number; repositoriesOnlyWeight: number; bothWeight: number })[]
+      >`
+        WITH scoped AS (${scopedInitiatives}),
+        s AS (
+          SELECT oi."organizationId", scoped.*, 1.0 / COUNT(*) OVER (PARTITION BY scoped."id") AS "weight"
+          FROM scoped
+          JOIN ${bindings} oi ON oi."initiativeId" = scoped."id"
+        )
+        SELECT
+          s."organizationId" AS "id",
+          ${compositionColumns},
+          COALESCE(SUM(s."weight") FILTER (WHERE s."hasWebsite" AND NOT s."hasRepository"), 0)::float AS "websitesOnlyWeight",
+          COALESCE(SUM(s."weight") FILTER (WHERE NOT s."hasWebsite" AND s."hasRepository"), 0)::float AS "repositoriesOnlyWeight",
+          COALESCE(SUM(s."weight") FILTER (WHERE s."hasWebsite" AND s."hasRepository"), 0)::float AS "bothWeight"
+        FROM s
+        GROUP BY s."organizationId"
+      `,
+      // Distinct initiatives of each organization and its descendants
+      prisma.$queryRaw<(InitiativesCompositionSchemaType & { id: string })[]>`
+        WITH s AS (${scopedInitiatives})
+        SELECT target."id", ${compositionColumns}
+        FROM s
+        JOIN ${bindings} oi ON oi."initiativeId" = s."id"
+        JOIN "Organization" bound ON bound."id" = oi."organizationId"
+        CROSS JOIN LATERAL unnest(array_append(bound."ancestorIds", bound."id")) AS target("id")
+        GROUP BY target."id"
+      `,
+      prisma.$queryRaw<(InitiativesCompositionSchemaType & { unclassified: boolean })[]>`
+        WITH s AS (
+          SELECT
+            scoped.*,
+            NOT EXISTS (SELECT 1 FROM "OrganizationsOnInitiatives" oi WHERE oi."initiativeId" = scoped."id") AS "unclassified"
+          FROM (${scopedInitiatives}) scoped
+        )
+        SELECT s."unclassified", ${compositionColumns}
+        FROM s
+        GROUP BY s."unclassified"
+      `,
+      prisma.$queryRaw<InitiativesCompositionSchemaType[]>`
+        WITH s AS (${scopedInitiatives})
+        SELECT ${compositionColumns}
+        FROM s
+        JOIN ${bindings} oi ON oi."initiativeId" = s."id"
+        JOIN "Organization" o ON o."id" = oi."organizationId"
+        WHERE NOT EXISTS (
+          SELECT 1 FROM "Organization" d
+          WHERE d."ancestorIds" @> ARRAY[coalesce(o."ancestorIds"[1], o."id")] AND d."level" >= ${SUMMARY_ORGANIZATION_LEVEL}
+        )
+      `,
+      // Same definition as for browsing the tree in filters
+      prisma.$queryRaw<{ id: string }[]>`
+        SELECT o."id"
+        FROM "Organization" o
+        WHERE o."level" = 1 AND o."initiativesCount" > 0 AND ${isHierarchyRootSql}
+      `,
+    ]);
+
+    const organizations = await prisma.organization.findMany({
+      where: { initiativesCount: { gt: 0 } },
+      select: { id: true, parentOrganizationId: true, name: true, acronym: true, level: true },
+    });
+
+    const toComposition = (row?: InitiativesCompositionSchemaType): InitiativesCompositionSchemaType => ({
+      websitesOnly: row?.websitesOnly ?? 0,
+      repositoriesOnly: row?.repositoriesOnly ?? 0,
+      both: row?.both ?? 0,
+    });
+
+    const ownById = new Map(ownRows.map((row) => [row.id, row]));
+    const subtreeById = new Map(subtreeRows.map((row) => [row.id, row]));
+    const hierarchyRootsIds = new Set(hierarchyRoots.map((hierarchyRoot) => hierarchyRoot.id));
+    const classified = toComposition(overallRows.find((row) => !row.unclassified));
+    const unclassified = toComposition(overallRows.find((row) => row.unclassified));
+
+    const value = OrganizationsMapSchema.parse({
+      // Organizations without any matching initiative are not part of the map
+      organizations: organizations.flatMap((organization) => {
+        const subtree = subtreeById.get(organization.id);
+        if (!subtree) {
+          return [];
+        }
+
+        const own = ownById.get(organization.id);
+
+        return [
+          {
+            id: organization.id,
+            parentId: organization.parentOrganizationId,
+            name: organization.name,
+            acronym: organization.acronym,
+            level: organization.level,
+            isHierarchyRoot: hierarchyRootsIds.has(organization.id),
+            composition: toComposition(subtree),
+            own: toComposition(own),
+            ownWeights: {
+              websitesOnly: own?.websitesOnlyWeight ?? 0,
+              repositoriesOnly: own?.repositoriesOnlyWeight ?? 0,
+              both: own?.bothWeight ?? 0,
+            },
+          },
+        ];
+      }),
+      composition: {
+        websitesOnly: classified.websitesOnly + unclassified.websitesOnly,
+        repositoriesOnly: classified.repositoriesOnly + unclassified.repositoriesOnly,
+        both: classified.both + unclassified.both,
+      },
+      standalone: toComposition(standaloneRows[0]),
+      unclassified: unclassified,
+    });
+
+    // An empty result means the organizations are being synchronized, it must not be kept
+    if (signature !== null && value.organizations.length > 0) {
+      organizationsMapCache = { signature: signature, value: value };
+    }
+
+    return value;
+  }),
+});

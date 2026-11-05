@@ -15,11 +15,14 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { trpc } from '@etabli/src/client/trpcClient';
+import { OrganizationPicker } from '@etabli/src/components/OrganizationPicker';
 import { FunctionalUseCaseSchema, FunctionalUseCaseSchemaType } from '@etabli/src/models/entities/initiative';
 
 export interface InitiativeFiltersValue {
   functionalUseCases: FunctionalUseCaseSchemaType[];
   toolIds: string[];
+  organizationIds: string[];
+  unclassified: boolean; // Initiatives bound to no organization
   hasWebsite: boolean;
   hasRepository: boolean;
 }
@@ -27,12 +30,21 @@ export interface InitiativeFiltersValue {
 export const emptyInitiativeFilters: InitiativeFiltersValue = {
   functionalUseCases: [],
   toolIds: [],
+  organizationIds: [],
+  unclassified: false,
   hasWebsite: false,
   hasRepository: false,
 };
 
 export function countActiveFilters(value: InitiativeFiltersValue): number {
-  return value.functionalUseCases.length + value.toolIds.length + (value.hasWebsite ? 1 : 0) + (value.hasRepository ? 1 : 0);
+  return (
+    value.functionalUseCases.length +
+    value.toolIds.length +
+    value.organizationIds.length +
+    (value.unclassified ? 1 : 0) +
+    (value.hasWebsite ? 1 : 0) +
+    (value.hasRepository ? 1 : 0)
+  );
 }
 
 export interface InitiativeFiltersModalProps {
@@ -81,6 +93,11 @@ export function InitiativeFiltersModal(props: InitiativeFiltersModalProps) {
       <DialogTitle>Filtrer les initiatives</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={3} sx={{ pt: 1 }}>
+          <OrganizationPicker
+            value={{ organizationIds: draft.organizationIds, unclassified: draft.unclassified }}
+            onChange={(next) => setDraft((d) => ({ ...d, organizationIds: next.organizationIds, unclassified: next.unclassified }))}
+            enabled={props.open}
+          />
           <Autocomplete
             multiple
             disableCloseOnSelect

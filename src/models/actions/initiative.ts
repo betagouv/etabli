@@ -2,6 +2,7 @@ import z from 'zod';
 
 import { GetterInputSchema } from '@etabli/src/models/actions/common';
 import { FunctionalUseCaseSchema, InitiativeSchema } from '@etabli/src/models/entities/initiative';
+import { ToolCategorySchema } from '@etabli/src/models/entities/tool';
 
 export const GetInitiativeSchema = z
   .object({
@@ -10,6 +11,9 @@ export const GetInitiativeSchema = z
   .strict();
 export type GetInitiativeSchemaType = z.infer<typeof GetInitiativeSchema>;
 
+// Same limit when filtering and when retrieving the selected organizations to display them
+export const maximumFilteredOrganizations = 50;
+
 export const ListInitiativesSchema = GetterInputSchema.extend({
   filterBy: z.object({
     query: z.string().nullable(),
@@ -17,7 +21,7 @@ export const ListInitiativesSchema = GetterInputSchema.extend({
     toolIds: z.array(z.string().uuid()).optional(),
     hasWebsite: z.boolean().optional(),
     hasRepository: z.boolean().optional(),
-    organizationIds: z.array(z.string().uuid()).optional(), // An initiative matches if bound to one of these organizations or to any of their descendants
+    organizationIds: z.array(z.string().uuid()).max(maximumFilteredOrganizations).optional(), // An initiative matches if bound to one of these organizations or to any of their descendants
     unclassified: z.boolean().optional(), // Initiatives bound to no organization (alternative to `organizationIds`)
   }),
 }).strict();
@@ -35,7 +39,7 @@ export type SearchOrganizationsSchemaType = z.infer<typeof SearchOrganizationsSc
 
 export const GetOrganizationsSchema = z
   .object({
-    ids: z.array(z.string().uuid()).max(50),
+    ids: z.array(z.string().uuid()).max(maximumFilteredOrganizations),
   })
   .strict();
 export type GetOrganizationsSchemaType = z.infer<typeof GetOrganizationsSchema>;
@@ -50,3 +54,26 @@ export const ListOrganizationChildrenSchema = z
   })
   .strict();
 export type ListOrganizationChildrenSchemaType = z.infer<typeof ListOrganizationChildrenSchema>;
+
+// Parts of the organizations map that are not organizations
+export const allInitiativesNodeId = 'all';
+export const unclassifiedInitiativesNodeId = 'unclassified';
+
+export const GetToolsBreakdownSchema = z
+  .object({
+    nodeId: z
+      .string()
+      .uuid()
+      .or(z.enum([allInitiativesNodeId, unclassifiedInitiativesNodeId, standaloneOrganizationsNodeId])),
+    category: ToolCategorySchema,
+    filterBy: ListInitiativesSchema.shape.filterBy, // Same criteria as the directory
+  })
+  .strict();
+export type GetToolsBreakdownSchemaType = z.infer<typeof GetToolsBreakdownSchema>;
+
+export const GetOrganizationsMapSchema = z
+  .object({
+    filterBy: ListInitiativesSchema.shape.filterBy, // Same criteria as the directory
+  })
+  .strict();
+export type GetOrganizationsMapSchemaType = z.infer<typeof GetOrganizationsMapSchema>;

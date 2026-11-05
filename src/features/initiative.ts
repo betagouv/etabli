@@ -27,6 +27,8 @@ import Wappalyzer from 'wappalyzer';
 
 import manifestsEndingPatterns from '@etabli/src/bibliothecary/manifests-patterns.json';
 import { ChunkEventEmitter, llmManagerInstance } from '@etabli/src/features/llm';
+import { buildOrganizationMatcher } from '@etabli/src/features/organization';
+import { getComparableWebsiteName, normalizeHostname, normalizeRepositoryUrl } from '@etabli/src/features/organization-matching';
 import { hasProbableGenericDomain } from '@etabli/src/features/repository';
 import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@etabli/src/generated/prisma/client';
 import {
@@ -53,6 +55,7 @@ import { bitsFor } from '@etabli/src/utils/bits';
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
+import { getMergedInitiativeMapsIdentifiers } from '@etabli/src/utils/initiative-map';
 import { languagesExtensions } from '@etabli/src/utils/languages';
 import { promiseWithFatalTimeout } from '@etabli/src/utils/maintenance';
 import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond } from '@etabli/src/utils/request';
@@ -111,6 +114,8 @@ export type NodeLabel =
       entity: Pick<RawRepository, 'id' | 'repositoryUrl'>;
     };
 
+const MAXIMUM_WEBSITES_LINKING_A_REPOSITORY = 3;
+
 export async function inferInitiativesFromDatabase() {
   // TODO: should it be locked globally? But it should be a be long to compute... at risk since a lot of records to fetch/process/update
 
@@ -156,6 +161,7 @@ export async function inferInitiativesFromDatabase() {
     where: rawRepositoryCriterias,
     select: {
       id: true,
+      name: true,
       repositoryUrl: true,
       homepage: true,
       probableWebsiteUrl: true,
@@ -212,28 +218,94 @@ export async function inferInitiativesFromDatabase() {
   }
 
   // Create all edges between pair of nodes with a scoring on edges
+  const rawDomainsByHostname = new Map<string, typeof rawDomains>();
+  const rawDomainsByComparableName = new Map<string, typeof rawDomains>();
   for (const rawDomain of rawDomains) {
-    // Then, to repositories
-    for (const rawRepository of rawRepositories) {
-      // Do not match the repository with a probable domain if this domain is a service commonly used by "anyone" and not scoped to the project iself
-      if (hasProbableGenericDomain(rawRepository)) {
+    const hostname = normalizeHostname(rawDomain.name);
+    rawDomainsByHostname.set(hostname, [...(rawDomainsByHostname.get(hostname) ?? []), rawDomain]);
+
+    const comparableName = getComparableWebsiteName(rawDomain.name);
+    if (comparableName) {
+      rawDomainsByComparableName.set(comparableName, [...(rawDomainsByComparableName.get(comparableName) ?? []), rawDomain]);
+    }
+  }
+
+  const eligibleRawRepositories = rawRepositories.filter((rawRepository) => {
+    // Do not match the repository with a probable domain if this domain is a service commonly used by "anyone" and not scoped to the project iself
+    return !hasProbableGenericDomain(rawRepository);
+  });
+
+  const rawRepositoriesByUrl = new Map(
+    eligibleRawRepositories.map((rawRepository) => [normalizeRepositoryUrl(rawRepository.repositoryUrl), rawRepository])
+  );
+
+  const scores = new Map<string, { rawRepositoryId: string; rawDomainId: string; score: number }>();
+  const addScore = (rawRepositoryId: string, rawDomainId: string, score: number) => {
+    const key = `${rawRepositoryId}:${rawDomainId}`;
+
+    scores.set(key, { rawRepositoryId: rawRepositoryId, rawDomainId: rawDomainId, score: (scores.get(key)?.score ?? 0) + score });
+  };
+
+  // A repository linked by many websites is not specific to one of them (e.g. a licence, a shared template)
+  const rawDomainsIdsByLinkedRepository = new Map<string, string[]>();
+  for (const rawDomain of rawDomains) {
+    const linkedRawRepository = rawDomain.probableRepositoryUrl
+      ? rawRepositoriesByUrl.get(normalizeRepositoryUrl(rawDomain.probableRepositoryUrl))
+      : undefined;
+
+    if (linkedRawRepository) {
+      rawDomainsIdsByLinkedRepository.set(linkedRawRepository.id, [
+        ...(rawDomainsIdsByLinkedRepository.get(linkedRawRepository.id) ?? []),
+        rawDomain.id,
+      ]);
+    }
+  }
+
+  for (const [rawRepositoryId, rawDomainsIds] of rawDomainsIdsByLinkedRepository) {
+    if (rawDomainsIds.length <= MAXIMUM_WEBSITES_LINKING_A_REPOSITORY) {
+      for (const rawDomainId of rawDomainsIds) {
+        addScore(rawRepositoryId, rawDomainId, 2);
+      }
+    }
+  }
+
+  for (const rawRepository of eligibleRawRepositories) {
+    if (rawRepository.probableWebsiteDomain) {
+      for (const rawDomain of rawDomainsByHostname.get(normalizeHostname(rawRepository.probableWebsiteDomain)) ?? []) {
+        addScore(rawRepository.id, rawDomain.id, 2);
+      }
+    }
+  }
+
+  // Without any explicit link between them, a same name within a same organization is enough
+  const organizationMatcher = await buildOrganizationMatcher();
+  if (organizationMatcher) {
+    let sameNameLinksCount = 0;
+
+    for (const rawRepository of eligibleRawRepositories) {
+      const candidates = rawDomainsByComparableName.get(rawRepository.name.toLowerCase());
+      if (!candidates) {
         continue;
       }
 
-      let score: number = 0;
+      const repositoryOrganizationsIds = organizationMatcher.matchRepository(rawRepository.repositoryUrl);
+      const relatedRawDomains = candidates.filter((rawDomain) => {
+        return organizationMatcher.areCloseOrganizations(repositoryOrganizationsIds, organizationMatcher.matchWebsite(`https://${rawDomain.name}`));
+      });
 
-      if (!!rawDomain.probableRepositoryUrl && rawDomain.probableRepositoryUrl === rawRepository.homepage) {
-        score += 2;
-      }
-
-      if (rawDomain.name === rawRepository.probableWebsiteDomain) {
-        score += 2;
-      }
-
-      if (score > 0) {
-        graph.setEdge(rawRepository.id, rawDomain.id, 1 / score);
+      if (relatedRawDomains.length > 0 && relatedRawDomains.length <= MAXIMUM_WEBSITES_LINKING_A_REPOSITORY) {
+        for (const rawDomain of relatedRawDomains) {
+          addScore(rawRepository.id, rawDomain.id, 1);
+          sameNameLinksCount++;
+        }
       }
     }
+
+    console.log(`${sameNameLinksCount} links have been deduced between websites and repositories named the same way within an organization`);
+  }
+
+  for (const { rawRepositoryId, rawDomainId, score } of scores.values()) {
+    graph.setEdge(rawRepositoryId, rawDomainId, 1 / score);
   }
 
   console.log(`building initiative map groups by using a graph of nodes`);
@@ -419,6 +491,23 @@ export async function inferInitiativesFromDatabase() {
       const diffResult = getDiff(storedLiteInitiativeMaps, computedLiteInitiativeMaps);
 
       console.log(`synchronizing initiative maps into the database (${formatDiffResultLog(diffResult)})`);
+
+      // Initiatives of maps merged into another one are duplicates (the map removal would only leave them without origin)
+      const mergedInitiativeMapsIdentifiers = getMergedInitiativeMapsIdentifiers(diffResult.removed, [
+        ...diffResult.updated,
+        ...diffResult.unchanged,
+      ]);
+      const duplicatedInitiatives = await tx.initiative.deleteMany({
+        where: {
+          origin: {
+            mainItemIdentifier: {
+              in: mergedInitiativeMapsIdentifiers,
+            },
+          },
+        },
+      });
+
+      console.log(`${duplicatedInitiatives.count} initiatives have been removed since their initiative map has been merged into another one`);
 
       await tx.initiativeMap.deleteMany({
         where: {

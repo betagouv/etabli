@@ -965,6 +965,18 @@ export async function updateWebsiteDataOnDomains() {
   }
 }
 
+// `www.example.com` and `example.com` are almost always the same website, even if their head content differs a bit (absolute
+// URLs, generated tokens...), so comparing fingerprints is not enough to gather them
+export function getWwwTwinDomainName(domainName: string): string | null {
+  const parsedDomain = parseDomain(domainName);
+
+  if (parsedDomain.type === ParseResultType.Listed && parsedDomain.subDomains[0] === 'www') {
+    return domainName.substring('www.'.length);
+  }
+
+  return null;
+}
+
 export async function matchDomains() {
   // All checks may not be done before matching (due to network errors)
   // but we cannot take the risk of letting alone a domain that would create an additional initiative
@@ -1025,6 +1037,28 @@ export async function matchDomains() {
     // Count dots in the domains since it tells how many level exist
     return (b.name.match(/\./g) || []).length - (a.name.match(/\./g) || []).length;
   });
+
+  // The domain without `www.` is the main one, as long as it serves a website by itself
+  const wwwTwinsNames = rawDomainsToUpdate.flatMap((rawDomainToUpdate) => getWwwTwinDomainName(rawDomainToUpdate.name) ?? []);
+  const wwwTwinRawDomains = await prisma.rawDomain.findMany({
+    where: {
+      name: {
+        in: wwwTwinsNames,
+      },
+      redirectDomainTargetName: null,
+    },
+    select: {
+      id: true,
+      name: true,
+      websiteHasContent: true,
+      indexableFromRobotsTxt: true,
+    },
+  });
+  const wwwTwinRawDomainByName = new Map(
+    wwwTwinRawDomains
+      .filter((wwwTwin) => wwwTwin.websiteHasContent !== false && wwwTwin.indexableFromRobotsTxt !== false)
+      .map((wwwTwin) => [wwwTwin.name, wwwTwin])
+  );
 
   for (const [rawDomainToUpdateIndex, rawDomainToUpdate] of Object.entries(rawDomainsToUpdate)) {
     watchGracefulExitInLoop();
@@ -1093,7 +1127,10 @@ export async function matchDomains() {
     // TODO: some websites may use the same code (the same shell) with different sets of data. A solution can be to look
     // at equivalent inferred website name under a same subdomain/domain (exclundig gTLD). It allows gathering cloned sites but
     // the negative side is: which one to process? None? If one, how to tell it's more important than other...
-    const similarRawDomain = rootRawDomain || mainSameParentDomainClone;
+    const wwwTwinName = getWwwTwinDomainName(rawDomainToUpdate.name);
+    const wwwTwinRawDomain = wwwTwinName ? wwwTwinRawDomainByName.get(wwwTwinName) : undefined;
+
+    const similarRawDomain = rootRawDomain || wwwTwinRawDomain || mainSameParentDomainClone;
 
     await prisma.rawDomain.update({
       where: {

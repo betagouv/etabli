@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { InitiativeFiltersModal, InitiativeFiltersValue, emptyInitiativeFilters } from '@etabli/src/components/InitiativeFiltersModal';
+import { organizationOptions } from '@etabli/src/fixtures/initiative';
 import { getTRPCMock } from '@etabli/src/server/mock/trpc';
 
 type ComponentType = typeof InitiativeFiltersModal;
@@ -30,6 +31,31 @@ const defaultMswParameters = {
             { id: '1eaa9a02-8055-4dbf-ac46-1e1f1f4e2a3b', name: 'Next.js' },
             { id: '2eaa9a02-8055-4dbf-ac46-1e1f1f4e2a3c', name: 'Sentry' },
           ],
+        },
+      }),
+      getTRPCMock({
+        type: 'query' as 'query',
+        path: ['searchOrganizations'] as ['searchOrganizations'],
+        response: {
+          organizations: organizationOptions,
+        },
+      }),
+      getTRPCMock({
+        type: 'query' as 'query',
+        path: ['listOrganizationChildren'] as ['listOrganizationChildren'],
+        response: {
+          organizations: organizationOptions.map((organization) => ({ ...organization, hasChildren: false })),
+          total: organizationOptions.length,
+          pageSize: 50,
+          standaloneOrganizationsCount: 1,
+          unclassifiedInitiativesCount: 12,
+        },
+      }),
+      getTRPCMock({
+        type: 'query' as 'query',
+        path: ['getOrganizations'] as ['getOrganizations'],
+        response: {
+          organizations: [organizationOptions[1]],
         },
       }),
     ],
@@ -86,6 +112,8 @@ WithPreselectedStory.args = {
   value: {
     functionalUseCases: ['SENDS_EMAILS'],
     toolIds: ['1eaa9a02-8055-4dbf-ac46-1e1f1f4e2a3b'],
+    organizationIds: [organizationOptions[1].id],
+    unclassified: false,
     hasWebsite: true,
     hasRepository: false,
   },

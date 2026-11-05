@@ -9,6 +9,7 @@ import path from 'path';
 import { Readable, Transform, pipeline } from 'stream';
 import { z } from 'zod';
 
+import { retrieveInitiativesOrganizations } from '@etabli/src/features/organization-read';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { getServerTranslation } from '@etabli/src/i18n';
 import { DatasetInitiativeSchemaType, FunctionalUseCaseSchemaType } from '@etabli/src/models/entities/initiative';
@@ -174,12 +175,15 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
 
                 console.log(`currently retrieved ${retrievedItemsCount} initiatives with the splitted fetcher to generate the file`);
 
+                const organizationsByInitiativeId = await retrieveInitiativesOrganizations(chunkItems.map((dbInitiative) => dbInitiative.id));
+
                 for (const dbInitiative of chunkItems) {
                   initiativesStream.push(
                     datasetInitiativePrismaToModel({
                       ...dbInitiative,
                       businessUseCases: dbInitiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
                       tools: dbInitiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+                      organizations: organizationsByInitiativeId.get(dbInitiative.id) || [],
                     })
                   );
                 }

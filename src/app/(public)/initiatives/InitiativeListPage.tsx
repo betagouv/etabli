@@ -9,6 +9,7 @@ import TableRowsIcon from '@mui/icons-material/TableRows';
 import Alert from '@mui/material/Alert';
 import Badge from '@mui/material/Badge';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Grid, { GridProps } from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -37,6 +38,7 @@ import {
 } from '@etabli/src/components/InitiativeFiltersModal';
 import { InitiativeList } from '@etabli/src/components/InitiativeList';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
+import { formatOrganizationOptionContext } from '@etabli/src/components/OrganizationPicker';
 import { PaginationSize } from '@etabli/src/models/actions/common';
 import { FunctionalUseCaseSchema } from '@etabli/src/models/entities/initiative';
 import { ListDisplay, useLocalStorageListDisplay } from '@etabli/src/utils/display';
@@ -73,6 +75,8 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
       q: parseAsString.withDefault(''),
       fnc: parseAsArrayOf(parseAsStringLiteral(FunctionalUseCaseSchema.options)).withDefault([]),
       tools: parseAsArrayOf(parseAsString).withDefault([]),
+      orgs: parseAsArrayOf(parseAsString).withDefault([]),
+      nc: parseAsBoolean.withDefault(false),
       hasWeb: parseAsBoolean.withDefault(false),
       hasRepo: parseAsBoolean.withDefault(false),
       page: parseAsInteger.withDefault(1),
@@ -84,10 +88,18 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     () => ({
       functionalUseCases: params.fnc,
       toolIds: params.tools,
+      organizationIds: params.orgs,
+      unclassified: params.nc,
       hasWebsite: params.hasWeb,
       hasRepository: params.hasRepo,
     }),
-    [params.fnc, params.tools, params.hasWeb, params.hasRepo]
+    [params.fnc, params.tools, params.orgs, params.nc, params.hasWeb, params.hasRepo]
+  );
+
+  // Only valid identifiers are sent to the API (the URL can be modified by hand)
+  const organizationIds = useMemo(
+    () => params.orgs.filter((organizationId) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(organizationId)),
+    [params.orgs]
   );
 
   const activeFiltersCount = countActiveFilters(filtersValue);
@@ -110,10 +122,18 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
       query: hasSearchQuery ? params.q : null,
       functionalUseCases: params.fnc.length > 0 ? params.fnc : undefined,
       toolIds: params.tools.length > 0 ? params.tools : undefined,
+      organizationIds: organizationIds.length > 0 ? organizationIds : undefined,
+      unclassified: params.nc || undefined,
       hasWebsite: params.hasWeb || undefined,
       hasRepository: params.hasRepo || undefined,
     },
   });
+
+  // To display active organization filters with a readable name
+  const selectedOrganizations = trpc.getOrganizations.useQuery(
+    { ids: organizationIds },
+    { enabled: organizationIds.length > 0, keepPreviousData: true }
+  );
 
   useUpdateEffect(() => {
     if (!hasSearchQuery) {
@@ -210,6 +230,8 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     setParams({
       fnc: next.functionalUseCases.length > 0 ? next.functionalUseCases : null,
       tools: next.toolIds.length > 0 ? next.toolIds : null,
+      orgs: next.organizationIds.length > 0 ? next.organizationIds : null,
+      nc: next.unclassified ? true : null,
       hasWeb: next.hasWebsite ? true : null,
       hasRepo: next.hasRepository ? true : null,
       page: 1,
@@ -218,7 +240,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
   };
 
   const resetFilters = () => {
-    setParams({ fnc: null, tools: null, hasWeb: null, hasRepo: null, page: 1 });
+    setParams({ fnc: null, tools: null, orgs: null, nc: null, hasWeb: null, hasRepo: null, page: 1 });
   };
 
   const hasResults = initiatives.length > 0;
@@ -324,6 +346,46 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                         </ToggleButton>
                       </ToggleButtonGroup>
                     </Grid>
+                    {((organizationIds.length > 0 && !!selectedOrganizations.data && selectedOrganizations.data.organizations.length > 0) ||
+                      params.nc) && (
+                      <Grid item xs={12}>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          useFlexGap
+                          flexWrap="wrap"
+                          component="ul"
+                          sx={{ listStyle: 'none', p: 0, m: 0 }}
+                          aria-label="organisations filtrées"
+                        >
+                          {params.nc && (
+                            <li>
+                              <Chip label="Non classées" onDelete={() => setParams({ nc: null, page: 1 })} color="primary" variant="outlined" />
+                            </li>
+                          )}
+                          {(organizationIds.length > 0 ? selectedOrganizations.data?.organizations || [] : []).map((organization) => {
+                            const context = formatOrganizationOptionContext(organization);
+
+                            return (
+                              <li key={organization.id}>
+                                <Chip
+                                  label={organization.name}
+                                  title={context ? `${context} › ${organization.name}` : organization.name}
+                                  onDelete={() => {
+                                    const remainingOrganizationIds = params.orgs.filter((organizationId) => organizationId !== organization.id);
+
+                                    setParams({ orgs: remainingOrganizationIds.length > 0 ? remainingOrganizationIds : null, page: 1 });
+                                  }}
+                                  color="primary"
+                                  variant="outlined"
+                                  sx={{ maxWidth: '100%' }}
+                                />
+                              </li>
+                            );
+                          })}
+                        </Stack>
+                      </Grid>
+                    )}
                   </Grid>
                 </Grid>
               </Grid>
@@ -339,7 +401,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                         : reusableCentering
                     }
                   >
-                    <ContextualInitiativeList initiatives={initiatives} display={listDisplay} />
+                    <ContextualInitiativeList initiatives={initiatives} display={listDisplay} focusedOrganizationsIds={organizationIds} />
                   </Grid>
                   {params.page >= 2 && (
                     <Grid container sx={reusableCentering}>

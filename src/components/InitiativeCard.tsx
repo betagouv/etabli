@@ -8,14 +8,18 @@ import Grid from '@mui/material/Grid';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import NextLink from 'next/link';
+import { useMemo } from 'react';
 import ShowMoreText from 'react-show-more-text';
 
+import { OrganizationChips } from '@etabli/src/components/OrganizationChip';
 import { InitiativeSchemaType } from '@etabli/src/models/entities/initiative';
 import { ulComponentResetStyles } from '@etabli/src/utils/grid';
+import { summarizeOrganizations } from '@etabli/src/utils/organization';
 
 export interface InitiativeCardProps {
   initiativeLink: string;
   initiative: InitiativeSchemaType;
+  focusedOrganizationsIds?: string[]; // When filtering on precise organizations, they are displayed instead of their ministry
 }
 
 // DSFR paints the link underline via `background-image` on the whole link box; on a wrapped URL the
@@ -32,6 +36,11 @@ export function InitiativeCard(props: InitiativeCardProps) {
   // initiative — the title alone was missed. Inner anchors (website, repository, "Voir plus") sit above
   // the overlay via `position: relative; zIndex: 1` so they keep their own click behavior.
   const interactiveLayer = { position: 'relative' as const, zIndex: 1 };
+
+  const organizationSummaries = useMemo(
+    () => summarizeOrganizations(props.initiative.organizations, props.focusedOrganizationsIds),
+    [props.initiative.organizations, props.focusedOrganizationsIds]
+  );
 
   return (
     <Card
@@ -83,6 +92,9 @@ export function InitiativeCard(props: InitiativeCardProps) {
             >
               {props.initiative.name}
             </Link>
+          </Grid>
+          <Grid item xs={12} sx={{ pt: '8px !important' }}>
+            <OrganizationChips summaries={organizationSummaries} linkToInitiatives sx={interactiveLayer} />
           </Grid>
           <Grid item xs={12}>
             <Typography component="div">

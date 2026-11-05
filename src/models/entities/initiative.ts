@@ -1,5 +1,7 @@
 import z from 'zod';
 
+import { InitiativeOrganizationSchema } from '@etabli/src/models/entities/organization';
+
 export const FunctionalUseCaseSchema = z.enum([
   'HAS_VIRTUAL_EMAIL_INBOXES',
   'SENDS_EMAILS',
@@ -30,6 +32,7 @@ export const InitiativeSchema = z
     businessUseCases: z.array(z.string()),
     functionalUseCases: z.array(FunctionalUseCaseSchema),
     tools: z.array(z.string()),
+    organizations: z.array(InitiativeOrganizationSchema),
     createdAt: z.date(),
     updatedAt: z.date(),
     deletedAt: z.date().nullable(),
@@ -58,5 +61,9 @@ export const DatasetInitiativeSchema = InitiativeSchema.pick({
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
-}).strict();
+})
+  .extend({
+    organizations: z.array(z.string()), // Full paths of bound organizations to stay readable in spreadsheets
+  })
+  .strict();
 export type DatasetInitiativeSchemaType = z.infer<typeof DatasetInitiativeSchema>;

@@ -113,6 +113,7 @@ export async function formatDocuments({
         [t('llm.sheet.keys.businessUseCases')]: jsonSheetWithoutId.businessUseCases,
         [t('llm.sheet.keys.functionalUseCases')]: jsonSheetWithoutId.functionalUseCases,
         [t('llm.sheet.keys.tools')]: jsonSheetWithoutId.tools,
+        [t('llm.sheet.keys.organizations')]: jsonSheetWithoutId.organizations || [],
       });
 
       return documentPrompt.withConfig({ runName: 'document_formatter' }).invoke({ ...document.metadata, page_content: updatedPageContent }, config);

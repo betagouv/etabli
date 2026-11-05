@@ -5,6 +5,7 @@ import { userAgent } from 'next/server';
 import { CreativeWork, WithContext } from 'schema-dts';
 
 import { InitiativePage, InitiativePageProps } from '@etabli/src/app/(public)/initiative/[initiativeId]/InitiativePage';
+import { retrieveInitiativesOrganizations } from '@etabli/src/features/organization-read';
 import { useServerTranslation } from '@etabli/src/i18n';
 import { GetInitiativeSchema } from '@etabli/src/models/actions/initiative';
 import { prisma } from '@etabli/src/prisma';
@@ -77,10 +78,13 @@ export default async function Page(props: InitiativePageProps) {
   // crawlers that don't run client-side rendering (puppeteer & co).
   let initiativeJsonLd: WithContext<CreativeWork> | null = null;
   if (userAgentObject.isBot) {
+    const organizationsByInitiativeId = await retrieveInitiativesOrganizations([dbInitiative.id]);
+
     const initiative = initiativePrismaToModel({
       ...dbInitiative,
       businessUseCases: dbInitiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
       tools: dbInitiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+      organizations: organizationsByInitiativeId.get(dbInitiative.id) || [],
     });
 
     initiativeJsonLd = {
@@ -116,6 +120,16 @@ export default async function Page(props: InitiativePageProps) {
           };
         }),
       ],
+      sourceOrganization: initiative.organizations.map((organization) => ({
+        '@type': 'GovernmentOrganization' as 'GovernmentOrganization',
+        name: organization.name,
+        alternateName: organization.acronym || undefined,
+        url: organization.directoryUrl || undefined,
+        parentOrganization:
+          organization.ancestors.length > 0
+            ? { '@type': 'GovernmentOrganization', name: organization.ancestors[organization.ancestors.length - 1].name }
+            : undefined,
+      })),
       dateModified: initiative.updatedAt.toISOString(),
     };
   }

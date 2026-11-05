@@ -12,12 +12,19 @@ import {
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/src/features/llm';
 import {
+  bindOrganizationsToInitiatives,
+  formatOrganizationsIntoDatabase,
+  saveOrganizationListFile,
+  updateOrganizationsInitiativesCount,
+} from '@etabli/src/features/organization';
+import {
   enhanceRepositoriesIntoDatabase,
   formatRepositoriesIntoDatabase,
   matchRepositories,
   saveRepositoryListFile,
   updateInferredMetadataOnRepositories,
 } from '@etabli/src/features/repository';
+import { formatRepositoryOrganizationsIntoDatabase, saveRepositoryOrganizationListFile } from '@etabli/src/features/repository-organization';
 import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli/src/features/tool';
 import { downloadPretrainedModels } from '@etabli/src/utils/cross-encoder';
 
@@ -27,6 +34,10 @@ program.name('etabli').description('CLI to some deal with Établi project').vers
 
 const domain = program.command('domain').description('manage domains');
 const repository = program.command('repository').alias('repo').description('manage repositories');
+const organization = program
+  .command('organization')
+  .alias('orga')
+  .description('manage public organizations (DILA directory) and their forge accounts');
 const tool = program.command('tool').description('manage tools');
 const llm = program.command('llm').description('manage llm settings and documents');
 const model = program.command('model').description('manage pretrained models');
@@ -131,6 +142,48 @@ repository
     await saveRepositoryListFile();
     await formatRepositoriesIntoDatabase();
     await enhanceRepositoriesIntoDatabase();
+  });
+
+organization
+  .command('fetch')
+  .description('retrieve the DILA directory of public organizations and the code.gouv.fr list of their forge accounts')
+  .option('--no-cache', 'download the files even if already present locally')
+  .action(async (options) => {
+    await saveOrganizationListFile(options.cache);
+    await saveRepositoryOrganizationListFile(options.cache);
+  });
+
+organization
+  .command('format')
+  .description('format organizations and their forge accounts into the database')
+  .action(async () => {
+    await formatOrganizationsIntoDatabase();
+    await formatRepositoryOrganizationsIntoDatabase();
+  });
+
+organization
+  .command('bind')
+  .description('bind initiatives to organizations according to their websites and repositories')
+  .action(async () => {
+    await bindOrganizationsToInitiatives();
+  });
+
+organization
+  .command('count')
+  .description('refresh the number of initiatives per organization')
+  .action(async () => {
+    await updateOrganizationsInitiativesCount();
+  });
+
+organization
+  .command('prepare')
+  .description('execute "fetch", "format" and "bind" sequentially')
+  .action(async () => {
+    await saveOrganizationListFile();
+    await saveRepositoryOrganizationListFile();
+    await formatOrganizationsIntoDatabase();
+    await formatRepositoryOrganizationsIntoDatabase();
+    await bindOrganizationsToInitiatives();
   });
 
 tool

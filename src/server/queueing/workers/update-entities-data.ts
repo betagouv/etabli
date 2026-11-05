@@ -3,7 +3,9 @@ import PgBoss from 'pg-boss';
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/src/features/domain';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/src/features/initiative';
 import { ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem } from '@etabli/src/features/llm';
+import { bindOrganizationsToInitiatives, formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/src/features/repository';
+import { formatRepositoryOrganizationsIntoDatabase, saveRepositoryOrganizationListFile } from '@etabli/src/features/repository-organization';
 import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } from '@etabli/src/features/tool';
 
 export const updateEntitiesDataTopic = 'update-entities-data';
@@ -15,10 +17,14 @@ export async function updateEntitiesData(job: PgBoss.Job<void>) {
   await saveDomainCsvFile();
   await saveRepositoryListFile();
   await saveToolCsvFile();
+  await saveOrganizationListFile();
+  await saveRepositoryOrganizationListFile();
 
   await formatDomainsIntoDatabase();
   await formatRepositoriesIntoDatabase();
   await formatToolsIntoDatabase();
+  await formatOrganizationsIntoDatabase();
+  await formatRepositoryOrganizationsIntoDatabase();
 
   await enhanceDomainsIntoDatabase();
   await enhanceRepositoriesIntoDatabase();
@@ -28,5 +34,9 @@ export async function updateEntitiesData(job: PgBoss.Job<void>) {
 
   await ingestToolListToLlmSystem();
   await feedInitiativesFromDatabase();
+
+  // Organizations are part of the initiative sheet, so they must be bound before ingesting initiatives into the LLM system
+  await bindOrganizationsToInitiatives();
+
   await ingestInitiativeListToLlmSystem();
 }

@@ -166,6 +166,42 @@ model RawDomain {
   RawDomainsOnInitiativeMaps RawDomainsOnInitiativeMaps?
 }
 
+// Public organizations from the "Annuaire de l'administration" maintained by the DILA (https://lannuaire.service-public.gouv.fr)
+// They form a tree (ministries, directions, services...) but most of them are standalone (town halls, local offices...)
+model Organization {
+  id                   String   @id @default(uuid()) @db.Uuid
+  dilaId               String   @unique @db.Uuid
+  parentOrganizationId String?  @db.Uuid
+  ancestorIds          String[] @db.Uuid // Denormalized ancestors from the root to the direct parent, to filter a whole subtree or display the path without recursive queries
+  level                Int // 1 for a root organization
+  name                 String
+  acronym              String?
+  domains              String[] // Normalized hostnames (without `www.`) the organization declares as websites
+  directoryUrl         String? // The organization page on the DILA directory
+  initiativesCount     Int      @default(0) // Number of initiatives bound to this organization or to any of its descendants (refreshed when binding initiatives)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  parentOrganization         Organization?                @relation("ParentChildren", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
+  childrenOrganizations      Organization[]               @relation("ParentChildren")
+  OrganizationsOnInitiatives OrganizationsOnInitiatives[]
+
+  @@index([ancestorIds], type: Gin)
+  @@index([initiativesCount])
+}
+
+// Forge accounts (or entire forges) of public organizations, from the code.gouv.fr sources
+// They give us a direct link between repositories and the DILA directory (`pso_id`)
+model RepositoryOrganization {
+  id     String  @id @default(uuid()) @db.Uuid
+  url    String  @unique // Either a forge (`https://gitlab.inria.fr`) or an account on a forge (`https://github.com/betagouv`), lowercased and without trailing slash
+  dilaId String? @db.Uuid // Not a foreign key since the code.gouv.fr list can reference an organization not (or no longer) in the DILA directory
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
 enum ToolCategory {
   LANGUAGES_AND_FRAMEWORKS
   BUILD_TEST_DEPLOY
@@ -250,6 +286,17 @@ model BusinessUseCasesOnInitiatives {
   @@id([businessUseCaseId, initiativeId])
 }
 
+model OrganizationsOnInitiatives {
+  organizationId String @db.Uuid
+  initiativeId   String @db.Uuid
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  initiative   Initiative   @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, initiativeId])
+  @@index([initiativeId])
+}
+
 model RawDomainsOnInitiativeMaps {
   rawDomainId     String  @unique @db.Uuid
   initiativeMapId String  @db.Uuid
@@ -306,4 +353,5 @@ model Initiative {
   ToolsOnInitiatives            ToolsOnInitiatives[]
   BusinessUseCasesOnInitiatives BusinessUseCasesOnInitiatives[]
   InitiativeLlmDocument         InitiativeLlmDocument?
+  OrganizationsOnInitiatives    OrganizationsOnInitiatives[]
 }

@@ -97,6 +97,7 @@ export const DocumentInitiativeTemplateSchema = z
     businessUseCases: z.array(z.string()).nullable(),
     functionalUseCases: z.array(z.string()).nullable(),
     tools: z.array(z.string()).nullable(),
+    organizations: z.array(z.string()).nullish(), // Full paths of bound public organizations (optional since documents computed before this property do not have it)
   })
   .strict();
 export type DocumentInitiativeTemplateSchemaType = z.infer<typeof DocumentInitiativeTemplateSchema>;

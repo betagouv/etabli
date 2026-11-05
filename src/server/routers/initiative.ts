@@ -1,3 +1,4 @@
+import { retrieveInitiativesOrganizations } from '@etabli/src/features/organization-read';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { GetInitiativeSchema, ListInitiativesSchema } from '@etabli/src/models/actions/initiative';
 import { initiativeNotFoundError } from '@etabli/src/models/entities/errors';
@@ -47,11 +48,14 @@ export const initiativeRouter = router({
       throw initiativeNotFoundError;
     }
 
+    const organizationsByInitiativeId = await retrieveInitiativesOrganizations([initiative.id]);
+
     return {
       initiative: initiativePrismaToModel({
         ...initiative,
         businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
         tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+        organizations: organizationsByInitiativeId.get(initiative.id) || [],
       }),
     };
   }),
@@ -68,6 +72,26 @@ export const initiativeRouter = router({
     }
     if (input.filterBy.hasRepository === true) {
       extraFilters.push({ NOT: { repositories: { isEmpty: true } } });
+    }
+    const organizationFilters: Prisma.InitiativeWhereInput[] = [];
+    if (input.filterBy.organizationIds && input.filterBy.organizationIds.length > 0) {
+      // Selecting an organization also brings initiatives of its descendants (e.g. a ministry and all its directions)
+      organizationFilters.push({
+        OrganizationsOnInitiatives: {
+          some: {
+            organization: {
+              OR: [{ id: { in: input.filterBy.organizationIds } }, { ancestorIds: { hasSome: input.filterBy.organizationIds } }],
+            },
+          },
+        },
+      });
+    }
+    if (input.filterBy.unclassified === true) {
+      organizationFilters.push({ OrganizationsOnInitiatives: { none: {} } });
+    }
+    if (organizationFilters.length > 0) {
+      // Organizations criteria are alternatives (like a multiple choice), whereas other filters are cumulative
+      extraFilters.push(organizationFilters.length === 1 ? organizationFilters[0] : { OR: organizationFilters });
     }
 
     const extraWhere: Prisma.InitiativeWhereInput = extraFilters.length > 0 ? { AND: extraFilters } : {};
@@ -168,12 +192,15 @@ export const initiativeRouter = router({
       // See https://github.com/prisma/prisma/issues/11336#issuecomment-1986031261
       initiatives.sort((a, b) => pageInitiativeIds.indexOf(a.id) - pageInitiativeIds.indexOf(b.id));
 
+      const organizationsByInitiativeId = await retrieveInitiativesOrganizations(initiatives.map((initiative) => initiative.id));
+
       return {
         initiatives: initiatives.map((initiative) =>
           initiativePrismaToModel({
             ...initiative,
             businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
             tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+            organizations: organizationsByInitiativeId.get(initiative.id) || [],
           })
         ),
         totalCount,
@@ -191,12 +218,15 @@ export const initiativeRouter = router({
       prisma.initiative.count({ where: extraWhere }),
     ]);
 
+    const organizationsByInitiativeId = await retrieveInitiativesOrganizations(initiatives.map((initiative) => initiative.id));
+
     return {
       initiatives: initiatives.map((initiative) =>
         initiativePrismaToModel({
           ...initiative,
           businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
           tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+          organizations: organizationsByInitiativeId.get(initiative.id) || [],
         })
       ),
       totalCount: totalCount,

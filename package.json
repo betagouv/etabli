@@ -78,7 +78,6 @@
   "dependencies": {
     "@codegouvfr/react-dsfr": "1.5.2",
     "@commander-js/extra-typings": "^11.1.0",
-    "commander": "^11.1.0",
     "@gouvfr/dsfr": "1.11.1",
     "@hookform/resolvers": "^2.9.10",
     "@inquirer/prompts": "^3.3.0",
@@ -104,6 +103,7 @@
     "async": "^3.2.5",
     "chalk": "^5.3.0",
     "change-case": "^5.4.3",
+    "commander": "^11.1.0",
     "content-disposition": "^0.5.4",
     "crisp-sdk-web": "^1.0.13",
     "cron": "^3.1.6",
@@ -163,6 +163,7 @@
     "usehooks-ts": "^2.9.1",
     "uuid": "^9.0.0",
     "wappalyzer": "6.10.66",
+    "yaml": "^2.9.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {

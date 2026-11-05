@@ -36,6 +36,10 @@ export function getOptions(rawFormat: boolean): Options {
         header: rawFormat ? typedNameof('functionalUseCases') : t('document.template.Initiative.columns.functionalUseCases'),
       },
       { key: typedNameof('tools'), header: rawFormat ? typedNameof('tools') : t('document.template.Initiative.columns.tools') },
+      {
+        key: typedNameof('organizations'),
+        header: rawFormat ? typedNameof('organizations') : t('document.template.Initiative.columns.organizations'),
+      },
       { key: typedNameof('createdAt'), header: rawFormat ? typedNameof('createdAt') : t('document.template.Initiative.columns.createdAt') },
       { key: typedNameof('updatedAt'), header: rawFormat ? typedNameof('updatedAt') : t('document.template.Initiative.columns.updatedAt') },
       { key: typedNameof('deletedAt'), header: rawFormat ? typedNameof('deletedAt') : t('document.template.Initiative.columns.deletedAt') },

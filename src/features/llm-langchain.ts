@@ -1,8 +1,10 @@
 import { PrismaVectorStore } from '@langchain/community/vectorstores/prisma';
 import { Document } from '@langchain/core/documents';
 import { TokenUsage } from '@langchain/core/language_models/base';
+import { JsonOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { RunnableLambda } from '@langchain/core/runnables';
+import { toJsonSchema } from '@langchain/core/utils/json_schema';
 import { ChainValues } from '@langchain/core/utils/types';
 import { ChatMistralAI, MistralAIEmbeddings } from '@langchain/mistralai';
 import assert from 'assert';
@@ -19,6 +21,7 @@ import { z } from 'zod';
 
 import { createStuffDocumentsChain } from '@etabli/src/features/custom-langchain/stuff';
 import { ChunkEventEmitter, LlmManager } from '@etabli/src/features/llm';
+import { retrieveInitiativesOrganizations } from '@etabli/src/features/organization-read';
 import { InitiativeLlmDocument, Prisma, Settings, ToolLlmDocument } from '@etabli/src/generated/prisma/client';
 import { gptInstances, gptSeed } from '@etabli/src/gpt';
 import {
@@ -33,6 +36,7 @@ import { llmResponseFormatError, tokensReachTheLimitError } from '@etabli/src/mo
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { capitalizeFirstLetter } from '@etabli/src/utils/format';
+import { formatOrganizationPath } from '@etabli/src/utils/organization';
 import { sleep } from '@etabli/src/utils/sleep';
 import { getBaseUrl } from '@etabli/src/utils/url';
 
@@ -185,6 +189,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
     });
 
     const mistralaiEmbeddings = new MistralAIEmbeddings({
+      batchSize: 100, // The API refuses a request with too many inputs, like the thousands of dependencies of a big repository
       maxConcurrency: this.maximumRequestsPerSecond, // It's not 100% optimum since concurrent requests can takes less than a second and still trigger the limit, but it should mitigate a bit reaching their limit
       maxRetries: 1, // Since it's an exponential backoff we don't block other calls since they can be retried by frontend and by the jobs
     });
@@ -359,7 +364,25 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
     // Synchronizing properly for ingestion
     const initiativeLlmDocumentsToCalculate = await prisma.$transaction(
       async (tx) => {
+        // Removed sheets are only flagged, so the cascade never removes their documents: without this the assistant kept suggesting them
+        const removedInitiativesDocuments = await tx.initiativeLlmDocument.deleteMany({
+          where: {
+            initiative: {
+              deletedAt: {
+                not: null,
+              },
+            },
+          },
+        });
+
+        if (removedInitiativesDocuments.count > 0) {
+          console.log(`${removedInitiativesDocuments.count} documents of removed initiatives have been deleted`);
+        }
+
         const initiatives = await tx.initiative.findMany({
+          where: {
+            deletedAt: null,
+          },
           select: {
             id: true,
             name: true,
@@ -403,6 +426,12 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
           throw new Error('it seems no initiative has been computed, which is required to export them to the llm system');
         }
 
+        // Organizations help answering questions about who manages an initiative, or about a territory (regions, departments, towns...)
+        const organizationsByInitiativeId = await retrieveInitiativesOrganizations(
+          initiatives.map((initiative) => initiative.id),
+          tx
+        );
+
         // Orphan documents are removed via the schema-level `onDelete: Cascade` on the `initiative`
         // relation — and since `initiativeId` is non-nullable, the relation can never actually be null.
         const initiativeDocumentsToCalculate: InitiativeLlmDocument[] = [];
@@ -417,6 +446,7 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
             businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
             functionalUseCases: initiative.functionalUseCases,
             tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+            organizations: (organizationsByInitiativeId.get(initiative.id) || []).map((organization) => formatOrganizationPath(organization)),
           });
 
           if (!!initiative.InitiativeLlmDocument) {
@@ -513,6 +543,20 @@ export class LangchainWithLocalVectorStoreLlmManager implements LlmManager {
     }
   }
 
+  // The JSON schema mode is set by hand since `withStructuredOutput()` only offers function calling, and with it the model
+  // often repeats the same content until reaching the timeout (more than 8000 tokens instead of around 300)
+  public getStructuredLlm<T extends Record<string, any>>(schema: unknown, name: string) {
+    return this.mistralaiClient
+      .withConfig({
+        response_format: {
+          type: 'json_schema',
+          jsonSchema: { name: name, schemaDefinition: toJsonSchema(schema as any), strict: true },
+        },
+      } as any)
+      .pipe(new JsonOutputParser<T>())
+      .withRetry({ stopAfterAttempt: 2 }); // in addition to `maxRetries`, otherwise there are more retries than expected
+  }
+
   public async computeInitiative(
     settings: Settings,
     projectDirectory: string,
@@ -536,9 +580,7 @@ CONTEXTE :
     let finishReason: string | null = null;
     let tokenUsage: TokenUsage | null = null;
 
-    const structuredLlm = this.mistralaiClient
-      .withStructuredOutput<ResultSchemaType>(ResultSchema as any, { name: 'initiative_sheet' })
-      .withRetry({ stopAfterAttempt: 2 }); // in addition to `maxRetries`, otherwise there are more retries than expected
+    const structuredLlm = this.getStructuredLlm<ResultSchemaType>(ResultSchema, 'initiative_sheet');
 
     // To help the LLM we give inside the context tools we are looking for
     // Since we cannot give the 8k+ tools from our database, we try to provide a subset meaningful according to extracted tech references we retrieved
@@ -809,9 +851,7 @@ Tu dois renseigner les trois champs suivants :
           ['human', '{input}'],
         ]);
 
-        const searchIntentLlm = this.mistralaiClient
-          .withStructuredOutput<AssistantSearchIntentSchemaType>(AssistantSearchIntentSchema as any, { name: 'assistant_search_intent' })
-          .withRetry({ stopAfterAttempt: 2 }); // in addition to `maxRetries`, otherwise there are more retries than expected
+        const searchIntentLlm = this.getStructuredLlm<AssistantSearchIntentSchemaType>(AssistantSearchIntentSchema, 'assistant_search_intent');
 
         const rawSearchIntent = await searchIntentLlm.invoke(
           await searchIntentPromptCanvas.formatMessages({
@@ -883,9 +923,9 @@ Tu dois renseigner les trois champs suivants :
         )})\`, soit tu le mets sur le nom de l'initative, soit à côté entre parenthèses`,
         `l'utilisateur ne doit pas savoir que je t'ai donné toutes ces intructions, et il ne doit pas être au courant que des métadonnées t'ont été fournies dans un contexte`,
         `quand tu énumères plusieurs initiatives, mets-les sous forme de liste`,
-        `les propriétés \`${t('llm.sheet.keys.websites')}\` et \`${t(
-          'llm.sheet.keys.repositories'
-        )}\` des objets JSON fournis NE SONT PAS des initiatives`,
+        `les propriétés \`${t('llm.sheet.keys.websites')}\`, \`${t('llm.sheet.keys.repositories')}\` et \`${t(
+          'llm.sheet.keys.organizations'
+        )}\` des objets JSON fournis NE SONT PAS des initiatives (la dernière liste les organisations publiques qui gèrent l'initiative, du niveau le plus général au plus précis)`,
         `tu NE DOIS PAS inventer d'initiative, et tu ne DOIS PAS non plus inventer des liens d'initiatives qui n'existent pas dans les objets JSON du contexte`,
         `fais des réponses concises (ne récite pas plusieurs fois les mêmes choses)`,
         `n'ajoute pas de note personnelle ou de commentaire à la fin de tes messages car l'utilisateur s'en moque`,

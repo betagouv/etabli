@@ -1,0 +1,8 @@
+*
+!src/bibliothecary/Gemfile
+!src/bibliothecary/Gemfile.lock
+!src/semgrep/requirements.txt
+!.next/standalone
+!.next/static
+!public
+!.cache/models

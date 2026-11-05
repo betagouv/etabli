@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { prisma } from '@etabli/src/prisma/client';
 import { apiHandlerWrapper } from '@etabli/src/utils/api';
+import { withInitiativeSlug } from '@etabli/src/utils/initiative-link';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 import { getBaseUrl } from '@etabli/src/utils/url';
 
@@ -27,7 +28,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader('Content-Encoding', 'gzip');
 
   if (value === 'index') {
-    const initiativesCount = await prisma.initiative.count({});
+    const initiativesCount = await prisma.initiative.count({ where: { deletedAt: null } });
     const sitemapsCount = Math.ceil((routes.length + initiativesCount) / chunkSize);
 
     const stream = new SitemapIndexStream({});
@@ -49,9 +50,14 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
     const page = value;
 
     const initiatives = await prisma.initiative.findMany({
+      where: {
+        deletedAt: null, // Removed sheets redirect to the one replacing them or do not exist anymore
+      },
       select: {
         id: true,
-        updatedAt: true,
+        name: true,
+        computedAt: true,
+        createdAt: true,
       },
       orderBy: {
         createdAt: 'asc',
@@ -66,8 +72,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     for (const initiative of initiatives) {
       stream.write({
-        url: linkRegistry.get('initiative', { initiativeId: initiative.id }),
-        lastmod: initiative.updatedAt.toISOString(),
+        url: withInitiativeSlug(linkRegistry.get('initiative', { initiativeId: initiative.id }), initiative.name),
+        lastmod: (initiative.computedAt ?? initiative.createdAt).toISOString(), // Indicators updates do not change what is read on the page
         changefreq: 'monthly',
         priority: 0.5,
       } as SitemapItemLoose);

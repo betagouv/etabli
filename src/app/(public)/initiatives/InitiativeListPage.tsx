@@ -1,17 +1,22 @@
 'use client';
 
+import BubbleChartIcon from '@mui/icons-material/BubbleChart';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import ClearIcon from '@mui/icons-material/Clear';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import GridViewIcon from '@mui/icons-material/GridView';
 import SearchIcon from '@mui/icons-material/Search';
 import TableRowsIcon from '@mui/icons-material/TableRows';
+import ViewListIcon from '@mui/icons-material/ViewList';
 import Alert from '@mui/material/Alert';
 import Badge from '@mui/material/Badge';
+import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Grid, { GridProps } from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
+import LinearProgress from '@mui/material/LinearProgress';
 import Link from '@mui/material/Link';
 import MenuItem from '@mui/material/MenuItem';
 import Pagination from '@mui/material/Pagination';
@@ -19,14 +24,17 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { push } from '@socialgouv/matomo-next';
 import debounce from 'lodash.debounce';
 import NextLink from 'next/link';
-import { parseAsArrayOf, parseAsBoolean, parseAsInteger, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createSerializer, useQueryStates } from 'nuqs';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePrevious, useUpdateEffect } from 'react-use';
 
+import { OrganizationsMap } from '@etabli/src/app/(public)/initiatives/OrganizationsMap';
 import { trpc } from '@etabli/src/client/trpcClient';
 import { ErrorAlert } from '@etabli/src/components/ErrorAlert';
 import {
@@ -37,18 +45,45 @@ import {
 } from '@etabli/src/components/InitiativeFiltersModal';
 import { InitiativeList } from '@etabli/src/components/InitiativeList';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
+import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
 import { PaginationSize } from '@etabli/src/models/actions/common';
-import { FunctionalUseCaseSchema } from '@etabli/src/models/entities/initiative';
-import { ListDisplay, useLocalStorageListDisplay } from '@etabli/src/utils/display';
+import {
+  InitiativesOrderSchema,
+  InitiativesOrderSchemaType,
+  ListInitiativesSchemaType,
+  maximumFilteredOrganizations,
+  unclassifiedInitiativesNodeId,
+} from '@etabli/src/models/actions/initiative';
+import { FunctionalUseCaseSchema, GradeLetterSchema, LegalLinkPresenceSchema } from '@etabli/src/models/entities/initiative';
+import { ListDisplay } from '@etabli/src/utils/display';
+import { getIssueLevelFilterLabel, issueLevels } from '@etabli/src/utils/domain-security-issues';
+import { getForeignDependencyLevelLabel } from '@etabli/src/utils/foreign-dependencies';
 import { centeredAlertContainerGridProps, wideContainerGridProps } from '@etabli/src/utils/grid';
+import {
+  buildDirectoryFilterBy,
+  buildListInitiativesInput,
+  defaultDirectoryPageSize,
+  directoryParsers,
+  getDirectoryOrganizationIds,
+  organizationIdPattern,
+} from '@etabli/src/utils/initiatives-directory';
+import { narrowOrganizationsToNode } from '@etabli/src/utils/organization';
+import { getOrganizationPath } from '@etabli/src/utils/organization';
+import { mapColorModes } from '@etabli/src/utils/organizations-map';
+import { serverPrefetchedQueryStaleTime } from '@etabli/src/utils/query';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 import { AggregatedQueries } from '@etabli/src/utils/trpc';
+import { useListDisplay } from '@etabli/src/utils/use-list-display';
 
 export enum ListFilter {
   ALL = 1,
   OPEN_ONLY,
   CLOSE_ONLY,
 }
+
+const serializeDirectoryParams = createSerializer(directoryParsers);
+
+const refreshIndicatorDelayInMilliseconds = 300;
 
 const reusableCentering: GridProps['sx'] = {
   ...wideContainerGridProps.sx,
@@ -61,58 +96,101 @@ export const InitiativeListPageContext = createContext({
   ContextualInitiativeList: InitiativeList,
 });
 
-export interface InitiativeListPageProps {}
+export interface InitiativeListPageProps {
+  initialListDisplay?: ListDisplay; // From the cookie, so the server renders the display chosen by the visitor
+}
 
 export function InitiativeListPage(props: InitiativeListPageProps) {
   const { ContextualInitiativeList } = useContext(InitiativeListPageContext);
+  const { t } = useTranslation('common');
 
   const assistantPath = linkRegistry.get('assistant', undefined);
 
-  const [params, setParams] = useQueryStates(
-    {
-      q: parseAsString.withDefault(''),
-      fnc: parseAsArrayOf(parseAsStringLiteral(FunctionalUseCaseSchema.options)).withDefault([]),
-      tools: parseAsArrayOf(parseAsString).withDefault([]),
-      hasWeb: parseAsBoolean.withDefault(false),
-      hasRepo: parseAsBoolean.withDefault(false),
-      page: parseAsInteger.withDefault(1),
-    },
-    { history: 'push', clearOnDefault: true }
-  );
+  const [params, setParams] = useQueryStates(directoryParsers, { history: 'push', clearOnDefault: true });
+
+  // Only valid identifiers are sent to the API (the URL can be modified by hand)
+  const organizationIds = useMemo(() => getDirectoryOrganizationIds(params.orgs), [params.orgs]);
 
   const filtersValue: InitiativeFiltersValue = useMemo(
     () => ({
       functionalUseCases: params.fnc,
       toolIds: params.tools,
+      organizationIds: organizationIds,
+      unclassified: params.nc,
       hasWebsite: params.hasWeb,
       hasRepository: params.hasRepo,
+      httpSecurityGrades: params.httpSec,
+      tlsLevels: params.tls,
+      mailSecurityLevels: params.mail,
+      legalNotice: params.ml,
+      privacyPolicy: params.pc,
+      foreignDependencyLevels: params.foreign,
     }),
-    [params.fnc, params.tools, params.hasWeb, params.hasRepo]
+    [
+      params.fnc,
+      params.tools,
+      organizationIds,
+      params.nc,
+      params.hasWeb,
+      params.hasRepo,
+      params.httpSec,
+      params.tls,
+      params.mail,
+      params.ml,
+      params.pc,
+      params.foreign,
+    ]
   );
+
+  const isMapView = params.view === 'map';
 
   const activeFiltersCount = countActiveFilters(filtersValue);
   const hasSearchQuery = params.q.trim().length > 0;
   const hasAnyCriterion = hasSearchQuery || activeFiltersCount > 0;
 
-  const queryRef = React.createRef<HTMLInputElement>();
+  const queryRef = useRef<HTMLInputElement>(null); // `createRef()` gave a new object each render, re-running the effect below that resets the input
   const [searchQueryManipulated, setSearchQueryManipulated] = useState(false);
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
-  const [listDisplay, setListDisplay] = useLocalStorageListDisplay();
+  const [listDisplay, setListDisplay] = useListDisplay(props.initialListDisplay ?? ListDisplay.GRID);
   const [possiblePageSizes] = useState<PaginationSize[]>(() => [PaginationSize.size10, PaginationSize.size25, PaginationSize.size50]);
-  const [pageSize, setPageSize] = useState<PaginationSize>(() => possiblePageSizes[0]);
+  const [pageSize, setPageSize] = useState<PaginationSize>(defaultDirectoryPageSize); // The one the server renders
   const prevPage = usePrevious(params.page);
 
-  const listInitiatives = trpc.listInitiatives.useQuery({
-    page: params.page,
-    pageSize: pageSize,
-    orderBy: {},
-    filterBy: {
-      query: hasSearchQuery ? params.q : null,
-      functionalUseCases: params.fnc.length > 0 ? params.fnc : undefined,
-      toolIds: params.tools.length > 0 ? params.tools : undefined,
-      hasWebsite: params.hasWeb || undefined,
-      hasRepository: params.hasRepo || undefined,
-    },
+  const filterBy = buildDirectoryFilterBy(params, organizationIds);
+
+  const listInitiatives = trpc.listInitiatives.useQuery(buildListInitiativesInput(params, organizationIds, pageSize), {
+    enabled: !isMapView,
+    staleTime: serverPrefetchedQueryStaleTime,
+    // While typing or changing a criterion the previous results stay displayed, otherwise the page collapsed to a loader (footer
+    // jumping up, scrollbar disappearing) before growing again
+    keepPreviousData: true,
+  });
+  const isRefreshingResults = listInitiatives.isFetching && listInitiatives.isPreviousData;
+
+  // Only signaled when the wait is noticeable, otherwise the progress bar flashed for fast answers and not for others
+  const [showRefreshIndicator, setShowRefreshIndicator] = useState(false);
+  useEffect(() => {
+    if (!isRefreshingResults) {
+      setShowRefreshIndicator(false);
+
+      return;
+    }
+
+    const timeout = setTimeout(() => setShowRefreshIndicator(true), refreshIndicatorDelayInMilliseconds);
+
+    return () => clearTimeout(timeout);
+  }, [isRefreshingResults]);
+
+  // To display active organization filters with a readable name
+  const selectedOrganizations = trpc.getOrganizations.useQuery(
+    { ids: organizationIds },
+    { enabled: organizationIds.length > 0, keepPreviousData: true, staleTime: serverPrefetchedQueryStaleTime }
+  );
+
+  const selectedTools = trpc.listTools.useQuery(undefined, {
+    enabled: params.tools.length > 0,
+    keepPreviousData: true,
+    staleTime: serverPrefetchedQueryStaleTime,
   });
 
   useUpdateEffect(() => {
@@ -165,7 +243,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     if (queryRef.current && queryRef.current.value !== params.q) {
       queryRef.current.value = params.q;
     }
-  }, [params.q, queryRef]);
+  }, [params.q]);
 
   const { initiatives, pagesCount, totalCount } = useMemo(() => {
     return !!listInitiatives.data
@@ -210,15 +288,48 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     setParams({
       fnc: next.functionalUseCases.length > 0 ? next.functionalUseCases : null,
       tools: next.toolIds.length > 0 ? next.toolIds : null,
+      orgs: next.organizationIds.length > 0 ? next.organizationIds : null,
+      nc: next.unclassified ? true : null,
       hasWeb: next.hasWebsite ? true : null,
       hasRepo: next.hasRepository ? true : null,
+      httpSec: next.httpSecurityGrades.length > 0 ? next.httpSecurityGrades : null,
+      tls: next.tlsLevels.length > 0 ? next.tlsLevels : null,
+      mail: next.mailSecurityLevels.length > 0 ? next.mailSecurityLevels : null,
+      ml: next.legalNotice,
+      pc: next.privacyPolicy,
+      foreign: next.foreignDependencyLevels.length > 0 ? next.foreignDependencyLevels : null,
       page: 1,
     });
     setFiltersModalOpen(false);
   };
 
   const resetFilters = () => {
-    setParams({ fnc: null, tools: null, hasWeb: null, hasRepo: null, page: 1 });
+    setParams({
+      fnc: null,
+      tools: null,
+      orgs: null,
+      nc: null,
+      hasWeb: null,
+      hasRepo: null,
+      httpSec: null,
+      tls: null,
+      mail: null,
+      ml: null,
+      pc: null,
+      foreign: null,
+      page: 1,
+    });
+  };
+
+  // Leaving the map for the list narrows it to where the map is looking at (virtual nodes other than the unclassified one are not a filter)
+  const listViewParams = {
+    view: null,
+    zoom: null,
+    ...(params.zoom === unclassifiedInitiativesNodeId
+      ? { orgs: null, nc: true }
+      : params.zoom && organizationIdPattern.test(params.zoom)
+        ? { orgs: narrowOrganizationsToNode(selectedOrganizations.data?.organizations ?? [], params.zoom), nc: null }
+        : {}),
   };
 
   const hasResults = initiatives.length > 0;
@@ -232,103 +343,288 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
 
   return (
     <>
-      <Grid container sx={{ ...wideContainerGridProps.sx, px: 0 }} direction="column" alignContent="flex-start">
+      <Grid container sx={{ ...wideContainerGridProps.sx, px: 0, pt: 3, pb: isMapView ? 2 : 6 }} direction="column" alignContent="flex-start">
         <Grid item sx={{ width: '100%' }}>
-          <Grid container sx={reusableCentering}>
-            <Grid item xs={12} sx={{ pb: 3 }}>
-              <Typography component="h1" variant="h5">
+          {/* Controls stay at the same place between views, and are kept compact so the map fits in the screen below them */}
+          <Grid container sx={{ ...reusableCentering, pb: 2 }}>
+            <Grid item xs={12} sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
+              <Typography component="h1" variant="h5" sx={{ mb: 0 }}>
                 Annuaire des initiatives
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Vous ne trouvez pas l&apos;initiative qui correspond à votre besoin&nbsp;?{' '}
-                <Link component={NextLink} href={assistantPath} underline="none">
-                  Notre assistant
-                </Link>{' '}
-                peut vous aider.
-              </Typography>
-            </Grid>
-            <Grid item xs={12} sx={{ mb: 3 }}>
-              <TextField
-                type="text"
-                name="search"
-                placeholder="Rechercher... (que ce soit un nom, un outil, un cas d'utilisation)"
-                inputRef={queryRef}
-                defaultValue={params.q}
-                onChange={debouncedSearchChange}
-                fullWidth
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      {hasSearchQuery && (
-                        <IconButton aria-label="effacer la recherche" onClick={handleClearQuery}>
-                          <ClearIcon />
-                        </IconButton>
-                      )}
-                    </InputAdornment>
-                  ),
+              <ToggleButtonGroup
+                color="primary"
+                size="small"
+                value={params.view}
+                exclusive
+                onChange={(event, newValue) => {
+                  if (newValue !== null) {
+                    setParams(newValue === 'list' ? { ...listViewParams, page: 1 } : { view: newValue, page: 1 });
+                    push(['trackEvent', 'directory', 'changeView', newValue]);
+                  }
                 }}
-              />
+                aria-label="vue des initiatives"
+              >
+                <ToggleButton value="list" sx={{ px: 2, gap: 1 }}>
+                  <ViewListIcon fontSize="small" /> Liste
+                </ToggleButton>
+                <ToggleButton value="map" sx={{ px: 2, gap: 1 }}>
+                  <BubbleChartIcon fontSize="small" /> Carte
+                </ToggleButton>
+              </ToggleButtonGroup>
             </Grid>
+            <Grid item xs={12}>
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center">
+                <TextField
+                  type="text"
+                  name="search"
+                  size="small"
+                  placeholder="Rechercher... (que ce soit un nom, un outil, un cas d'utilisation)"
+                  inputRef={queryRef}
+                  defaultValue={params.q}
+                  onChange={debouncedSearchChange}
+                  sx={{ flex: '1 1 240px' }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        {hasSearchQuery && (
+                          <IconButton aria-label="effacer la recherche" size="small" onClick={handleClearQuery}>
+                            <ClearIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                {!isMapView && (
+                  <TextField
+                    select
+                    size="small"
+                    label="Trier par"
+                    value={params.sort}
+                    onChange={(event) => {
+                      setParams({ sort: event.target.value as InitiativesOrderSchemaType, page: 1 });
+                    }}
+                    sx={{ flex: '0 0 150px' }}
+                  >
+                    <MenuItem value="relevance">Pertinence</MenuItem>
+                    <MenuItem value="name">Nom</MenuItem>
+                    <MenuItem value="reputation">Notoriété</MenuItem>
+                  </TextField>
+                )}
+                <Button
+                  variant={activeFiltersCount > 0 ? 'contained' : 'outlined'}
+                  color="primary"
+                  startIcon={
+                    <Badge color="error" badgeContent={activeFiltersCount} invisible={activeFiltersCount === 0}>
+                      <FilterListIcon />
+                    </Badge>
+                  }
+                  onClick={() => setFiltersModalOpen(true)}
+                  sx={{ height: 40 }} // Same height as the search field
+                >
+                  Filtres
+                </Button>
+                {activeFiltersCount > 0 && (
+                  <Button variant="text" size="small" onClick={resetFilters}>
+                    Réinitialiser
+                  </Button>
+                )}
+                {!isMapView && (
+                  // The compact table is for comparing many items, it stays a secondary display of the list
+                  <Tooltip title={listDisplay === ListDisplay.TABLE ? 'Affichage en cartes' : 'Affichage compact'}>
+                    <IconButton
+                      aria-label={listDisplay === ListDisplay.TABLE ? 'affichage en cartes' : 'affichage compact'}
+                      onClick={() => {
+                        const nextDisplay = listDisplay === ListDisplay.TABLE ? ListDisplay.GRID : ListDisplay.TABLE;
+
+                        setListDisplay(nextDisplay);
+                        push(['trackEvent', 'directory', 'changeDisplay', nextDisplay]);
+                      }}
+                    >
+                      {listDisplay === ListDisplay.TABLE ? <GridViewIcon /> : <TableRowsIcon />}
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Stack>
+              {!isMapView && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Vous ne trouvez pas l&apos;initiative qui correspond à votre besoin&nbsp;?{' '}
+                  <Link component={NextLink} href={assistantPath} underline="none">
+                    Notre assistant
+                  </Link>{' '}
+                  peut vous aider.
+                </Typography>
+              )}
+            </Grid>
+            {activeFiltersCount > 0 && (
+              <Grid item xs={12} sx={{ mt: 1 }}>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  useFlexGap
+                  flexWrap="wrap"
+                  component="ul"
+                  sx={{ listStyle: 'none', p: 0, m: 0 }}
+                  aria-label="filtres actifs"
+                >
+                  {params.nc && (
+                    <li>
+                      <Chip label="Non classées" onDelete={() => setParams({ nc: null, page: 1 })} color="primary" variant="outlined" />
+                    </li>
+                  )}
+                  {(organizationIds.length > 0 ? selectedOrganizations.data?.organizations || [] : []).map((organization) => {
+                    return (
+                      <li key={organization.id}>
+                        <Tooltip
+                          arrow
+                          describeChild
+                          title={organization.ancestors.length > 0 ? <OrganizationTree paths={[getOrganizationPath(organization)]} /> : ''} // Nothing to tell for a root
+                        >
+                          <Chip
+                            label={organization.name}
+                            onDelete={() => {
+                              const remainingOrganizationIds = params.orgs.filter((organizationId) => organizationId !== organization.id);
+
+                              setParams({ orgs: remainingOrganizationIds.length > 0 ? remainingOrganizationIds : null, page: 1 });
+                            }}
+                            color="primary"
+                            variant="outlined"
+                            sx={{ maxWidth: '100%' }}
+                          />
+                        </Tooltip>
+                      </li>
+                    );
+                  })}
+
+                  {params.fnc.map((functionalUseCase) => (
+                    <li key={functionalUseCase}>
+                      <Chip
+                        label={t(`model.initiative.functionalUseCase.enum.${functionalUseCase}`)}
+                        onDelete={() => {
+                          const remaining = params.fnc.filter((item) => item !== functionalUseCase);
+
+                          setParams({ fnc: remaining.length > 0 ? remaining : null, page: 1 });
+                        }}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  ))}
+                  {params.tools.map((toolId) => {
+                    const tool = selectedTools.data?.tools.find((item) => item.id === toolId);
+
+                    return (
+                      tool && (
+                        <li key={toolId}>
+                          <Chip
+                            label={tool.name}
+                            onDelete={() => {
+                              const remaining = params.tools.filter((item) => item !== toolId);
+
+                              setParams({ tools: remaining.length > 0 ? remaining : null, page: 1 });
+                            }}
+                            color="primary"
+                            variant="outlined"
+                          />
+                        </li>
+                      )
+                    );
+                  })}
+                  {params.hasWeb && (
+                    <li>
+                      <Chip label="Avec site internet" onDelete={() => setParams({ hasWeb: null, page: 1 })} color="primary" variant="outlined" />
+                    </li>
+                  )}
+                  {params.hasRepo && (
+                    <li>
+                      <Chip label="Avec dépôt de code" onDelete={() => setParams({ hasRepo: null, page: 1 })} color="primary" variant="outlined" />
+                    </li>
+                  )}
+                  {params.httpSec.map((grade) => (
+                    <li key={`httpSec-${grade}`}>
+                      <Chip
+                        label={`En-têtes de sécurité HTTP : ${grade}`}
+                        onDelete={() => setParams({ httpSec: params.httpSec.filter((item) => item !== grade), page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  ))}
+                  {params.tls.map((level) => (
+                    <li key={`tls-${level}`}>
+                      <Chip
+                        label={`Certificat et TLS : ${getIssueLevelFilterLabel(level).toLowerCase()}`}
+                        onDelete={() => setParams({ tls: params.tls.filter((item) => item !== level), page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  ))}
+                  {params.mail.map((level) => (
+                    <li key={`mail-${level}`}>
+                      <Chip
+                        label={`Protection des e-mails : ${getIssueLevelFilterLabel(level).toLowerCase()}`}
+                        onDelete={() => setParams({ mail: params.mail.filter((item) => item !== level), page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  ))}
+                  {params.foreign.map((level) => (
+                    <li key={`foreign-${level}`}>
+                      <Chip
+                        label={`Dépendance hors UE : ${getForeignDependencyLevelLabel(level)?.toLowerCase()}`}
+                        onDelete={() => setParams({ foreign: params.foreign.filter((item) => item !== level), page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  ))}
+                  {params.ml && (
+                    <li>
+                      <Chip
+                        label={`Mentions légales : lien ${params.ml === 'with' ? 'trouvé' : 'non trouvé'}`}
+                        onDelete={() => setParams({ ml: null, page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  )}
+                  {params.pc && (
+                    <li>
+                      <Chip
+                        label={`Confidentialité : lien ${params.pc === 'with' ? 'trouvé' : 'non trouvé'}`}
+                        onDelete={() => setParams({ pc: null, page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  )}
+                </Stack>
+              </Grid>
+            )}
           </Grid>
         </Grid>
-        {!listInitiatives.isLoading ? (
+        {isMapView || !listInitiatives.isLoading ? (
           <>
-            <Grid item sx={{ width: '100%' }}>
-              <Grid container sx={reusableCentering}>
-                <Grid item xs={12} sx={{ py: 1 }}>
-                  <Grid container spacing={1} alignContent="flex-start" alignItems="center">
-                    <Grid item>
-                      <Button
-                        variant={activeFiltersCount > 0 ? 'contained' : 'outlined'}
-                        color="primary"
-                        startIcon={
-                          <Badge color="error" badgeContent={activeFiltersCount} invisible={activeFiltersCount === 0}>
-                            <FilterListIcon />
-                          </Badge>
-                        }
-                        onClick={() => setFiltersModalOpen(true)}
-                        sx={{ height: 40 }} // align with the ToggleButtonGroup on the right (MUI Button medium is ~36px, ToggleButton medium is ~40px).
-                      >
-                        Filtres
-                      </Button>
-                    </Grid>
-                    {activeFiltersCount > 0 && (
-                      <Grid item>
-                        <Button variant="text" size="small" onClick={resetFilters}>
-                          Réinitialiser
-                        </Button>
-                      </Grid>
-                    )}
-                    <Grid item sx={{ ml: 'auto' }}>
-                      <ToggleButtonGroup
-                        color="primary"
-                        value={listDisplay}
-                        exclusive
-                        onChange={(event, newValue) => {
-                          if (newValue !== null) {
-                            setListDisplay(newValue);
-                          }
-                        }}
-                        aria-label="affichage de la liste"
-                      >
-                        <ToggleButton value={ListDisplay.GRID} aria-label="grille">
-                          <GridViewIcon />
-                        </ToggleButton>
-                        <ToggleButton value={ListDisplay.TABLE} aria-label="tableau">
-                          <TableRowsIcon />
-                        </ToggleButton>
-                      </ToggleButtonGroup>
-                    </Grid>
-                  </Grid>
-                </Grid>
+            {isMapView ? (
+              <Grid item sx={{ width: '100%' }}>
+                <OrganizationsMap
+                  filterBy={filterBy}
+                  focusedNodeId={params.zoom}
+                  onFocus={(nodeId) => setParams({ zoom: nodeId })}
+                  colorMode={params.color}
+                  onColorModeChange={(mode) => setParams({ color: mode })}
+                  listHref={`${linkRegistry.get('initiatives', undefined)}${serializeDirectoryParams({ ...params, ...listViewParams, page: null })}`}
+                  onShowList={() => setParams({ ...listViewParams, page: 1 })}
+                />
               </Grid>
-            </Grid>
-            {hasResults ? (
+            ) : hasResults ? (
               <Grid item sx={{ width: '100%' }}>
                 <Grid container direction="column">
                   <Grid
@@ -339,7 +635,14 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                         : reusableCentering
                     }
                   >
-                    <ContextualInitiativeList initiatives={initiatives} display={listDisplay} />
+                    <Box aria-busy={isRefreshingResults} sx={{ position: 'relative' }}>
+                      {showRefreshIndicator && (
+                        <LinearProgress aria-label="Mise à jour des résultats" sx={{ position: 'absolute', top: -12, left: 0, right: 0 }} />
+                      )}
+                      <Box sx={{ opacity: showRefreshIndicator ? 0.5 : 1, transition: 'opacity 150ms ease-in-out' }}>
+                        <ContextualInitiativeList initiatives={initiatives} display={listDisplay} focusedOrganizationsIds={organizationIds} />
+                      </Box>
+                    </Box>
                   </Grid>
                   {params.page >= 2 && (
                     <Grid container sx={reusableCentering}>

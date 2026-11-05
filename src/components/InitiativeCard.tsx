@@ -8,14 +8,22 @@ import Grid from '@mui/material/Grid';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import NextLink from 'next/link';
-import ShowMoreText from 'react-show-more-text';
+import { useMemo } from 'react';
 
+import { ClampedText } from '@etabli/src/components/ClampedText';
+import { OrganizationChips } from '@etabli/src/components/OrganizationChip';
+import { InitiativeRankingChips } from '@etabli/src/components/ReputationChip';
 import { InitiativeSchemaType } from '@etabli/src/models/entities/initiative';
 import { ulComponentResetStyles } from '@etabli/src/utils/grid';
+import { summarizeOrganizations } from '@etabli/src/utils/organization';
+
+// Around 3 lines of a card at the usual widths, so the server already renders the "Voir plus" most of the time
+const likelyClampedDescriptionLength = 150;
 
 export interface InitiativeCardProps {
   initiativeLink: string;
   initiative: InitiativeSchemaType;
+  focusedOrganizationsIds?: string[]; // When filtering on precise organizations, they are displayed instead of their ministry
 }
 
 // DSFR paints the link underline via `background-image` on the whole link box; on a wrapped URL the
@@ -32,6 +40,11 @@ export function InitiativeCard(props: InitiativeCardProps) {
   // initiative — the title alone was missed. Inner anchors (website, repository, "Voir plus") sit above
   // the overlay via `position: relative; zIndex: 1` so they keep their own click behavior.
   const interactiveLayer = { position: 'relative' as const, zIndex: 1 };
+
+  const organizationSummaries = useMemo(
+    () => summarizeOrganizations(props.initiative.organizations, props.focusedOrganizationsIds),
+    [props.initiative.organizations, props.focusedOrganizationsIds]
+  );
 
   return (
     <Card
@@ -84,11 +97,23 @@ export function InitiativeCard(props: InitiativeCardProps) {
               {props.initiative.name}
             </Link>
           </Grid>
+          {/* In a column grid `xs` sets no width, so the width is forced for names to be truncated instead of widening the card */}
+          <Grid item xs={12} sx={{ pt: '8px !important', width: '100%', minWidth: 0 }}>
+            <OrganizationChips
+              summaries={organizationSummaries}
+              websitesCount={props.initiative.websites.length}
+              repositoriesCount={props.initiative.repositories.length}
+              linkToInitiatives
+              sx={interactiveLayer}
+            />
+            {/* Only as wide as its chips so the rest of the line still opens the sheet, and not looking clickable since chips only explain on hover */}
+            <InitiativeRankingChips initiative={props.initiative} sx={{ mt: 1, ...interactiveLayer, width: 'fit-content', cursor: 'default' }} />
+          </Grid>
           <Grid item xs={12}>
             <Typography component="div">
-              <ShowMoreText lines={3} more="Voir plus" less="Voir moins">
+              <ClampedText lines={3} likelyClamped={props.initiative.description.length > likelyClampedDescriptionLength}>
                 {props.initiative.description}
-              </ShowMoreText>
+              </ClampedText>
             </Typography>
           </Grid>
           {(props.initiative.websites.length > 0 || props.initiative.repositories.length > 0) && (
@@ -114,6 +139,7 @@ export function InitiativeCard(props: InitiativeCardProps) {
                         sx={cardUrlSx}
                       >
                         {props.initiative.websites[0]}
+                        <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                       </Link>
                     </Typography>
                   </li>
@@ -138,6 +164,7 @@ export function InitiativeCard(props: InitiativeCardProps) {
                         sx={cardUrlSx}
                       >
                         {props.initiative.repositories[0]}
+                        <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                       </Link>
                     </Typography>
                   </li>

@@ -4,7 +4,7 @@
 ARG NODE_VERSION=22.23.4
 ARG RUBY_VERSION=1:3.3+b1
 ARG PIP_VERSION=25.1.1+dfsg-1
-ARG PRISMA_VERSION=7.8.0
+ARG PRISMA_VERSION=7.10.1
 ARG APP_HOST=172.17.0.2
 ARG PORT=3000
 
@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y \
   "python3-pip=${PIP_VERSION}" \
   "python3-venv" \
   "ruby-dev=${RUBY_VERSION}" \
+  "xvfb" \
   && rm -rf /var/lib/apt/lists/*
 
 ENV CHROME_BIN="/usr/bin/chromium"

@@ -56,6 +56,9 @@ accessibility-open:
 deps:
 	npm install
 
+deps-ci:
+	npm ci
+
 tools-up:
 	docker-compose up -d
 

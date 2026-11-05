@@ -1,10 +1,10 @@
-import { DsfrHead } from '@codegouvfr/react-dsfr/next-appdir/DsfrHead';
-import { DsfrProvider } from '@codegouvfr/react-dsfr/next-appdir/DsfrProvider';
-import { getHtmlAttributes } from '@codegouvfr/react-dsfr/next-appdir/getHtmlAttributes';
+import { DsfrProviderBase, StartDsfrOnHydration } from '@codegouvfr/react-dsfr/next-app-router';
+import { DsfrHeadBase, createGetHtmlAttributes } from '@codegouvfr/react-dsfr/next-app-router/server-only-index';
 import { withLinks } from '@storybook/addon-links';
 import { configure as testingConfigure } from '@storybook/test';
 import { themes } from '@storybook/theming';
 import { initialize, mswDecorator } from 'msw-storybook-addon';
+import Link from 'next/link';
 import React, { useEffect } from 'react';
 
 import { ThemedDocsContainer } from '@etabli/.storybook/ThemedDocsContainer';
@@ -14,15 +14,14 @@ import '@etabli/.storybook/layout.scss';
 import { withDisablingTestRunner } from '@etabli/.storybook/testing';
 import { MuiDsfrThemeProvider } from '@etabli/src/app/MuiDsfrThemeProvider';
 // import { useDarkMode } from 'storybook-dark-mode';
-import { StartDsfr } from '@etabli/src/app/StartDsfr';
 import { Providers } from '@etabli/src/app/providers';
 import '@etabli/src/assets/fonts/index.css';
 import { i18n } from '@etabli/src/i18n';
 
 // const channel = addons.getChannel();
 
-// [WORKAROUND] Since `react-dsfr` no longer passes the color scheme through `DsfrProvider` and `DsfrHead` we call this function to avoid an assert error
-getHtmlAttributes({ defaultColorScheme: 'light' });
+// `DsfrHead` needs the color scheme registered by this function (stories set `light` or `dark` themselves)
+createGetHtmlAttributes({ defaultColorScheme: 'light' }).getHtmlAttributes({ lang: 'fr' });
 
 if (window.matchMedia) {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
@@ -147,15 +146,15 @@ export const decorators = [
     // We provide the client provider to mock tRPC calls
     return (
       <>
-        <StartDsfr />
-        <DsfrHead />
-        <DsfrProvider>
+        <DsfrHeadBase Link={Link} />
+        <DsfrProviderBase lang="fr" Link={Link} defaultColorScheme="light">
+          <StartDsfrOnHydration />
           <MuiDsfrThemeProvider>
             <Providers>
               <Story />
             </Providers>
           </MuiDsfrThemeProvider>
-        </DsfrProvider>
+        </DsfrProviderBase>
       </>
     );
   },

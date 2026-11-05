@@ -53,7 +53,10 @@ check_server_and_init() {
 # In parallel wait for the server readiness to init some services
 check_server_and_init
 
-# Wait for the Next.js server to return
-wait
+# Wait for the Next.js server to return, and exit with its code: a bare `wait` always returns 0,
+# so a crash (out of memory for example) looked like a normal stop and the container was not restarted
+wait $next_pid
+status=$?
 
-echo "The wait instruction has exited normally"
+echo "The Next.js server has exited with code $status"
+exit $status

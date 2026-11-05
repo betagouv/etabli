@@ -1,10 +1,17 @@
+import z from 'zod';
+
+import { retrieveInitiativesOrganizations } from '@etabli/src/features/organization-read';
+import { getReputationReferenceRank } from '@etabli/src/features/reputation-read';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { GetInitiativeSchema, ListInitiativesSchema } from '@etabli/src/models/actions/initiative';
 import { initiativeNotFoundError } from '@etabli/src/models/entities/errors';
+import { DomainReputationSchema } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma/client';
+import { buildInitiativeFilters, searchRankedInitiativesIds } from '@etabli/src/server/routers/common/initiative-filters';
 import { initiativePrismaToModel } from '@etabli/src/server/routers/mappers';
 import { publicProcedure, router } from '@etabli/src/server/trpc';
 import { paginate } from '@etabli/src/utils/page';
+import { getRelativeReputation } from '@etabli/src/utils/reputation';
 
 export const initiativeRouter = router({
   listTools: publicProcedure.query(async () => {
@@ -47,113 +54,151 @@ export const initiativeRouter = router({
       throw initiativeNotFoundError;
     }
 
+    const organizationsByInitiativeId = await retrieveInitiativesOrganizations([initiative.id]);
+    const reputationReferenceRank = await getReputationReferenceRank();
+    const rawRepositories = await prisma.rawRepository.findMany({
+      where: { repositoryUrl: { in: initiative.repositories }, starsCount: { gt: 0 } },
+      select: { repositoryUrl: true, starsCount: true },
+    });
+
     return {
+      repositoriesStars: Object.fromEntries(rawRepositories.map(({ repositoryUrl, starsCount }) => [repositoryUrl, starsCount])) as Record<
+        string,
+        number
+      >,
       initiative: initiativePrismaToModel({
         ...initiative,
         businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
         tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+        organizations: organizationsByInitiativeId.get(initiative.id) || [],
+        reputationReferenceRank: reputationReferenceRank,
       }),
     };
   }),
-  listInitiatives: publicProcedure.input(ListInitiativesSchema).query(async ({ ctx, input }) => {
-    const extraFilters: Prisma.InitiativeWhereInput[] = [];
-    if (input.filterBy.functionalUseCases && input.filterBy.functionalUseCases.length > 0) {
-      extraFilters.push({ functionalUseCases: { hasSome: input.filterBy.functionalUseCases } });
-    }
-    if (input.filterBy.toolIds && input.filterBy.toolIds.length > 0) {
-      extraFilters.push({ ToolsOnInitiatives: { some: { toolId: { in: input.filterBy.toolIds } } } });
-    }
-    if (input.filterBy.hasWebsite === true) {
-      extraFilters.push({ NOT: { websites: { isEmpty: true } } });
-    }
-    if (input.filterBy.hasRepository === true) {
-      extraFilters.push({ NOT: { repositories: { isEmpty: true } } });
+  getInitiativeReputation: publicProcedure.input(GetInitiativeSchema).query(async ({ ctx, input }) => {
+    const initiative = await prisma.initiative.findUnique({
+      where: { id: input.id },
+      select: {
+        origin: {
+          select: {
+            RawDomainsOnInitiativeMaps: {
+              orderBy: { main: 'desc' },
+              select: { rawDomain: { select: { name: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!initiative) {
+      throw initiativeNotFoundError;
     }
 
-    const extraWhere: Prisma.InitiativeWhereInput = extraFilters.length > 0 ? { AND: extraFilters } : {};
+    const domains = initiative.origin?.RawDomainsOnInitiativeMaps.map(({ rawDomain }) => rawDomain.name) ?? [];
+
+    // Only the reviewed columns are returned, `summary` stays internal
+    const reputations = await prisma.domainReputation.findMany({
+      where: { domain: { in: domains }, lastCheckAt: { not: null } },
+      select: {
+        domain: true,
+        rank: true,
+        backlinks: true,
+        referringPages: true,
+        referringDomains: true,
+        referringDomainsNofollow: true,
+        referringMainDomains: true,
+        referringIps: true,
+        backlinksSpamScore: true,
+        brokenBacklinks: true,
+        brokenPages: true,
+        firstSeenAt: true,
+        lastCheckAt: true,
+        linksSemanticLocations: true,
+        linksTypes: true,
+        linksPlatformTypes: true,
+        linksCountries: true,
+        linksTopLevelDomains: true,
+      },
+    });
+
+    // Only the grades are public, the detail of failing tests would be a list of weaknesses to exploit
+    const [reputationReferenceRank, httpSecurities, mailSecurities, sovereignties, rawDomains] = await Promise.all([
+      getReputationReferenceRank(),
+      prisma.domainHttpSecurity.findMany({ where: { domain: { in: domains } }, select: { domain: true, grade: true } }),
+      prisma.domainMailSecurity.findMany({ where: { domain: { in: domains } }, select: { domain: true, usesMail: true, level: true, issues: true } }),
+      prisma.domainSovereignty.findMany({ where: { domain: { in: domains } }, select: { domain: true, level: true, dependencies: true } }),
+      prisma.rawDomain.findMany({
+        where: { name: { in: domains } },
+        select: { name: true, websiteHasLegalNotice: true, websiteHasPrivacyPolicy: true, tlsLevel: true, tlsIssues: true },
+      }),
+    ]);
+    const httpSecurityGrades = new Map(httpSecurities.map(({ domain, grade }) => [domain, grade]));
+    const mailSecuritiesByDomain = new Map(mailSecurities.map((mailSecurity) => [mailSecurity.domain, mailSecurity]));
+    const sovereigntiesByDomain = new Map(sovereignties.map((sovereignty) => [sovereignty.domain, sovereignty]));
+    const rawDomainsByName = new Map(rawDomains.map((rawDomain) => [rawDomain.name, rawDomain]));
+
+    // The best one first since it's the one giving the initiative its score
+    reputations.sort((a, b) => (b.rank ?? -1) - (a.rank ?? -1) || domains.indexOf(a.domain) - domains.indexOf(b.domain));
+
+    return {
+      domains: z.array(DomainReputationSchema).parse(
+        reputations.map((reputation) => ({
+          ...reputation,
+          relativeReputation: getRelativeReputation(reputation.rank, reputationReferenceRank),
+          httpSecurityGrade: httpSecurityGrades.get(reputation.domain) ?? null,
+          tlsLevel: rawDomainsByName.get(reputation.domain)?.tlsLevel ?? null,
+          tlsIssues: rawDomainsByName.get(reputation.domain)?.tlsIssues ?? [],
+          usesMail: mailSecuritiesByDomain.get(reputation.domain)?.usesMail ?? null,
+          mailSecurityLevel: mailSecuritiesByDomain.get(reputation.domain)?.level ?? null,
+          mailIssues: mailSecuritiesByDomain.get(reputation.domain)?.issues ?? [],
+          hasLegalNotice: rawDomainsByName.get(reputation.domain)?.websiteHasLegalNotice ?? null,
+          hasPrivacyPolicy: rawDomainsByName.get(reputation.domain)?.websiteHasPrivacyPolicy ?? null,
+          foreignDependencyLevel: sovereigntiesByDomain.get(reputation.domain)?.level ?? null,
+          foreignDependencies: sovereigntiesByDomain.get(reputation.domain)?.dependencies ?? [],
+          backlinks: reputation.backlinks === null ? null : Number(reputation.backlinks),
+          referringPages: reputation.referringPages === null ? null : Number(reputation.referringPages),
+          brokenBacklinks: reputation.brokenBacklinks === null ? null : Number(reputation.brokenBacklinks),
+          brokenPages: reputation.brokenPages === null ? null : Number(reputation.brokenPages),
+        }))
+      ),
+    };
+  }),
+  listInitiatives: publicProcedure.input(ListInitiativesSchema).query(async ({ ctx, input }) => {
+    const extraFilters = buildInitiativeFilters(input.filterBy);
+    const reputationReferenceRank = await getReputationReferenceRank();
+
+    const extraWhere: Prisma.InitiativeWhereInput = { deletedAt: null, ...(extraFilters.length > 0 ? { AND: extraFilters } : {}) };
 
     const includeRelations = {
       ToolsOnInitiatives: { include: { tool: { select: { name: true } } } },
       BusinessUseCasesOnInitiatives: { include: { businessUseCase: { select: { name: true } } } },
     } satisfies Prisma.InitiativeInclude;
 
-    // Full-text search: when a query is provided we rank against a bilingual (FR/EN), accent-insensitive `tsvector`
-    // (see the `searchableText` column and its migration). We build a PREFIX query (`word:*`) so a base word also
-    // matches the morphological derivatives the stemmer keeps distinct — e.g. "police" stems to `polic` while
-    // "policier" stems to `polici`, and the `polic:*` prefix matches both. Each word is stripped of punctuation
-    // (`to_tsquery` rejects it, unlike `websearch_to_tsquery`) and the words are AND-ed together; the resulting
-    // query is matched through both the French and English configurations so either language matches.
-    //
-    // On top of that we OR a `pg_trgm` trigram match on the name as a fuzzy fallback (typos, and the reverse
-    // "policier" -> "police" direction the prefix cannot cover); those fuzzy-only matches are ranked strictly below
-    // the exact full-text hits. The trigram threshold is raised above the 0.3 default because the default would
-    // resurface noise (e.g. "police" is ~0.36 similar to "Poligné"); tune the value if precision/recall needs it.
-    //
-    // Note: true synonyms (e.g. "gendarme" <-> "police") would require a `dict_xsyn` synonym dictionary, but its
-    // `.rules` file must live on the database server's filesystem, which Clever Cloud (managed PostgreSQL) does not
-    // let us add, so synonyms are intentionally not handled here.
     if (input.filterBy.query) {
-      const trimmedQuery = input.filterBy.query.trim();
+      const rankedIds = await searchRankedInitiativesIds(input.filterBy.query);
 
-      const words = trimmedQuery
-        .split(/\s+/)
-        .map((word) => word.replace(/[^\p{L}\p{N}]/gu, '')) // keep only letters/digits so `to_tsquery` does not choke
-        .filter(Boolean);
-      // Two queries from the same words: the EXACT stems (used only to boost ranking) and the PREFIX variant `word:*`
-      // (used to actually match, so a base word still finds its derivatives). Because the prefix is greedy on a short
-      // stem (e.g. `polic:*` matches "police" but also "policier" and the English "policy"), we rank documents that
-      // contain the exact stem above those that only matched via the prefix — so "Police nationale" beats "password_policy".
-      const tsExactQueryString = words.join(' & ');
-      const tsPrefixQueryString = words.map((word) => `${word}:*`).join(' & ');
-
-      // Strongest ranking signals are LITERAL (unstemmed) matches on the name, because stemming collapses different
-      // words to the same lexeme (the French stemmer maps both "etabli" and "etablissement" to ~`etabl`, and mangles
-      // the English "policies" toward `polic`/"police"), so stem-based ranking cannot separate them.
-      //   1. whole-word match (`\m...\M`): "etabli" is a standalone word in the name "etabli" but NOT in
-      //      "etablissement", and "police" is a word in "Police nationale" but absent from "multiagent_gnn_policies".
-      //   2. substring match: weaker, e.g. "etabli" inside "etablissement".
-      // The query is escaped for the regex since it is arbitrary user input.
-      const escapedRegexQuery = trimmedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const wholeWordNamePattern = `\\m${escapedRegexQuery}\\M`;
-      const literalNamePattern = `%${trimmedQuery}%`;
-
-      const rankedMatches = await prisma.$transaction(async (tx) => {
-        // Restrict the trigram fallback to CLOSE matches, otherwise the fuzzy search brings back irrelevant results
-        await tx.$executeRawUnsafe('SET LOCAL pg_trgm.similarity_threshold = 0.4');
-
-        return tx.$queryRaw<{ id: string }[]>`
-          SELECT i."id"
-          FROM "Initiative" i,
-            (
-              SELECT
-                to_tsquery('french_unaccent', ${tsPrefixQueryString}) ||
-                to_tsquery('english_unaccent', ${tsPrefixQueryString}) AS prefix_query,
-                to_tsquery('french_unaccent', ${tsExactQueryString}) ||
-                to_tsquery('english_unaccent', ${tsExactQueryString}) AS exact_query
-            ) q
-          WHERE i."searchableText" @@ q.prefix_query
-             OR i."name" % ${trimmedQuery}
-          ORDER BY
-            (i."name" ~* ${wholeWordNamePattern}) DESC, -- whole-word match in the name ("etabli", not "etablissement") ranks first
-            (i."name" ILIKE ${literalNamePattern}) DESC, -- then a substring of the name ("etabli" inside "etablissement")
-            (i."searchableText" @@ q.exact_query) DESC, -- then exact stem above prefix-only ("policy"/"policier") and fuzzy
-            ts_rank(i."searchableText", q.prefix_query) DESC, -- then by relevance; fuzzy-only matches (rank 0) fall last
-            similarity(i."name", ${trimmedQuery}) DESC,
-            i."name" ASC
-        `;
-      });
-      const rankedIds = rankedMatches.map((m) => m.id);
-
-      // Apply the extra filters to the candidate set to get the final filtered, ranked ID list — needed for
-      // an accurate total count before we paginate in memory.
+      // The search only returns active sheets, the other criteria and the sort apply to them in a single query (none when
+      // they are not needed), the total count needs them all before paginating in memory
       let filteredIds = rankedIds;
-      if (rankedIds.length > 0 && extraFilters.length > 0) {
-        const kept = await prisma.initiative.findMany({
-          where: { AND: [{ id: { in: rankedIds } }, extraWhere] },
-          select: { id: true },
+      if (rankedIds.length > 0 && (extraFilters.length > 0 || input.orderBy.field === 'name' || input.orderBy.field === 'reputation')) {
+        const candidates = await prisma.initiative.findMany({
+          where: { AND: [{ id: { in: rankedIds } }, ...extraFilters] },
+          select: { id: true, reputationRank: true },
+          ...(input.orderBy.field === 'name' ? { orderBy: { name: 'asc' } } : {}),
         });
-        const keptSet = new Set(kept.map((k) => k.id));
-        filteredIds = rankedIds.filter((id) => keptSet.has(id));
+
+        if (input.orderBy.field === 'name') {
+          filteredIds = candidates.map((initiative) => initiative.id);
+        } else {
+          const rankById = new Map(candidates.map((initiative) => [initiative.id, initiative.reputationRank ?? -1]));
+
+          filteredIds = rankedIds.filter((id) => rankById.has(id));
+
+          if (input.orderBy.field === 'reputation') {
+            // The sort being stable, the relevance remains the tiebreaker between equal scores
+            filteredIds.sort((a, b) => (rankById.get(b) ?? -1) - (rankById.get(a) ?? -1));
+          }
+        }
       }
 
       const totalCount = filteredIds.length;
@@ -168,12 +213,16 @@ export const initiativeRouter = router({
       // See https://github.com/prisma/prisma/issues/11336#issuecomment-1986031261
       initiatives.sort((a, b) => pageInitiativeIds.indexOf(a.id) - pageInitiativeIds.indexOf(b.id));
 
+      const organizationsByInitiativeId = await retrieveInitiativesOrganizations(initiatives.map((initiative) => initiative.id));
+
       return {
         initiatives: initiatives.map((initiative) =>
           initiativePrismaToModel({
             ...initiative,
             businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
             tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+            organizations: organizationsByInitiativeId.get(initiative.id) || [],
+            reputationReferenceRank: reputationReferenceRank,
           })
         ),
         totalCount,
@@ -184,12 +233,15 @@ export const initiativeRouter = router({
       prisma.initiative.findMany({
         where: extraWhere,
         include: includeRelations,
-        orderBy: { name: 'asc' },
+        // Without any searched text there is nothing to be relevant to, so what is the most known comes first
+        orderBy: input.orderBy.field === 'name' ? { name: 'asc' } : [{ reputationRank: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }],
         skip: (input.page - 1) * input.pageSize,
         take: input.pageSize,
       }),
       prisma.initiative.count({ where: extraWhere }),
     ]);
+
+    const organizationsByInitiativeId = await retrieveInitiativesOrganizations(initiatives.map((initiative) => initiative.id));
 
     return {
       initiatives: initiatives.map((initiative) =>
@@ -197,6 +249,8 @@ export const initiativeRouter = router({
           ...initiative,
           businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
           tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
+          organizations: organizationsByInitiativeId.get(initiative.id) || [],
+          reputationReferenceRank: reputationReferenceRank,
         })
       ),
       totalCount: totalCount,

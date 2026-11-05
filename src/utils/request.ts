@@ -2,11 +2,20 @@ import * as Sentry from '@sentry/nextjs';
 import assert from 'assert';
 import { errors as playwrightErrors } from 'playwright';
 
-import { Prisma, RawDomain } from '@etabli/src/generated/prisma/client';
+import { RawDomain } from '@etabli/src/generated/prisma/client';
 import { prisma } from '@etabli/src/prisma';
+import { privateAddressErrorCode } from '@etabli/src/utils/public-address';
 
 export const chomiumMaxConcurrency = !!process.env.CHROMIUM_MAXIMUM_CONCURRENCY ? parseInt(process.env.CHROMIUM_MAXIMUM_CONCURRENCY, 10) : 1;
 assert(chomiumMaxConcurrency >= 1);
+
+// Optional limits for each step of the data update, so a recurrent job fits in its time slot. Without them everything due is processed
+function parseOptionalLimit(value: string | undefined): number | undefined {
+  return !!value ? parseInt(value, 10) : undefined;
+}
+
+export const maximumDomainsPerRun = parseOptionalLimit(process.env.MAXIMUM_DOMAINS_PER_RUN);
+export const maximumInitiativesPerRun = parseOptionalLimit(process.env.MAXIMUM_INITIATIVES_PER_RUN);
 
 export const llmManagerMaximumApiRequestsPerSecond = !!process.env.LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND
   ? parseInt(process.env.LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND, 10)
@@ -63,6 +72,9 @@ export async function handleReachabilityError(rawDomain: Pick<RawDomain, 'id' | 
       'net::ERR_SOCKET_NOT_CONNECTED',
       'net::ERR_SSL_PROTOCOL_ERROR',
       'net::ERR_UNKNOWN_URL_SCHEME',
+      // The domain points to a private address, it is not crawled (see `assertPublicHost()`)
+      privateAddressErrorCode,
+      responseBodyTooLargeErrorCode,
     ].includes((error.cause as any)?.code || (error as any).code || '') &&
     !(
       error instanceof TypeError &&
@@ -95,9 +107,14 @@ export async function handleReachabilityError(rawDomain: Pick<RawDomain, 'id' | 
   });
 }
 
-export function handlePrismaErrorDueToContent(error: Prisma.PrismaClientUnknownRequestError) {
+export function handlePrismaErrorDueToContent(error: unknown) {
+  // Depending on the layer the error may be from Prisma or from its driver adapter, so only the message is reliable
+  if (!(error instanceof Error)) {
+    throw error;
+  }
+
   // If matching our rules skip the error since it's extremely rare and we are fine to skip non-compliant websites.
-  if (error.message.includes('invalid byte sequence for encoding \\"UTF8\\": 0x00')) {
+  if (error.message.includes('invalid byte sequence for encoding')) {
     // For whatever reason the website is having a null charater in its content which is unallowed by PostgreSQL for text fields (ref: https://stackoverflow.com/a/1348551/3608410)
   } else if (error.message.includes('is not a valid unicode code point')) {
     // It's a bit complex to understand why the encoding is failing
@@ -112,4 +129,49 @@ export function handlePrismaErrorDueToContent(error: Prisma.PrismaClientUnknownR
     // It seems to not be an error about third-party content we have no control on, so we should investigate it
     throw error;
   }
+}
+
+export const responseBodyTooLargeErrorCode = 'ETABLI_RESPONSE_TOO_LARGE';
+
+// `response.text()` buffers whatever the server sends, a huge or endless body would fill the memory before any timeout
+export async function readResponseTextWithLimit(response: Response, maximumBytes: number): Promise<string> {
+  const announcedLength = Number(response.headers.get('content-length'));
+  const createTooLargeError = () => {
+    const error = new Error(`the response of "${response.url}" is larger than ${maximumBytes} bytes`) as NodeJS.ErrnoException;
+    error.code = responseBodyTooLargeErrorCode;
+
+    return error;
+  };
+
+  if (Number.isFinite(announcedLength) && announcedLength > maximumBytes) {
+    await response.body?.cancel();
+
+    throw createTooLargeError();
+  } else if (!response.body) {
+    return '';
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    receivedBytes += value.byteLength;
+
+    if (receivedBytes > maximumBytes) {
+      await reader.cancel();
+
+      throw createTooLargeError();
+    }
+
+    chunks.push(value);
+  }
+
+  return Buffer.concat(chunks).toString('utf-8');
 }

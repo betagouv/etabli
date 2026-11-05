@@ -2,7 +2,7 @@ import assert from 'assert';
 import { WordTokenizer } from 'natural/lib/natural/tokenizers';
 import { stopwords as englishStopwords } from 'natural/lib/natural/util';
 import { words as frenchStopwords } from 'natural/lib/natural/util/stopwords_fr';
-import { Browser, Page, Response, chromium } from 'playwright';
+import { Browser, Page, Response, chromium, errors as playwrightErrors } from 'playwright';
 
 import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/src/models/entities/errors';
 
@@ -16,16 +16,57 @@ export interface getWebsiteDataResponse {
   redirectTargetUrl: URL | null;
 }
 
+// Running something into the page has no timeout in Playwright: a page whose JavaScript never yields (seen on a town website)
+// was blocking the whole processing for good. It ends as a Playwright timeout so it is handled like a page too slow to load
+const pageOperationTimeout = 15_000;
+
+async function withPageTimeout<T>(operation: Promise<T>, description: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new playwrightErrors.TimeoutError(`${description} did not answer within ${pageOperationTimeout}ms`));
+        }, pageOperationTimeout);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // We pass the browser from the parent since it's always used into loops and that launching + closing last for 600ms
-export async function getWebsiteData(browser: Browser, url: string, timeoutForDomContentLoaded?: number): Promise<getWebsiteDataResponse> {
+export async function getWebsiteData(
+  browser: Browser,
+  url: string,
+  timeoutForDomContentLoaded?: number,
+  options?: { asRegularBrowser?: boolean; ignoreCertificateErrors?: boolean }
+): Promise<getWebsiteDataResponse> {
   console.log(`getting the page content of ${url}`);
 
   const page: Page = await browser.newPage({
-    extraHTTPHeaders: {
-      'Cache-Control': 'no-cache', // Tell the websites servers to not respond with a 304 status code that would use the local Chromium cache (we didn't find a simple way to disable it from Playwright settings)
-    },
-    userAgent:
-      'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/W.X.Y.Z Safari/537.36', // Use an user agent that will be ignored by tracking analytics to not pollute (https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers#googlebot-desktop)
+    ignoreHTTPSErrors: !!options?.ignoreCertificateErrors,
+    ...(options?.asRegularBrowser
+      ? {
+          // Firewalls verify the origin of what pretends to be Googlebot, and compare the user agent with other browser signals. So it
+          // follows the version of the running browser (no list to maintain) since the default value says "HeadlessChrome"
+          userAgent: `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${
+            browser.version().split('.')[0]
+          }.0.0.0 Safari/537.36`,
+          locale: 'fr-FR',
+          timezoneId: 'Europe/Paris',
+          viewport: { width: 1440, height: 900 },
+        }
+      : {
+          extraHTTPHeaders: {
+            'Cache-Control': 'no-cache', // Tell the websites servers to not respond with a 304 status code that would use the local Chromium cache (we didn't find a simple way to disable it from Playwright settings)
+          },
+          // Use an user agent that will be ignored by tracking analytics to not pollute (https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers#googlebot-desktop)
+          userAgent:
+            'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/W.X.Y.Z Safari/537.36',
+        }),
   });
   try {
     const response = await new Promise<Response | null>((resolve, reject) => {
@@ -89,7 +130,10 @@ export async function getWebsiteData(browser: Browser, url: string, timeoutForDo
     const maximumAttemptsToGetResultingUrl = 2;
     for (let i = 0; i < maximumAttemptsToGetResultingUrl; i++) {
       try {
-        resultingRawUrl = await page.evaluate(() => document.location.href);
+        resultingRawUrl = await withPageTimeout(
+          page.evaluate(() => document.location.href),
+          'reading the page address'
+        );
 
         break;
       } catch (error) {
@@ -113,8 +157,8 @@ export async function getWebsiteData(browser: Browser, url: string, timeoutForDo
       throw new BusinessDomainError(unexpectedDomainRedirectionError, resultingUrl.hostname);
     }
 
-    const html: string = await page.content();
-    const title = await page.title();
+    const html: string = await withPageTimeout(page.content(), 'reading the page content');
+    const title = await withPageTimeout(page.title(), 'reading the page title');
     const status = response.status();
     const headers = response.headers();
 
@@ -126,7 +170,11 @@ export async function getWebsiteData(browser: Browser, url: string, timeoutForDo
       redirectTargetUrl: originalUrl.toString() !== resultingUrl.toString() ? resultingUrl : null,
     };
   } finally {
-    await page.close();
+    // A frozen page could also keep the closing waiting, it must not block the next website
+    await withPageTimeout(page.close(), 'closing the page').catch((error) => {
+      console.warn(`the page of ${url} could not be closed properly`);
+      console.warn(error);
+    });
   }
 }
 

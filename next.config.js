@@ -1,19 +1,6 @@
 const path = require('path');
-const tsImport = require('ts-import');
 
 const { commonPackages } = require('./transpilePackages');
-
-const tsImportLoadOptions = {
-  mode: tsImport.LoadMode.Compile,
-  compilerOptions: {
-    paths: {
-      // [IMPORTANT] Paths are not working, we modified inside files to use relative ones where needed
-      '@etabli/*': ['./*'],
-    },
-  },
-};
-
-const { getBaseUrl } = tsImport.loadSync(path.resolve(__dirname, `./src/utils/url.ts`), tsImportLoadOptions);
 
 const { withSentryConfig } = require('@sentry/nextjs');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
@@ -22,8 +9,6 @@ const { getCommitSha, getHumanVersion, getTechnicalVersion } = require('./src/ut
 const { i18n } = require('./next-i18next.config');
 
 const mode = process.env.APP_MODE || 'test';
-
-const baseUrl = new URL(getBaseUrl());
 
 // TODO: once Next supports `next.config.js` we can set types like `ServerRuntimeConfig` and `PublicRuntimeConfig` below
 const moduleExports = async () => {
@@ -103,16 +88,11 @@ const moduleExports = async () => {
       ];
     },
     images: {
-      remotePatterns: [
-        {
-          protocol: baseUrl.protocol.slice(0, -1),
-          hostname: baseUrl.hostname,
-        },
-        {
-          protocol: 'https',
-          hostname: 'via.placeholder.com',
-        },
-      ],
+      // Images are served as they are, without the on-the-fly optimization done by `sharp` on the `/_next/image` route (it then returns 404).
+      // The optimizer is where most of the critical vulnerabilities of Next.js v14 are (remote code execution with SVG and AVIF files,
+      // denial of service through `remotePatterns`, unbounded cache) and they are not patched for this major version. Its native memory is
+      // also not covered by our Node.js heap cap. Static images must be compressed before being committed
+      unoptimized: true,
     },
     webpack: (config, { buildId, dev, isServer, defaultLoaders, nextRuntime, webpack }) => {
       // Expose all DSFR fonts as static at the root

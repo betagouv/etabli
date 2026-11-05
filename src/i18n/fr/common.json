@@ -57,6 +57,8 @@
           "functionalUseCases": "Cas d'utilisation fonctionnels",
           "id": "ID",
           "name": "Nom",
+          "organizations": "Organisations",
+          "relativeReputation": "Notoriété relative (%)",
           "repositories": "Dépôts de code",
           "tools": "Outils utilisés",
           "updatedAt": "Date de mise à jour",
@@ -66,6 +68,28 @@
     }
   },
   "model": {
+    "tool": {
+      "category": {
+        "enum": {
+          "ANALYTICS": "Mesure d'audience et analyses",
+          "APPLICATION_HOSTING": "Hébergement",
+          "APPLICATION_UTILITIES": "Utilitaires applicatifs",
+          "ASSETS_AND_MEDIA": "Fichiers et médias",
+          "BACK_OFFICE": "Back-office",
+          "BUILD_TEST_DEPLOY": "Construction, tests et déploiement",
+          "COLLABORATION": "Collaboration",
+          "COMMUNICATIONS": "Communication",
+          "DATA_STORES": "Bases de données",
+          "DESIGN": "Design",
+          "LANGUAGES_AND_FRAMEWORKS": "Langages et frameworks",
+          "LIBRARIES": "Bibliothèques",
+          "MOBILE": "Mobile",
+          "MONITORING": "Supervision",
+          "PAYMENTS": "Paiement",
+          "SUPPORT_SALES_AND_MARKETING": "Support, ventes et marketing"
+        }
+      }
+    },
     "initiative": {
       "businessUseCase_one": "Cas d'utilisation métier",
       "businessUseCase_other": "Cas d'utilisation métiers",
@@ -91,6 +115,8 @@
         "label_one": "Cas d'utilisation fonctionnel",
         "label_other": "Cas d'utilisation fonctionnels"
       },
+      "organization_one": "Organisation",
+      "organization_other": "Organisations",
       "repository_one": "Dépôt de code",
       "repository_other": "Dépôts de code",
       "tool_one": "Outil utilisé",
@@ -109,7 +135,8 @@
         "repositories": "liensDesDepotsDeCodeAssocies",
         "businessUseCases": "casDUtilisationMetiers",
         "functionalUseCases": "casDUtilisationFonctionnels",
-        "tools": "outilsUtilises"
+        "tools": "outilsUtilises",
+        "organizations": "organisationsPubliquesRattachees"
       }
     },
     "template": {

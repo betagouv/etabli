@@ -36,6 +36,9 @@ export class MockVectorStoreLlmManager implements LlmManager {
 
     return ResultSchema.parse({
       name: 'Commodi',
+      suggestedName: null,
+      isPublicService: true,
+      isServiceClosed: false,
       businessUseCases: [
         'Dolorem aliquid dignissimos',
         'Doloribus et eaque perspiciatis et est adipisci reiciendis eum vitae',

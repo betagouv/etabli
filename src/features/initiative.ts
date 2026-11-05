@@ -23,11 +23,13 @@ import { Digraph, toDot } from 'ts-graphviz';
 import { toFile } from 'ts-graphviz/adapter';
 import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
-import Wappalyzer from 'wappalyzer';
 
 import manifestsEndingPatterns from '@etabli/src/bibliothecary/manifests-patterns.json';
+import { redirectInitiativesBeforeRemoval } from '@etabli/src/features/initiative-redirection';
 import { ChunkEventEmitter, llmManagerInstance } from '@etabli/src/features/llm';
-import { hasProbableGenericDomain } from '@etabli/src/features/repository';
+import { buildOrganizationMatcher } from '@etabli/src/features/organization';
+import { getComparableWebsiteName, normalizeHostname, normalizeRepositoryUrl } from '@etabli/src/features/organization-matching';
+import { hasProbableGenericDomain, isLikelyStudentRepository } from '@etabli/src/features/repository';
 import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@etabli/src/generated/prisma/client';
 import {
   InitiativeTemplateSchema,
@@ -39,12 +41,7 @@ import {
   resultSchemaDefinition,
 } from '@etabli/src/gpt/template';
 import { getServerTranslation } from '@etabli/src/i18n';
-import {
-  llmResponseFormatError,
-  noInitiativeContentToComputeError,
-  promiseTimeoutError,
-  tokensReachTheLimitError,
-} from '@etabli/src/models/entities/errors';
+import { llmResponseFormatError, noInitiativeContentToComputeError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
@@ -53,11 +50,11 @@ import { bitsFor } from '@etabli/src/utils/bits';
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
+import { getMainDestinationByRemovedMap, getMergedInitiativeMapsIdentifiers, getMovedInitiativeMaps } from '@etabli/src/utils/initiative-map';
 import { languagesExtensions } from '@etabli/src/utils/languages';
-import { promiseWithFatalTimeout } from '@etabli/src/utils/maintenance';
-import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond } from '@etabli/src/utils/request';
+import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond, maximumInitiativesPerRun } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
-import { WappalyzerResultSchema } from '@etabli/src/wappalyzer';
+import { isStateReservedDomain } from '@etabli/src/utils/state-domain';
 
 const __root_dirname = process.cwd();
 
@@ -83,24 +80,6 @@ const noImgAndSvgFilterPath = path.resolve(__root_dirname, './src/pandoc/no-img-
 const extractMetaDescriptionFilterPath = path.resolve(__root_dirname, './src/pandoc/extract-meta-description.lua');
 const removeInlineFileContentFilterPath = path.resolve(__root_dirname, './src/pandoc/remove-inline-file-content.lua');
 
-const wappalyzer = new Wappalyzer({
-  debug: false,
-  headers: {
-    'Cache-Control': 'no-cache', // Tell the websites servers to not respond with a 304 status code that would use the local Chromium cache (the local Puppeteer cache cannot be disabled from Wappalyzer settings)
-  },
-  delay: 0, // Since not analysing multiple pages we are fine with no delay
-  maxDepth: 1,
-  maxUrls: 1,
-  noRedirect: true,
-  maxWait: 5000, // Per page
-  recursive: true,
-  probe: true,
-  userAgent:
-    'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/W.X.Y.Z Safari/537.36', // Use an user agent that will be ignored by tracking analytics to not pollute (https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers#googlebot-desktop)
-  htmlMaxCols: 2000,
-  htmlMaxRows: 10000, // Is necessary if limiting the columns (cf. `node_modules/wappalyzer/driver.js`)
-});
-
 export type NodeLabel =
   | {
       type: 'domain';
@@ -111,12 +90,27 @@ export type NodeLabel =
       entity: Pick<RawRepository, 'id' | 'repositoryUrl'>;
     };
 
+const MAXIMUM_WEBSITES_LINKING_A_REPOSITORY = 3;
+
+// Some sources list these platforms as the website of a public organization, but they are not public services and their
+// reputation would put them above all the others. Only exact names, since a commune hosted on a subdomain stays valid
+export const excludedPlatformDomains = [
+  'www.facebook.com',
+  'fr-fr.facebook.com',
+  'wordpress.com',
+  'www.afternic.com',
+  'www.wmaker.net',
+  'www.lescommunes.com',
+  'www.espace-citoyens.net',
+];
+
 export async function inferInitiativesFromDatabase() {
   // TODO: should it be locked globally? But it should be a be long to compute... at risk since a lot of records to fetch/process/update
 
   console.log(`starting the process of inferring initiative maps`);
 
   const rawDomainCriterias: Prisma.RawDomainWhereInput = {
+    name: { notIn: excludedPlatformDomains },
     indexableFromRobotsTxt: true, // Websites marked to not be indexed should not end into Etabli, moreover it helps not indexing tools like Grafana...
     websiteContentIndexable: true, // Same as above
     websiteHasContent: true, // When if the page returns no visible text content, we skip it
@@ -152,12 +146,17 @@ export async function inferInitiativesFromDatabase() {
     ],
   };
 
-  const rawRepositories = await prisma.rawRepository.findMany({
+  const eligibleAndStudentRawRepositories = await prisma.rawRepository.findMany({
     where: rawRepositoryCriterias,
     select: {
       id: true,
+      name: true,
       repositoryUrl: true,
       homepage: true,
+      starsCount: true,
+      forksCount: true,
+      creationDate: true,
+      lastModification: true,
       probableWebsiteUrl: true,
       probableWebsiteDomain: true,
       similarRepositories: {
@@ -173,7 +172,15 @@ export async function inferInitiativesFromDatabase() {
     },
   });
 
-  console.log(`inferring according to ${rawDomains.length} raw domains and ${rawRepositories.length} raw repositories`);
+  // They are kept as raw data but they must not become initiatives (the similar ones are ignored the same way below)
+  const studentRawRepositoriesIds = new Set(
+    eligibleAndStudentRawRepositories.filter(isLikelyStudentRepository).map((rawRepository) => rawRepository.id)
+  );
+  const rawRepositories = eligibleAndStudentRawRepositories.filter((rawRepository) => !studentRawRepositoriesIds.has(rawRepository.id));
+
+  console.log(
+    `inferring according to ${rawDomains.length} raw domains and ${rawRepositories.length} raw repositories (${studentRawRepositoriesIds.size} repositories skipped as likely student projects)`
+  );
 
   // Below we use a graph logic to be more explicit in what happens
   // It may also helps fixing "parent - child" pairs from the database (we tried to have only 2 levels, but after multiple updates it's possible we have 2+ levels due to nested `mainSimilarXxx`)
@@ -205,6 +212,10 @@ export async function inferInitiativesFromDatabase() {
     // If will create the node with only "id" if not existing, and over next iterations it will put details onto it
     // Note: we avoid having loops between 2 nodes of the same type (complicating the logic to calculate the path then)
     for (const similarRepository of rawRepository.similarRepositories) {
+      if (studentRawRepositoriesIds.has(similarRepository.id)) {
+        continue;
+      }
+
       if (!graph.edge(rawRepository.id, similarRepository.id)) {
         graph.setEdge(similarRepository.id, rawRepository.id, 1 / 1);
       }
@@ -212,28 +223,94 @@ export async function inferInitiativesFromDatabase() {
   }
 
   // Create all edges between pair of nodes with a scoring on edges
+  const rawDomainsByHostname = new Map<string, typeof rawDomains>();
+  const rawDomainsByComparableName = new Map<string, typeof rawDomains>();
   for (const rawDomain of rawDomains) {
-    // Then, to repositories
-    for (const rawRepository of rawRepositories) {
-      // Do not match the repository with a probable domain if this domain is a service commonly used by "anyone" and not scoped to the project iself
-      if (hasProbableGenericDomain(rawRepository)) {
+    const hostname = normalizeHostname(rawDomain.name);
+    rawDomainsByHostname.set(hostname, [...(rawDomainsByHostname.get(hostname) ?? []), rawDomain]);
+
+    const comparableName = getComparableWebsiteName(rawDomain.name);
+    if (comparableName) {
+      rawDomainsByComparableName.set(comparableName, [...(rawDomainsByComparableName.get(comparableName) ?? []), rawDomain]);
+    }
+  }
+
+  const eligibleRawRepositories = rawRepositories.filter((rawRepository) => {
+    // Do not match the repository with a probable domain if this domain is a service commonly used by "anyone" and not scoped to the project iself
+    return !hasProbableGenericDomain(rawRepository);
+  });
+
+  const rawRepositoriesByUrl = new Map(
+    eligibleRawRepositories.map((rawRepository) => [normalizeRepositoryUrl(rawRepository.repositoryUrl), rawRepository])
+  );
+
+  const scores = new Map<string, { rawRepositoryId: string; rawDomainId: string; score: number }>();
+  const addScore = (rawRepositoryId: string, rawDomainId: string, score: number) => {
+    const key = `${rawRepositoryId}:${rawDomainId}`;
+
+    scores.set(key, { rawRepositoryId: rawRepositoryId, rawDomainId: rawDomainId, score: (scores.get(key)?.score ?? 0) + score });
+  };
+
+  // A repository linked by many websites is not specific to one of them (e.g. a licence, a shared template)
+  const rawDomainsIdsByLinkedRepository = new Map<string, string[]>();
+  for (const rawDomain of rawDomains) {
+    const linkedRawRepository = rawDomain.probableRepositoryUrl
+      ? rawRepositoriesByUrl.get(normalizeRepositoryUrl(rawDomain.probableRepositoryUrl))
+      : undefined;
+
+    if (linkedRawRepository) {
+      rawDomainsIdsByLinkedRepository.set(linkedRawRepository.id, [
+        ...(rawDomainsIdsByLinkedRepository.get(linkedRawRepository.id) ?? []),
+        rawDomain.id,
+      ]);
+    }
+  }
+
+  for (const [rawRepositoryId, rawDomainsIds] of rawDomainsIdsByLinkedRepository) {
+    if (rawDomainsIds.length <= MAXIMUM_WEBSITES_LINKING_A_REPOSITORY) {
+      for (const rawDomainId of rawDomainsIds) {
+        addScore(rawRepositoryId, rawDomainId, 2);
+      }
+    }
+  }
+
+  for (const rawRepository of eligibleRawRepositories) {
+    if (rawRepository.probableWebsiteDomain) {
+      for (const rawDomain of rawDomainsByHostname.get(normalizeHostname(rawRepository.probableWebsiteDomain)) ?? []) {
+        addScore(rawRepository.id, rawDomain.id, 2);
+      }
+    }
+  }
+
+  // Without any explicit link between them, a same name within a same organization is enough
+  const organizationMatcher = await buildOrganizationMatcher();
+  if (organizationMatcher) {
+    let sameNameLinksCount = 0;
+
+    for (const rawRepository of eligibleRawRepositories) {
+      const candidates = rawDomainsByComparableName.get(rawRepository.name.toLowerCase());
+      if (!candidates) {
         continue;
       }
 
-      let score: number = 0;
+      const repositoryOrganizationsIds = organizationMatcher.matchRepository(rawRepository.repositoryUrl);
+      const relatedRawDomains = candidates.filter((rawDomain) => {
+        return organizationMatcher.areCloseOrganizations(repositoryOrganizationsIds, organizationMatcher.matchWebsite(`https://${rawDomain.name}`));
+      });
 
-      if (!!rawDomain.probableRepositoryUrl && rawDomain.probableRepositoryUrl === rawRepository.homepage) {
-        score += 2;
-      }
-
-      if (rawDomain.name === rawRepository.probableWebsiteDomain) {
-        score += 2;
-      }
-
-      if (score > 0) {
-        graph.setEdge(rawRepository.id, rawDomain.id, 1 / score);
+      if (relatedRawDomains.length > 0 && relatedRawDomains.length <= MAXIMUM_WEBSITES_LINKING_A_REPOSITORY) {
+        for (const rawDomain of relatedRawDomains) {
+          addScore(rawRepository.id, rawDomain.id, 1);
+          sameNameLinksCount++;
+        }
       }
     }
+
+    console.log(`${sameNameLinksCount} links have been deduced between websites and repositories named the same way within an organization`);
+  }
+
+  for (const { rawRepositoryId, rawDomainId, score } of scores.values()) {
+    graph.setEdge(rawRepositoryId, rawDomainId, 1 / score);
   }
 
   console.log(`building initiative map groups by using a graph of nodes`);
@@ -420,6 +497,94 @@ export async function inferInitiativesFromDatabase() {
 
       console.log(`synchronizing initiative maps into the database (${formatDiffResultLog(diffResult)})`);
 
+      // Initiatives of maps merged into another one are duplicates (the map removal would only leave them without origin)
+      const mergedInitiativeMapsIdentifiers = getMergedInitiativeMapsIdentifiers(diffResult.removed, [
+        ...diffResult.updated,
+        ...diffResult.unchanged,
+      ]);
+      const movedInitiativeMaps = getMovedInitiativeMaps(
+        diffResult.removed.filter((initiativeMap) => !mergedInitiativeMapsIdentifiers.includes(initiativeMap.mainItemIdentifier)),
+        diffResult.added
+      );
+      const duplicatedInitiativesToRemove = await tx.initiative.findMany({
+        where: {
+          origin: {
+            mainItemIdentifier: {
+              in: [...mergedInitiativeMapsIdentifiers, ...movedInitiativeMaps.duplicated],
+            },
+          },
+        },
+        select: { id: true, origin: { select: { mainItemIdentifier: true } } },
+      });
+      const duplicatedInitiativesIds = duplicatedInitiativesToRemove.map((initiative) => initiative.id);
+
+      // The address of a removed sheet leads to the sheet of the map that took most of its items. A map merged into an existing one
+      // goes to the sheet of that map, and one gathered into a new map goes to the sheet moved to this new map (if any)
+      const targetMapByRemovedMap = getMainDestinationByRemovedMap(
+        diffResult.removed.filter((initiativeMap) => mergedInitiativeMapsIdentifiers.includes(initiativeMap.mainItemIdentifier)),
+        [...diffResult.updated, ...diffResult.unchanged]
+      );
+      const movedFromByNewMap = new Map(movedInitiativeMaps.moved.map((moved) => [moved.toMainItemIdentifier, moved.fromMainItemIdentifier]));
+      const newMapByDuplicatedMap = getMainDestinationByRemovedMap(
+        diffResult.removed.filter((initiativeMap) => movedInitiativeMaps.duplicated.includes(initiativeMap.mainItemIdentifier)),
+        diffResult.added
+      );
+      for (const [duplicatedMap, newMap] of newMapByDuplicatedMap) {
+        const movedFrom = movedFromByNewMap.get(newMap);
+
+        if (movedFrom) {
+          targetMapByRemovedMap.set(duplicatedMap, movedFrom); // Its sheet is still bound to its previous map at this point
+        }
+      }
+
+      const targetInitiatives = await tx.initiative.findMany({
+        where: {
+          deletedAt: null,
+          origin: { mainItemIdentifier: { in: [...new Set(targetMapByRemovedMap.values())] } },
+        },
+        select: { id: true, origin: { select: { mainItemIdentifier: true } } },
+      });
+      const targetInitiativeIdByMap = new Map(
+        targetInitiatives.flatMap((initiative) => (initiative.origin ? [[initiative.origin.mainItemIdentifier, initiative.id] as const] : []))
+      );
+      const knownReplacements = duplicatedInitiativesToRemove.flatMap((initiative) => {
+        const targetMap = initiative.origin ? targetMapByRemovedMap.get(initiative.origin.mainItemIdentifier) : undefined;
+        const targetInitiativeId = targetMap ? targetInitiativeIdByMap.get(targetMap) : undefined;
+
+        return targetInitiativeId ? [{ fromInitiativeId: initiative.id, toInitiativeId: targetInitiativeId }] : [];
+      });
+
+      await redirectInitiativesBeforeRemoval(tx, duplicatedInitiativesIds, knownReplacements);
+
+      const duplicatedInitiatives = await tx.initiative.deleteMany({
+        where: {
+          id: {
+            in: duplicatedInitiativesIds,
+          },
+        },
+      });
+
+      // To be retrieved before removing their map since it would remove the link
+      const initiativesToMove = await tx.initiative.findMany({
+        where: {
+          origin: {
+            mainItemIdentifier: {
+              in: movedInitiativeMaps.moved.map((movedInitiativeMap) => movedInitiativeMap.fromMainItemIdentifier),
+            },
+          },
+        },
+        select: {
+          id: true,
+          origin: {
+            select: {
+              mainItemIdentifier: true,
+            },
+          },
+        },
+      });
+
+      console.log(`${duplicatedInitiatives.count} initiatives have been removed since their initiative map has been merged into another one`);
+
       await tx.initiativeMap.deleteMany({
         where: {
           mainItemIdentifier: {
@@ -506,11 +671,12 @@ export async function inferInitiativesFromDatabase() {
         });
       }
 
+      const addedInitiativeMapIdByMainItemIdentifier = new Map<string, string>();
       for (const addedLiteRawDomain of diffResult.added) {
         watchGracefulExitInLoop();
 
         // `createMany` cannot be used due to nested many creations (ref: https://github.com/prisma/prisma/issues/5455)
-        await tx.initiativeMap.create({
+        const addedInitiativeMap = await tx.initiativeMap.create({
           data: {
             mainItemIdentifier: addedLiteRawDomain.mainItemIdentifier,
             update: true,
@@ -543,7 +709,34 @@ export async function inferInitiativesFromDatabase() {
             id: true, // Ref: https://github.com/prisma/prisma/issues/6252
           },
         });
+
+        addedInitiativeMapIdByMainItemIdentifier.set(addedLiteRawDomain.mainItemIdentifier, addedInitiativeMap.id);
       }
+
+      // The upsert when feeding initiatives will update them instead of creating a second one
+      const movedToByFrom = new Map(movedInitiativeMaps.moved.map((moved) => [moved.fromMainItemIdentifier, moved.toMainItemIdentifier]));
+      for (const initiativeToMove of initiativesToMove) {
+        watchGracefulExitInLoop();
+
+        const toMainItemIdentifier = initiativeToMove.origin ? movedToByFrom.get(initiativeToMove.origin.mainItemIdentifier) : undefined;
+        const originId = toMainItemIdentifier ? addedInitiativeMapIdByMainItemIdentifier.get(toMainItemIdentifier) : undefined;
+
+        if (originId) {
+          await tx.initiative.update({
+            where: {
+              id: initiativeToMove.id,
+            },
+            data: {
+              originId: originId,
+            },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+            },
+          });
+        }
+      }
+
+      console.log(`${initiativesToMove.length} initiatives have followed their initiative map since its main item has changed`);
 
       if (diffResult.added.length > 0 || diffResult.removed.length > 0 || diffResult.updated.length > 0) {
         // There is a modification so on the next job we should tell the LLM system about new updates
@@ -566,7 +759,7 @@ export async function inferInitiativesFromDatabase() {
   console.log(`inferring has been done with success`);
 }
 
-export async function feedInitiativesFromDatabase() {
+export async function feedInitiativesFromDatabase(options?: { onlyMissing?: boolean; onlyWebsites?: boolean }) {
   // Note: Prisma does not implement yet locking table though it should help not messing with requesting the LLM system while replacing sensitive components of it
   // This race condition should remain rare and having error thrown should be fine since replayed on the next iteration
   const settings = await prisma.settings.findUniqueOrThrow({
@@ -585,6 +778,8 @@ export async function feedInitiativesFromDatabase() {
   const initiativeMaps = await prisma.initiativeMap.findMany({
     where: {
       update: true,
+      ...(options?.onlyMissing ? { Initiative: { is: null } } : {}), // Each sheet is charged, so the existing ones can wait for a later run
+      ...(options?.onlyWebsites ? { RawDomainsOnInitiativeMaps: { some: {} } } : {}), // Repositories alone are the longest and the less valuable ones
       AND: {
         OR: [
           {
@@ -643,13 +838,21 @@ export async function feedInitiativesFromDatabase() {
     },
   });
 
+  // Tools of websites come from the inventory of domains, so what it has not reached yet waits for a next run
+  const domainsWithoutInventory = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT d."id"
+    FROM "RawDomain" d
+    LEFT JOIN "DomainInventory" i ON i."domain" = d."name"
+    WHERE i."lastCheckAt" IS NULL
+  `;
+  const domainsWithoutInventoryIds = new Set(domainsWithoutInventory.map((rawDomain) => rawDomain.id));
+  const initiativeMapsToProcess = initiativeMaps
+    .filter((initiativeMap) => !initiativeMap.RawDomainsOnInitiativeMaps.some(({ rawDomainId }) => domainsWithoutInventoryIds.has(rawDomainId)))
+    .slice(0, maximumInitiativesPerRun);
+
+  console.log(`${initiativeMapsToProcess.length}/${initiativeMaps.length} initiative maps are ready to be processed`);
+
   try {
-    await wappalyzer.init();
-
-    // [WORKAROUND] In case we call `wappalyzer.destroy()` too quickly (errors or no loop iteration) it will hang forever
-    // We figured out waiting a bit will prevent this, which is necessary when the process is deployed in a server without cancelation possibility
-    await sleep(500);
-
     // Prepare the message template used to ask GPT about the initiative
     const initiativeGptTemplateContent = await fs.readFile(path.resolve(__root_dirname, './src/gpt/templates/initiative.md'), 'utf-8');
     const websiteGptTemplateContent = await fs.readFile(path.resolve(__root_dirname, './src/gpt/templates/website.md'), 'utf-8');
@@ -664,7 +867,7 @@ export async function feedInitiativesFromDatabase() {
       lng: 'fr',
     });
 
-    // Since the underlying wappalyzer analysis per initiative map can take some time due to being in a Chromium environment
+    // Since the underlying analysis per initiative map can take some time due to being in a Chromium environment
     // we parallelize hoping to save some time. But still, we take in considerations the LLM API rate limit
     const iterationLlmManagerApiCalls = 2; // One for the embeddings of the tools, and the other for the computation of the initiative sheet
     const iterationMinimumDurationInSeconds = 2; // It's maybe not fully exact
@@ -680,10 +883,10 @@ export async function feedInitiativesFromDatabase() {
 
     console.log(`initiative maps will be computed with a maximum concurrency of ${maxConcurrency}`);
 
-    await eachOfLimit(initiativeMaps, maxConcurrency, async function (initiativeMap, initiativeMapIndex) {
+    await eachOfLimit(initiativeMapsToProcess, maxConcurrency, async function (initiativeMap, initiativeMapIndex) {
       watchGracefulExitInLoop();
 
-      console.log(`feed initiative ${initiativeMap.id} ${formatArrayProgress(initiativeMapIndex, initiativeMaps.length)}`);
+      console.log(`feed initiative ${initiativeMap.id} ${formatArrayProgress(initiativeMapIndex, initiativeMapsToProcess.length)}`);
 
       // To debug easily we write each result on disk (also, since using lot of CLIs we have no other choice :D)
       const projectDirectory = path.resolve(__root_dirname, './data/initiatives/', initiativeMap.id);
@@ -786,86 +989,47 @@ export async function feedInitiativesFromDatabase() {
             websiteMarkdownContent = await fs.readFile(markdownPath, 'utf-8');
           }
 
-          // Try to deduce tools used from the frontend
-          const wappalyzerAnalysisPath = path.resolve(projectDirectory, 'wappalyzer-analysis.json');
-
-          if (!useLocalFileCache || !fsSync.existsSync(wappalyzerAnalysisPath)) {
-            const headers = {};
-            const storage = {
-              local: {},
-              session: {},
-            };
-
-            // This is a default from Wappalyzer but they use `acceptInsecureCerts: true` with puppeteer
-            // meaning the certificate is no longer checked. It's mitigated by the fact we checked it when enhancing
-            // the raw domain metadata, but is still a risk it has changed since then
-            let retriableErrorMessage: string | null = null;
-
-            try {
-              const site = await wappalyzer.open(`https://${rawDomain.name}`, headers, storage);
-              const results = await site.analyze();
-              const parsedResults = WappalyzerResultSchema.parse(results);
-
-              // If we fetched at least a page with an eligible status code we continue
-              const requestMetadataPerUrl = Object.values(parsedResults.urls);
-
-              if (requestMetadataPerUrl.some((metadata) => metadata.status >= 200 && metadata.status < 300)) {
-                // It's good to go further into the process
-                await fs.mkdir(path.dirname(wappalyzerAnalysisPath), { recursive: true });
-                await fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
-              } else {
-                // No page for this website is reachable, it can comes from either:
-                // - a network error (net::ERR_CONNECTION_REFUSED... like for our Playwright calls) with a status code of 0
-                // - a server error with a status code of 404, 500...
-                //
-                // We skip this initiative calculation due to a network error, until a fix if done to remove the erroring website or until the website is parsable again
-
-                // To debug easily since errors could be into multiple URLs, we just gather each URL request metadata
-                retriableErrorMessage = JSON.stringify(parsedResults.urls);
-              }
-            } catch (error) {
-              if (error instanceof Error && error.message.includes('Navigation timeout of')) {
-                // This is an error from Puppeteer that is retriable (note other timeouts are handled by Wappalyzer, don't know exactly why this one is leaking)
-                retriableErrorMessage = error.message;
-              } else {
-                throw error;
-              }
-            }
-
-            if (!!retriableErrorMessage) {
-              await prisma.initiativeMap.update({
-                where: {
-                  id: initiativeMap.id,
-                },
-                data: {
-                  lastUpdateAttemptWithReachabilityError: new Date(),
-                  lastUpdateAttemptReachabilityError: retriableErrorMessage,
-                },
+          // Tools used by the website come from the inventory of domains, which is a prerequisite of this step
+          const inventory = await prisma.domainInventory.findUnique({
+            where: {
+              domain: rawDomain.name,
+            },
+            select: {
+              lastCheckAt: true,
+              lastCheckError: true,
+              DomainTechnology: {
                 select: {
-                  id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  technology: true,
                 },
-              });
+              },
+            },
+          });
 
-              console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its websites`);
-              console.error(retriableErrorMessage);
+          if (!inventory?.lastCheckAt) {
+            console.log(`skip processing ${initiativeMap.id} since ${rawDomain.name} has not been analyzed yet by the inventory`);
 
-              return;
-            }
+            return;
+          } else if (inventory.lastCheckError) {
+            await prisma.initiativeMap.update({
+              where: {
+                id: initiativeMap.id,
+              },
+              data: {
+                lastUpdateAttemptWithReachabilityError: new Date(),
+                lastUpdateAttemptReachabilityError: inventory.lastCheckError,
+              },
+              select: {
+                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+              },
+            });
 
-            // Wait a bit in case websites from this initiative are on the same servers (tiny delay in this loop because)
-            await sleep(50);
+            console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its websites`);
+            console.error(inventory.lastCheckError);
+
+            return;
           }
 
-          const wappalyzerAnalysisDataString = await fs.readFile(wappalyzerAnalysisPath, 'utf-8');
-          const wappalyzerAnalysisDataObject = JSON.parse(wappalyzerAnalysisDataString);
-          const wappalyzerAnalysisData = WappalyzerResultSchema.parse(wappalyzerAnalysisDataObject);
-
-          const deducedTools: string[] = wappalyzerAnalysisData.technologies
-            .filter((technology) => {
-              // Set a minimum so uncertain tools like backend ones for compilation are ignored
-              return technology.confidence >= 75;
-            })
-            .map((technology) => technology.name);
+          const deducedTools: string[] = inventory.DomainTechnology.map((domainTechnology) => domainTechnology.technology);
 
           mixedInitiativeTools.push(...deducedTools);
 
@@ -1253,6 +1417,55 @@ export async function feedInitiativesFromDatabase() {
               }
             }
 
+            // A domain listed as public can have been bought afterwards, the content is the only way to know it. It stays out of the
+            // directory until something changes in this initiative map. A `.gouv.fr` domain cannot be bought back, so a single
+            // doubtful answer (or a page trying to mislead the LLM) must not remove it
+            const isOnStateReservedDomain = initiativeMapRawDomains.some((rawDomain) => isStateReservedDomain(rawDomain.name));
+
+            if (!answerData.isPublicService && isOnStateReservedDomain) {
+              console.warn(`[${initiativeMap.id}] kept despite not looking like a public service since it is on a State reserved domain`);
+            }
+
+            if (((!answerData.isPublicService && !isOnStateReservedDomain) || answerData.isServiceClosed) && initiativeMapRawDomains.length > 0) {
+              console.warn(`[${initiativeMap.id}] skipped since it does not look like a public service or it is closed ("${answerData.name}")`);
+
+              await prisma.$transaction(async (tx) => {
+                const rejectedInitiatives = await tx.initiative.findMany({
+                  where: {
+                    originId: initiativeMap.id,
+                  },
+                  select: { id: true },
+                });
+                const rejectedInitiativesIds = rejectedInitiatives.map((initiative) => initiative.id);
+
+                await redirectInitiativesBeforeRemoval(tx, rejectedInitiativesIds);
+
+                await tx.initiative.deleteMany({
+                  where: {
+                    id: {
+                      in: rejectedInitiativesIds,
+                    },
+                  },
+                });
+
+                await tx.initiativeMap.update({
+                  where: {
+                    id: initiativeMap.id,
+                  },
+                  data: {
+                    update: false,
+                    lastUpdateAttemptWithReachabilityError: null,
+                    lastUpdateAttemptReachabilityError: null,
+                  },
+                  select: {
+                    id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  },
+                });
+              });
+
+              return;
+            }
+
             // Sanitize a bit free entry fields
             answerData.businessUseCases = answerData.businessUseCases.map((businessUseCaseName) => capitalizeFirstLetter(businessUseCaseName.trim()));
             answerData.description = capitalizeFirstLetter(answerData.description.trim());
@@ -1369,7 +1582,8 @@ export async function feedInitiativesFromDatabase() {
                     originId: initiativeMap.id,
                   },
                   update: {
-                    name: answerData.name,
+                    name: answerData.suggestedName?.trim() || answerData.name,
+                    computedAt: new Date(),
                     description: answerData.description,
                     websites: websites,
                     repositories: repositories,
@@ -1426,7 +1640,8 @@ export async function feedInitiativesFromDatabase() {
                         id: initiativeMap.id,
                       },
                     },
-                    name: answerData.name,
+                    name: answerData.suggestedName?.trim() || answerData.name,
+                    computedAt: new Date(),
                     description: answerData.description,
                     websites: websites,
                     repositories: repositories,
@@ -1549,15 +1764,40 @@ export async function feedInitiativesFromDatabase() {
 
     // After computing the new or updated sheets, we make sure to delete the older ones that were kept to make the bridge
     // between the time new initiative maps were calculated, and the time to compute modified groups (otherwise in the meantime there is a risk the product is not indexed on the platform)
-    await prisma.initiative.deleteMany({
-      where: {
-        origin: {
-          is: null,
-        },
-      },
-    });
+    // A partial run (limit per run, inventory not done yet, restricted to some initiative maps) would remove old sheets whose replacement does not exist yet
+    if (!options?.onlyMissing && !options?.onlyWebsites && initiativeMapsToProcess.length === initiativeMaps.length) {
+      await prisma.$transaction(
+        async (tx) => {
+          const oldInitiatives = await tx.initiative.findMany({
+            where: {
+              origin: {
+                is: null,
+              },
+            },
+            select: { id: true },
+          });
+          const oldInitiativesIds = oldInitiatives.map((initiative) => initiative.id);
 
-    console.log(`the old initiatives no longer part of newly computed initiative maps have been deleted`);
+          // Their new sheets describe the same websites and repositories, so their addresses lead there
+          await redirectInitiativesBeforeRemoval(tx, oldInitiativesIds);
+
+          await tx.initiative.deleteMany({
+            where: {
+              id: {
+                in: oldInitiativesIds,
+              },
+            },
+          });
+        },
+        {
+          timeout: minutesToMilliseconds(10), // Thousands of sheets can be replaced after a whole run
+        }
+      );
+
+      console.log(`the old initiatives no longer part of newly computed initiative maps have been deleted`);
+    } else {
+      console.log(`the old initiatives are kept since some initiative maps have not been processed yet`);
+    }
   } catch (error) {
     console.error(`error while feeding initiatives`);
 
@@ -1570,18 +1810,6 @@ export async function feedInitiativesFromDatabase() {
       console.error(error);
 
       throw error;
-    }
-  } finally {
-    // For whatever reason despite the official documentation when doing it may hang forever (ref: https://github.com/enthec/webappanalyzer/issues/74)
-    // If not done the program may not quit (it's random), and if done it may be stuck on it... an acceptable workaround is to set a timeout
-    try {
-      await promiseWithFatalTimeout(wappalyzer.destroy(), `wappalyzer.destroy()`, secondsToMilliseconds(4));
-    } catch (error) {
-      if (error === promiseTimeoutError) {
-        console.warn('wappalyzer seems stuck closing, you may have to force terminating the program if it seems to hang forever');
-      } else {
-        throw error;
-      }
     }
   }
 }

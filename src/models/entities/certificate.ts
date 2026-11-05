@@ -4,7 +4,7 @@ import z from 'zod';
 export const LitePeerCertificateSchema = z.object({
   subject: z.any(),
   issuer: z.any(),
-  subjectaltname: z.string(),
+  subjectaltname: z.string().optional(), // Old certificates only carry their name in the subject
   infoAccess: z.any(),
   bits: z.number(),
   valid_from: z.string(),

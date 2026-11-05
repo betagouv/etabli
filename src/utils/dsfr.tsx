@@ -1,5 +1,5 @@
 import { headerFooterDisplayItem } from '@codegouvfr/react-dsfr/Display';
-import type { DefaultColorScheme } from '@codegouvfr/react-dsfr/next-appdir';
+import type { DefaultColorScheme } from '@codegouvfr/react-dsfr/next-app-router';
 import { BadgeProps } from '@mui/material/Badge';
 
 export const defaultColorScheme: DefaultColorScheme = 'system';

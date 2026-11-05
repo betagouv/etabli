@@ -128,7 +128,6 @@ module.exports = {
     return config;
   },
   docs: {
-    docsPage: true,
-    autodocs: true,
+    autodocs: false, // These pages bring nothing more than the stories
   },
 };

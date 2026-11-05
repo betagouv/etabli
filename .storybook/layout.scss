@@ -16,3 +16,9 @@ body,
   display: flex;
   flex-direction: column;
 }
+
+/* A story taller than the screen overflows the fixed height above, so the bottom padding of the body is not after its content */
+.sb-main-padded #storybook-root::after {
+  content: '';
+  flex: 0 0 1rem;
+}

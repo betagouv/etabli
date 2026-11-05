@@ -4,6 +4,9 @@ import { z } from 'zod';
 export const ResultSchema = z
   .object({
     name: z.string(),
+    suggestedName: z.string().nullable(), // When the provided name is a domain or something generic like "Accueil"
+    isPublicService: z.boolean(),
+    isServiceClosed: z.boolean(),
     businessUseCases: z.array(z.string()),
     description: z.string(),
     tools: z.array(z.string()),
@@ -35,6 +38,9 @@ export type ResultSchemaType = z.infer<typeof ResultSchema>;
 export const resultSchemaDefinition: string = `
 interface ResultSchemaType {
   name: string;
+  suggestedName: string | null;
+  isPublicService: boolean;
+  isServiceClosed: boolean;
   businessUseCases: string[];
   description: string;
   tools: string[];
@@ -97,6 +103,7 @@ export const DocumentInitiativeTemplateSchema = z
     businessUseCases: z.array(z.string()).nullable(),
     functionalUseCases: z.array(z.string()).nullable(),
     tools: z.array(z.string()).nullable(),
+    organizations: z.array(z.string()).nullish(), // Full paths of bound public organizations (optional since documents computed before this property do not have it)
   })
   .strict();
 export type DocumentInitiativeTemplateSchemaType = z.infer<typeof DocumentInitiativeTemplateSchema>;

@@ -58,6 +58,19 @@ export function FrequentlyAskedQuestions() {
                 <br />
                 Pour constituer une fiche, nous allons essayer de créer des groupes (= les fameuses initiatives) entre les sites internet et les
                 dépôts. Car les initiatives peuvent être composées de plusieurs sites internet et/ou de plusieurs dépôts.
+                <br />
+                <br />
+                Le nom, la description et les cas d&apos;utilisation de chaque fiche sont rédigés automatiquement par une intelligence artificielle, à
+                partir de la page d&apos;accueil des sites internet et de la présentation des dépôts. Un site qui ne correspond pas à un service
+                public, ou dont le service a fermé, n&apos;est pas répertorié.
+                <br />
+                <br />
+                Les organisations publiques qui portent chaque initiative sont retrouvées dans{' '}
+                <Link component={NextLink} href="https://lannuaire.service-public.gouv.fr" underline="none" target="_blank">
+                  l&apos;Annuaire de l&apos;administration
+                  <span className="fr-sr-only"> (nouvelle fenêtre)</span>
+                </Link>
+                , l&apos;annuaire de l&apos;Éducation nationale et les données de présence numérique des territoires.
               </AccordionDetails>
             </Accordion>
             <Accordion sx={{ boxShadow: 'none' }}>
@@ -119,8 +132,39 @@ export function FrequentlyAskedQuestions() {
                     </ol>
                   </li>
                 </ul>
-                À noter que notre synthétisons l&apos;information pour faire les fiches d&apos;initiatives, il est possible que notre processus
+                À noter que nous synthétisons l&apos;information pour faire les fiches d&apos;initiatives, il est possible que notre processus
                 automatisé soit encore à optimiser. Si tel est le cas, merci de nous faire part de vos difficultés.
+              </AccordionDetails>
+            </Accordion>
+            <Accordion sx={{ boxShadow: 'none' }}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography sx={{ fontWeight: 600 }}>D&apos;où viennent les indicateurs de notoriété, de sécurité et de conformité ?</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                Ils sont calculés automatiquement pour les sites internet de chaque initiative, uniquement à partir d&apos;informations visibles
+                publiquement :
+                <ul>
+                  <li>
+                    La notoriété provient d&apos;un service tiers qui estime les liens que les autres sites internet font vers celui-ci (DataForSEO) ;
+                  </li>
+                  <li>
+                    Les en-têtes de sécurité HTTP sont notés par{' '}
+                    <Link component={NextLink} href="https://developer.mozilla.org/fr/observatory" underline="none" target="_blank">
+                      Mozilla HTTP Observatory
+                      <span className="fr-sr-only"> (nouvelle fenêtre)</span>
+                    </Link>{' '}
+                    ;
+                  </li>
+                  <li>Le certificat et les versions de TLS acceptées sont vérifiés en se connectant au site ;</li>
+                  <li>La protection des e-mails (SPF, DMARC) est lue dans les enregistrements DNS publics du nom de domaine ;</li>
+                  <li>
+                    La dépendance hors Union européenne regarde où sont hébergés le site et les ressources externes qu&apos;il charge (scripts,
+                    polices, cartes…) ;
+                  </li>
+                  <li>Les mentions légales et la politique de confidentialité sont recherchées parmi les liens de la page d&apos;accueil.</li>
+                </ul>
+                Ces indicateurs sont rafraîchis environ une fois par mois. Ils servent à repérer ce qui peut être amélioré et non à classer les
+                initiatives : les services publics ne sont pas en concurrence. Une valeur peut être absente si le site n&apos;a pas pu être analysé.
               </AccordionDetails>
             </Accordion>
             <Accordion
@@ -162,6 +206,7 @@ export function FrequentlyAskedQuestions() {
                       target="_blank"
                     >
                       la liste de noms de domaine de la sphère publique
+                      <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                     </Link>{' '}
                     (en plus de ce qui est mentionné dans{' '}
                     <Link
@@ -171,6 +216,7 @@ export function FrequentlyAskedQuestions() {
                       target="_blank"
                     >
                       leur guide de contribution
+                      <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                     </Link>
                     , il est envisageable d&apos;y ouvrir une simple &quot;issue&quot; pour leur demander une modification) ;
                   </li>
@@ -178,10 +224,12 @@ export function FrequentlyAskedQuestions() {
                     Et{' '}
                     <Link component={NextLink} href="https://code.gouv.fr/public/" underline="none" target="_blank">
                       code.gouv.fr
+                      <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                     </Link>{' '}
                     qui référence les dépôts de code informatique (
                     <Link component={NextLink} href="https://git.sr.ht/~codegouvfr/codegouvfr-sources" underline="none" target="_blank">
                       comme mentionné dans leur guide de contribution
+                      <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                     </Link>
                     , vous pouvez leur envoyer un email pour toute demande d&apos;évolution).
                   </li>
@@ -198,11 +246,23 @@ export function FrequentlyAskedQuestions() {
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
-                Lorsque vous modifiez des éléments sur votre site internet ou sur votre dépôt de code, cela peut prendre plusieurs jours avant que nos
-                processus resynchronisent les dizaines de millier d&apos;initiatives.
+                Nos processus relisent régulièrement les dizaines de milliers de sites internet et de dépôts de code (environ toutes les 3 semaines
+                pour un site), il faut donc compter quelques semaines avant qu&apos;une modification soit prise en compte.
                 <br />
                 <br />
-                Si jamais cela vous paraît anormalement long, n&apos;hésitez pas à nous contacter.
+                Par ailleurs, une fiche n&apos;est pas réécrite à chaque petite évolution :
+                <ul>
+                  <li>
+                    Elle l&apos;est rapidement si le titre de la page d&apos;accueil de votre site, ou le nom, la description ou l&apos;adresse du
+                    site de votre dépôt changent ;
+                  </li>
+                  <li>
+                    Pour les autres changements du contenu du site ou du code du dépôt, seulement si sa description date de plus d&apos;un an
+                    (respectivement six mois pour un dépôt), car ces changements modifient rarement la nature de l&apos;initiative.
+                  </li>
+                </ul>
+                La date de la dernière rédaction est indiquée en bas de chaque fiche. Si jamais cela vous paraît anormalement long, n&apos;hésitez pas
+                à nous contacter.
               </AccordionDetails>
             </Accordion>
             <Accordion sx={{ boxShadow: 'none' }}>
@@ -244,7 +304,8 @@ export function FrequentlyAskedQuestions() {
                 <br />
                 <br />
                 Les jeux de données ci-dessous sont générés directement depuis notre base de données avec plus ou moins 1 jour de décalage. La donnée
-                que vous exploiterez est donc à jour.
+                que vous exploiterez est donc à jour. Ils contiennent les initiatives présentes dans l&apos;annuaire, avec leurs organisations et leur
+                notoriété, et la date de mise à jour correspond à la dernière rédaction de leur description.
                 <br />
                 <br />
                 <Typography sx={{ fontStyle: 'italic' }}>
@@ -266,6 +327,7 @@ export function FrequentlyAskedQuestions() {
                           target="_blank"
                         >
                           Format technique
+                          <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                         </Link>
                       </li>
                       <li>
@@ -276,6 +338,7 @@ export function FrequentlyAskedQuestions() {
                           target="_blank"
                         >
                           Format avec champs techniques traduits
+                          <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                         </Link>
                       </li>
                     </ul>
@@ -296,6 +359,7 @@ export function FrequentlyAskedQuestions() {
                           target="_blank"
                         >
                           Format technique
+                          <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                         </Link>
                       </li>
                       <li>
@@ -306,6 +370,7 @@ export function FrequentlyAskedQuestions() {
                           target="_blank"
                         >
                           Format avec colonnes et champs techniques traduits
+                          <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                         </Link>
                       </li>
                     </ul>
@@ -323,6 +388,7 @@ export function FrequentlyAskedQuestions() {
                           target="_blank"
                         >
                           Format technique
+                          <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                         </Link>
                       </li>
                       <li>
@@ -333,6 +399,7 @@ export function FrequentlyAskedQuestions() {
                           target="_blank"
                         >
                           Format avec colonnes et champs techniques traduits
+                          <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                         </Link>
                       </li>
                     </ul>
@@ -346,13 +413,13 @@ export function FrequentlyAskedQuestions() {
             </Accordion>
             <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography sx={{ fontWeight: 600 }}>Quels sont les prochaines améliorations ?</Typography>
+                <Typography sx={{ fontWeight: 600 }}>Quelles sont les prochaines améliorations ?</Typography>
               </AccordionSummary>
               <AccordionDetails>
                 La réalisation des prochains objectifs va forcément dépendre de l&apos;impact que ce service aura auprès des agents et des citoyens.
                 Mais nous avons quelques idées :
                 <ul>
-                  <li>Analyser si les sites internets possèdent des mentions légales et la déclaration d&apos;accessibilité ;</li>
+                  <li>Analyser si les sites internet publient leur déclaration d&apos;accessibilité ;</li>
                   <li>Analyser si les dépôts de code déclarent une licence d&apos;utilisation ;</li>
                 </ul>
                 Si vous avez des idées pour nous, nous vous invitons à les partager via la messagerie !

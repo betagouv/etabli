@@ -1,46 +1,52 @@
 import { Display } from '@codegouvfr/react-dsfr/Display';
-import { DsfrHead } from '@codegouvfr/react-dsfr/next-appdir/DsfrHead';
-import { DsfrProvider } from '@codegouvfr/react-dsfr/next-appdir/DsfrProvider';
-import { getHtmlAttributes } from '@codegouvfr/react-dsfr/next-appdir/getHtmlAttributes';
-import { headers } from 'next/headers';
-import Link from 'next/link';
+import { cookies, headers } from 'next/headers';
 import { PropsWithChildren } from 'react';
 
+import { ColorSchemeCookie, ServerColorSchemeProvider } from '@etabli/src/app/ColorScheme';
 import { Matomo } from '@etabli/src/app/Matomo';
 import { MuiDsfrThemeProvider } from '@etabli/src/app/MuiDsfrThemeProvider';
 import { SentryClientProvider } from '@etabli/src/app/SentryClientProvider';
-import { StartDsfr } from '@etabli/src/app/StartDsfr';
 import '@etabli/src/app/layout.scss';
 import { Providers } from '@etabli/src/app/providers';
 import { LiveChatProvider } from '@etabli/src/components/live-chat/LiveChatProvider';
-import { defaultColorScheme } from '@etabli/src/utils/dsfr';
+import { DsfrProvider, StartDsfrOnHydration } from '@etabli/src/dsfr-bootstrap';
+import { DsfrHead, getHtmlAttributes } from '@etabli/src/dsfr-bootstrap/server-only-index';
+import { colorSchemeCookieName } from '@etabli/src/utils/color-scheme';
 
 export interface RootLayoutProps {
   workaroundForNextJsPages?: boolean;
 }
 
-// [WORKAROUND] Since `react-dsfr` no longer passes the color scheme through `DsfrProvider` and `DsfrHead` we call this function to avoid an assert error in case of `workaroundForNextJsPages: true` usage
-getHtmlAttributes({ defaultColorScheme });
+// [WORKAROUND] `DsfrHead` needs the color scheme registered by this function, even with `workaroundForNextJsPages: true` where `<html>` is not rendered
+getHtmlAttributes({ lang: 'fr' });
 
 function MainStructure(props: PropsWithChildren) {
   const nonce = headers().get('x-nonce') || undefined;
+  const colorScheme = cookies().get(colorSchemeCookieName)?.value;
+  const ssrIsDark = colorScheme === 'dark'; // Without a known color scheme (first visit), the light one like the DSFR provider
 
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-head-element */}
       <head>
-        <StartDsfr />
-        <DsfrHead Link={Link} nonce={nonce} />
+        <DsfrHead nonce={nonce} preloadFonts={['Marianne-Regular', 'Marianne-Medium', 'Marianne-Bold']} />
+        {/* The browser renders first with the color scheme used by the server so both match, then switches if it differs (react-dsfr reads it, and its own script in `DsfrHead` sets the default one, so this one comes after) */}
+        {/* Browsers hide the nonce value once the page is loaded, that is not a difference to report */}
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: `window.ssrWasPerformedWithIsDark = ${ssrIsDark};` }} />
       </head>
       <body>
-        <DsfrProvider>
-          <MuiDsfrThemeProvider>
-            <Providers nonce={nonce}>
-              <SentryClientProvider>
-                <LiveChatProvider>{props.children}</LiveChatProvider>
-              </SentryClientProvider>
-            </Providers>
-          </MuiDsfrThemeProvider>
+        <DsfrProvider lang="fr" doCheckNonce>
+          <StartDsfrOnHydration />
+          <ServerColorSchemeProvider isDark={ssrIsDark}>
+            <MuiDsfrThemeProvider>
+              <Providers nonce={nonce}>
+                <SentryClientProvider>
+                  <LiveChatProvider>{props.children}</LiveChatProvider>
+                </SentryClientProvider>
+              </Providers>
+            </MuiDsfrThemeProvider>
+          </ServerColorSchemeProvider>
+          <ColorSchemeCookie />
           <Display />
         </DsfrProvider>
         <Matomo nonce={nonce} />
@@ -58,7 +64,7 @@ export function RootLayout(props: PropsWithChildren<RootLayoutProps>) {
   }
 
   return (
-    <html lang="fr" {...getHtmlAttributes({ defaultColorScheme })}>
+    <html lang="fr" {...getHtmlAttributes({ lang: 'fr' })}>
       <MainStructure {...props} />
     </html>
   );

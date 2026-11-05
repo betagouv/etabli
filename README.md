@@ -8,11 +8,22 @@ All the states of the application are described visually on a Storybook. It rend
 
 ## Datasets
 
-We rely on 3 datasets to compute initiative sheets into Établi:
+We rely on these datasets to compute initiative sheets into Établi:
 
 - [dinum/noms-de-domaine-organismes-secteur-public](https://gitlab.adullact.net/dinum/noms-de-domaine-organismes-secteur-public/) to retrieve public french domains
-- [code.gouv.fr](https://code.gouv.fr/public/) to retrieve public french repositories
+- [code.gouv.fr](https://code.gouv.fr/public/) and [data.code.gouv.fr](https://data.code.gouv.fr/) to retrieve public french repositories
 - [captn3m0/stackshare-dataset](https://github.com/captn3m0/stackshare-dataset) based on the [StackShare](https://stackshare.io/) data to build a fixed list of tools to bind initiatives to
+
+And to bind initiatives to the public organizations managing them:
+
+- the [Annuaire de l'administration](https://lannuaire.service-public.gouv.fr/) of the DILA, for the hierarchy of organizations and their declared websites
+- the [directory of the Éducation nationale](https://data.education.gouv.fr/explore/dataset/fr-en-annuaire-education/) for schools and their services
+- the [digital presence data of the territories](https://www.data.gouv.fr/datasets/donnees-de-la-presence-numerique-des-territoires) for local authorities
+
+Some indicators also come from third parties:
+
+- [Wappalyzer](https://github.com/enthec/webappanalyzer) community fingerprints to detect the tools used by websites
+- [DataForSEO](https://dataforseo.com/) for the reputation of domains (backlinks), retrieved manually since each call is charged
 
 _This is important to understand to detect new websites or new repositories they must be listed in the first two. Also, note we have no control over their acceptance process._
 
@@ -62,22 +73,13 @@ Now the database schema and client need to be initialized:
 Note since the application has a logic of jobs to be run regularly to fetch, analyze, and compute data. Those are not available in the UI, but you can trigger them through our custom CLI by running:
 `npm run cli`
 
+_For now the scheduling of these jobs is disabled in deployments (`scheduleCronTasks()` is commented into `src/pages/api/init.ts`), the data update is run manually through the CLI._
+
 That's it! But still, we advise you to read the documentation below to better understand how the project is structured.
 
 ## Technical setup
 
 ### GitHub
-
-#### Apps & Actions
-
-- [CodeCov](https://github.com/marketplace/codecov): code coverage reports _(we have CodeQL in addition in the CI/CD... pick just one in the future)_
-- [Lighthouse](https://github.com/apps/lighthouse-ci): accessibility reports _(we also have an accessibility plugin for Storybook, but this one only helps while developping)_
-
-#### Environments
-
-You must configure 1 environment in the CI/CD settings:
-
-- `prod` (to restrict to `main` branch only)
 
 #### Secrets
 
@@ -87,7 +89,8 @@ The following ones must be repository secrets (not environment ones):
 - `CLEVER_APP_ID_PRODUCTION`: [GENERATED] _(format `app_{uuid}`, can be retrieved into the Clever Cloud interface)\_
 - `CLEVER_TOKEN`: [GENERATED] _(can be retrieved from `clever login`, but be warned it gives wide access)_
 - `CLEVER_SECRET`: [GENERATED] _(can be retrieved from `clever login`, but be warned it gives wide access)_
-- `LHCI_GITHUB_APP_TOKEN`: [SECRET]
+- `HF_TOKEN`: [GENERATED] _(a "Read" access token from https://huggingface.co/settings/tokens, so downloading the pretrained models is not throttled from the shared IPs of the CI)_
+- `LHCI_GITHUB_APP_TOKEN`: [OPTIONAL] _(only if the Lighthouse accessibility step of the CI/CD is enabled again, it is commented for now)_
 - `SENTRY_URL`: [SECRET] _(format `https://xxx.yyy.zzz/`)_
 - `SENTRY_AUTH_TOKEN`: [SECRET]
 - `SENTRY_ORG`: [SECRET]
@@ -149,11 +152,11 @@ Create into the Clever Cloud Paris region both:
 
 - Enable into settings:
   - `Zero downtime deployment`
-  - `Sticky sessions`` (will help with assistant session history since not in database)
+  - `Sticky sessions` (will help with assistant session history since not in database)
   - `Enable dedicated build instance` with `XL` plan (otherwise the build is so slow even if only getting from another Docker image)
   - `Cancel ongoing deployment on new push`
 
-2. PostgresSQL `v15` named `etabli` (at least a plan with 3 Go of storage)
+2. PostgreSQL `v18` named `etabli` (at least a plan with 3 Go of storage)
 
 - Enable the disk encryption at creation
 
@@ -192,10 +195,16 @@ For each build and runtime (since they are shared), you should have set some env
 - `PORT`: `3000` _(since Clever Cloud has a default value for this variable we have to override it)_
 - `NODE_OPTIONS`: `--max-old-space-size=1536` _(since we do some exports that fetch the whole database with post-processing, we expliticly tells Node.js our memory capacity (in this case we have 2 GB, but minus a few for Docker memory usage and minus the free memory to allocate))_
 - `APP_MODE`: `prod` _(can be `dev` in case you would like to deploy a development environment)_
-- `DATABASE_URL`: `$POSTGRESQL_ADDON_URI` _(you must copy/paste the value of `$POSTGRESQL_ADDON_URI` provided by Clever Cloud, and append `?sslmode=no-verify` as query parameter since they use a self-signed certificate. Indeed, since Prisma v7 the usage of `sslmode=prefer` is no longer possible)_
+- `DATABASE_URL`: `$POSTGRESQL_ADDON_URI` _(you must copy/paste the value of `$POSTGRESQL_ADDON_URI` provided by Clever Cloud, and append `?sslmode=no-verify&schema=etabli` as query parameters. The first one since they use a self-signed certificate (since Prisma v7 the usage of `sslmode=prefer` is no longer possible). The second one so tables are into a dedicated `etabli` schema instead of `public` (to which every role of a shared server has access), migrations and the application both read it from this URL)_
+- `DATABASE_POOL_MAX`: [OPTIONAL] _(maximum of database connections opened by the application, `12` by default. It must stay under the connections limit of the database plan, keeping a few for migrations and manual access)_
+- `APP_HOST`: [OPTIONAL] _(address where the startup script `start-and-wait-to-init.sh` reaches the server to know it is ready and then call `/api/init`, it defaults to `172.17.0.2` in the `Dockerfile`. If the server is never seen as ready, set the address the container listens on)_
 - `MAINTENANCE_API_KEY`: [SECRET] _(random string that can be generated with `openssl rand -base64 32`. Note this is needed to perform maintenance through dedicated API endpoints)_
 - `MISTRAL_API_KEY`: [SECRET] _(you can create an API key from your MistralAI "La plateforme" account)_
 - `LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND`: [TO_DEFINE] _(by default the MistralAI platform has a limit of `5` request per second, but they may increase this limit on-demand. If so, you can increase the rate limit here to parallelize underlying requests)_
+- `DATAFORSEO_LOGIN`: [OPTIONAL] _(API login to retrieve the reputation of domains with the manual `domain reputation` command, each call is charged)_
+- `DATAFORSEO_PASSWORD`: [OPTIONAL] _(API password that goes with `DATAFORSEO_LOGIN`)_
+- `MAXIMUM_DOMAINS_PER_RUN`: [OPTIONAL] _(limit of domains processed by each step of the data update so a run fits in the night, the oldest ones first and without limit by default. `6000` allows going over 60k domains with 4 runs per week)_
+- `MAXIMUM_INITIATIVES_PER_RUN`: [OPTIONAL] _(limit of initiatives computed by a run, which also limits what is sent to the LLM. Without limit by default)_
 - `CHROMIUM_MAXIMUM_CONCURRENCY`: [TO_DEFINE] _(by default it will be `1` but it takes a long time when analyzing thousands of websites through the headless Chromium. After some testing we think on Clever Cloud having `4` is fine for the `S` plan (and `8` for `XL` plan for a quick test to speed things up), and locally it will depend on your hardware. Consider to lower the value when having more than 10% of analyses timed out)_
 - `SEMGREP_PER_FILE_MEMORY_LIMIT_IN_MB`: [TO_DEFINE] _(semgrep will skip analyzing a specific file if it reaches this limit (and pass to the next one), we advise you to set it to 50% of the memory capacity of the server)_
 - `NEXT_PUBLIC_APP_BASE_URL`: [TO_DEFINE] _(must be the root URL to access the application, format `https://xxx.yyy.zzz`)_
@@ -268,7 +277,7 @@ Just download the database backup from the Clever Cloud interface and run it loc
 - Terminal 1:
 
 ```sh
-docker run -it --rm -p 15432:5432 --name tmp_postgres -e POSTGRES_PASSWORD=postgres -v $(pwd)/${BACKUP_FILENAME}.pgsql:/backup.pgsql postgres
+docker run -it --rm -p 15432:5432 --name tmp_postgres -e POSTGRES_PASSWORD=postgres -v $(pwd)/${BACKUP_FILENAME}.pgsql:/backup.pgsql pgvector/pgvector:pg18
 ```
 
 - Terminal 2:
@@ -278,6 +287,8 @@ docker exec -it tmp_postgres bash
 pg_restore -U postgres -d postgres --no-owner -v /backup.pgsql
 psql -U postgres -d postgres
 ```
+
+_Note: the image must provide the `vector` extension (a plain `postgres` image cannot restore the tables having embeddings), and its major version must be at least the one of the backup._
 
 _Note: sometimes `pg_restore` will fail creating the `public` schema despite having the command to. Create it manually through DBeaver within the database and rerun the `pg_restore` command to make it successful._
 
@@ -427,4 +438,4 @@ It has been written into [TECHNICAL_ARCHITECTURE_DOCUMENT.md](./TECHNICAL_ARCHIT
 
 ## Reporting security issue
 
-If you identify a security issue or have any security concerns, please inform us immediately by opening an [issue](https://github.com/betagouv/etabli/issues) as specified into [our security recommandations](https://www.mediateur-public.fr/.well-known/security.txt).
+If you identify a security issue or have any security concerns, please inform us immediately by opening an [issue](https://github.com/betagouv/etabli/issues) as specified into [our security recommandations](https://etabli.incubateur.net/.well-known/security.txt).

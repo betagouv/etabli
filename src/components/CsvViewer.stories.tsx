@@ -5,6 +5,7 @@ import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { CsvViewer } from '@etabli/src/components/CsvViewer';
 import { initiatives } from '@etabli/src/fixtures/initiative';
 import { initiativesToCsv } from '@etabli/src/utils/csv';
+import { formatOrganizationPath } from '@etabli/src/utils/organization';
 
 type ComponentType = typeof CsvViewer;
 const { generateMetaDefault, prepareStory } = StoryHelperFactory<ComponentType>();
@@ -23,7 +24,12 @@ const Template: StoryFn<ComponentType> = (args) => {
 
 const InitiativesExampleStory = Template.bind({});
 InitiativesExampleStory.args = {
-  data: initiativesToCsv(initiatives),
+  data: initiativesToCsv(
+    initiatives.map((initiative) => ({
+      ...initiative,
+      organizations: initiative.organizations.map((organization) => formatOrganizationPath(organization)),
+    }))
+  ),
 };
 InitiativesExampleStory.parameters = {};
 InitiativesExampleStory.play = async ({ canvasElement }) => {

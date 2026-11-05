@@ -1,15 +1,11 @@
-import { useTheme } from '@mui/material/styles';
-import useMediaQuery from '@mui/material/useMediaQuery';
-import { useLocalStorage } from 'usehooks-ts';
-
 export enum ListDisplay {
   GRID = 'grid',
   TABLE = 'table',
 }
 
-export function useLocalStorageListDisplay() {
-  const muiTheme = useTheme();
-  const breakpointUp = useMediaQuery(muiTheme.breakpoints.up('md'));
+// Kept in a cookie and not in the browser storage, so the server renders directly the display chosen by the visitor
+export const listDisplayCookieName = 'listDisplay';
 
-  return useLocalStorage<ListDisplay>('listDisplay', !breakpointUp ? ListDisplay.TABLE : ListDisplay.GRID);
+export function parseListDisplay(value: string | null | undefined): ListDisplay {
+  return value === ListDisplay.TABLE ? ListDisplay.TABLE : ListDisplay.GRID;
 }

@@ -130,24 +130,40 @@ model RawDomain {
   redirectDomainTargetId   String? @unique @db.Uuid
 
   indexableFromRobotsTxt       Boolean?
-  updateIndexableFromRobotsTxt Boolean  @default(true)
+  updateIndexableFromRobotsTxt Boolean   @default(true)
+  lastRobotsTxtCheckAt         DateTime?
   robotsTxtContent             String?
 
-  wildcardCertificate       Boolean?
-  updateWildcardCertificate Boolean  @default(true)
-  certificateContent        String?
+  wildcardCertificate           Boolean?
+  updateWildcardCertificate     Boolean   @default(true)
+  lastCertificateCheckAt        DateTime?
+  certificateContent            String?
+  certificateAuthorizationError String? // Why the certificate is not trusted, internal insight that must not be exposed
+  certificateExpiresAt          DateTime?
+  tlsProtocol                   String?
+  acceptsTls10                  Boolean? // Null when it could not be told
+  acceptsTls11                  Boolean?
+  tlsIssues                     String[]  @default([])
+  tlsLevel                      Int? // See `issueLevels`, null when the certificate has not been retrieved
 
-  websiteRawContent        String?  @db.Text
-  websiteTitle             String?  @db.Text
-  websiteAnotherPageTitle  String?  @db.Text
-  websiteInferredName      String?  @db.Text
+  websiteRawContent        String?   @db.Text
+  websiteTitle             String?   @db.Text
+  websiteHasLegalNotice    Boolean? // A link has been found on the home page, it does not tell anything about its content
+  websiteHasPrivacyPolicy  Boolean?
+  websiteAnotherPageTitle  String?   @db.Text
+  websiteInferredName      String?   @db.Text
   websiteHasContent        Boolean?
   websiteHasStyle          Boolean?
   websiteContentIndexable  Boolean?
   websitePseudoFingerprint String?
   probableRepositoryUrl    String?
   probableRepositoryDomain String?
-  updateWebsiteData        Boolean  @default(true)
+  updateWebsiteData        Boolean   @default(true)
+  lastWebsiteDataCheckAt   DateTime?
+
+  isProtected                Boolean @default(false) // A firewall or an anti-bot service answered instead of the website
+  protection                 String? // Which one, see `detectWebsiteProtection()`
+  updateProtectedWebsiteData Boolean @default(false) // To be processed again with the stealth browser
 
   mainSimilarDomainId     String? @db.Uuid
   updateMainSimilarDomain Boolean @default(true)
@@ -164,6 +180,160 @@ model RawDomain {
   mainSimilarDomain          RawDomain?                  @relation("SimilarDomains", fields: [mainSimilarDomainId], references: [id], onDelete: SetNull)
   similarDomains             RawDomain[]                 @relation("SimilarDomains")
   RawDomainsOnInitiativeMaps RawDomainsOnInitiativeMaps?
+}
+
+// Internal inventory of what runs on public domains, including those not listed as initiatives (technical domains, websites refusing
+// being indexed...). It answers "who should be contacted when this software has a vulnerability", so it must never be exposed
+// publicly (API, datasets, LLM documents...), that is why it is independent from initiatives and their tables
+model DomainInventory {
+  domain         String    @id
+  lastCheckAt    DateTime?
+  lastCheckError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  DomainTechnology DomainTechnology[]
+}
+
+// Each retrieval is charged, so it's never part of the recurrent job: rows are flagged manually and processed by a manual command
+model DomainReputation {
+  domain                   String    @id
+  update                   Boolean   @default(true)
+  rank                     Int? // From 0 to 100
+  backlinks                BigInt? // Can exceed a 32-bit integer, like the 3 others
+  referringPages           BigInt?
+  referringDomains         Int?
+  referringDomainsNofollow Int?
+  referringMainDomains     Int?
+  referringIps             Int?
+  backlinksSpamScore       Int?
+  brokenBacklinks          BigInt?
+  brokenPages              BigInt?
+  firstSeenAt              DateTime?
+  // Number of links per category, the last 2 are limited to the 10 main ones by the provider
+  linksSemanticLocations   Json?
+  linksTypes               Json?
+  linksPlatformTypes       Json?
+  linksCountries           Json?
+  linksTopLevelDomains     Json?
+  summary                  Json? // The whole statistics since all of them are paid, it does not contain any linking website and must not be exposed
+  lastCheckAt              DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([update])
+}
+
+// HTTP security headers grade from Mozilla HTTP Observatory, only the grade is public and never `tests` since it lists weaknesses
+model DomainHttpSecurity {
+  domain           String    @id
+  update           Boolean   @default(true)
+  grade            String? // From A+ to F
+  score            Int?
+  testsPassed      Int?
+  testsFailed      Int?
+  testsQuantity    Int?
+  statusCode       Int?
+  algorithmVersion Int?
+  tests            Json? // Result of each test by name
+  scannedAt        DateTime?
+  lastCheckAt      DateTime?
+  lastCheckError   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([update])
+}
+
+// What public DNS records of the root domain tell about who can send emails in its name
+model DomainMailSecurity {
+  domain       String    @id
+  rootDomain   String?
+  hasMx        Boolean?
+  txtRecords   String[]  @default([]) // SPF ones only
+  dmarcRecords String[]  @default([])
+  usesMail     Boolean?
+  issues       String[]  @default([])
+  level        Int? // See `issueLevels`
+  lastCheckAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+// What can be observed from DNS records and stored home pages, it says nothing about what the backend of a website calls
+model DomainSovereignty {
+  domain          String    @id
+  ipAddress       String?
+  asn             Int?
+  asnName         String?
+  asnCountry      String?
+  cnames          String[]
+  mailHosts       String[]
+  thirdPartyHosts String[]
+  level           Int? // From 0 to 3 (see `foreignDependencyLevels`)
+  dependencies    String[]
+  lastCheckAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model DomainTechnology {
+  domain     String
+  technology String
+  version    String?
+  cpe        String?
+  confidence Int
+
+  createdAt DateTime @default(now())
+
+  inventory DomainInventory @relation(fields: [domain], references: [domain], onDelete: Cascade)
+
+  @@id([domain, technology])
+  @@index([technology])
+}
+
+// Public organizations from the "Annuaire de l'administration" maintained by the DILA (https://lannuaire.service-public.gouv.fr)
+// They form a tree (ministries, directions, services...) but most of them are standalone (town halls, local offices...)
+model Organization {
+  id                   String   @id @default(uuid()) @db.Uuid
+  dilaId               String   @unique @db.Uuid
+  parentOrganizationId String?  @db.Uuid
+  ancestorIds          String[] @db.Uuid // Denormalized ancestors from the root to the direct parent, to filter a whole subtree or display the path without recursive queries
+  level                Int // 1 for a root organization
+  name                 String
+  acronym              String?
+  domains              String[] // Normalized hostnames (without `www.`) the organization declares as websites
+  directoryUrl         String? // The organization page on the DILA directory
+  localServiceType     String? // For local services, their type in the DILA directory (`mairie`, `ccas`, `epci`...)
+  isTerritorial        Boolean  @default(false) // Its parent only tells where it is (e.g. a town hall in a department), it is not an authority above it
+  initiativesCount     Int      @default(0) // Number of initiatives bound to this organization or to any of its descendants (refreshed when binding initiatives)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  parentOrganization         Organization?                @relation("ParentChildren", fields: [parentOrganizationId], references: [id], onDelete: SetNull)
+  childrenOrganizations      Organization[]               @relation("ParentChildren")
+  OrganizationsOnInitiatives OrganizationsOnInitiatives[]
+
+  @@index([parentOrganizationId])
+  @@index([ancestorIds], type: Gin)
+  @@index([initiativesCount])
+}
+
+// Forge accounts (or entire forges) of public organizations, from the code.gouv.fr sources
+// They give us a direct link between repositories and the DILA directory (`pso_id`)
+model RepositoryOrganization {
+  id     String  @id @default(uuid()) @db.Uuid
+  url    String  @unique // Either a forge (`https://gitlab.inria.fr`) or an account on a forge (`https://github.com/betagouv`), lowercased and without trailing slash
+  dilaId String? @db.Uuid // Not a foreign key since the code.gouv.fr list can reference an organization not (or no longer) in the DILA directory
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 enum ToolCategory {
@@ -250,6 +420,17 @@ model BusinessUseCasesOnInitiatives {
   @@id([businessUseCaseId, initiativeId])
 }
 
+model OrganizationsOnInitiatives {
+  organizationId String @db.Uuid
+  initiativeId   String @db.Uuid
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  initiative   Initiative   @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, initiativeId])
+  @@index([initiativeId])
+}
+
 model RawDomainsOnInitiativeMaps {
   rawDomainId     String  @unique @db.Uuid
   initiativeMapId String  @db.Uuid
@@ -289,14 +470,25 @@ model InitiativeMap {
 }
 
 model Initiative {
-  id                 String                   @id @default(uuid()) @db.Uuid
-  originId           String?                  @unique @db.Uuid
-  name               String
-  description        String
-  websites           String[]
-  repositories       String[]
-  functionalUseCases FunctionalUseCase[]
-  searchableText     Unsupported("tsvector")? // based on `name` + `description` taking into account french and english (see migration)
+  id                     String                   @id @default(uuid()) @db.Uuid
+  originId               String?                  @unique @db.Uuid
+  name                   String
+  description            String
+  websites               String[]
+  repositories           String[]
+  functionalUseCases     FunctionalUseCase[]
+  reputationRank         Int? // Best rank of its websites, or computed from repositories when having no website. Only stored to sort the directory on it
+  repositoryStars        Int? // Best one of its repositories
+  httpSecurityGrade      String? // Worst one of its websites
+  tlsLevel               Int? // Worst one of its websites (see `issueLevels`)
+  tlsIssues              String[]                 @default([]) // Those of all its websites
+  mailSecurityLevel      Int? // Worst one of its websites (see `issueLevels`)
+  mailIssues             String[]                 @default([]) // Those of all its websites
+  hasLegalNotice         Boolean? // `false` as soon as one of its websites has none
+  hasPrivacyPolicy       Boolean? // `false` as soon as one of its websites has none
+  foreignDependencyLevel Int? // Worst one of its websites
+  searchableText         Unsupported("tsvector")? // based on `name` + `description` taking into account french and english (see migration)
+  computedAt             DateTime? // When the LLM last wrote this sheet, whereas `updatedAt` moves with any other change of the row
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
@@ -306,4 +498,21 @@ model Initiative {
   ToolsOnInitiatives            ToolsOnInitiatives[]
   BusinessUseCasesOnInitiatives BusinessUseCasesOnInitiatives[]
   InitiativeLlmDocument         InitiativeLlmDocument?
+  OrganizationsOnInitiatives    OrganizationsOnInitiatives[]
+  RedirectionsTo                InitiativeRedirection[]
+
+  @@index([reputationRank])
+}
+
+// Addresses of removed sheets lead to the one now describing the same website or repository, so readers and search engines are not lost.
+// It always points to the final sheet: when a target is removed, its redirections move to its own replacement or disappear
+model InitiativeRedirection {
+  fromInitiativeId String   @id @db.Uuid // The removed sheet may no longer exist
+  toInitiativeId   String   @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+
+  to Initiative @relation(fields: [toInitiativeId], references: [id], onDelete: Cascade)
+
+  @@index([toInitiativeId])
 }

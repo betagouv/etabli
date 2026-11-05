@@ -9,6 +9,7 @@ import { filterWithScoreThreshold } from '@etabli/src/features/llm';
 import { DocumentInitiativeTemplateSchema } from '@etabli/src/gpt/template';
 import { getServerTranslation } from '@etabli/src/i18n';
 import { rankDocumentsWithCrossEncoder } from '@etabli/src/utils/cross-encoder';
+import { withInitiativeSlug } from '@etabli/src/utils/initiative-link';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 
 export const DEFAULT_DOCUMENT_SEPARATOR = '\n\n';
@@ -105,7 +106,10 @@ export async function formatDocuments({
       // Add the formatted URL so the assistant does not make mistakes while formatting it
       const updatedPageContent = JSON.stringify({
         // We use object keys according to the user language to make sure the LLM will not try to use another language
-        [t('llm.sheet.keys.link')]: linkRegistry.get('initiative', { initiativeId: id }, { absolute: true }),
+        [t('llm.sheet.keys.link')]: withInitiativeSlug(
+          linkRegistry.get('initiative', { initiativeId: id }, { absolute: true }),
+          jsonSheetWithoutId.name
+        ),
         [t('llm.sheet.keys.name')]: jsonSheetWithoutId.name,
         [t('llm.sheet.keys.description')]: jsonSheetWithoutId.description,
         [t('llm.sheet.keys.websites')]: jsonSheetWithoutId.websites,
@@ -113,6 +117,7 @@ export async function formatDocuments({
         [t('llm.sheet.keys.businessUseCases')]: jsonSheetWithoutId.businessUseCases,
         [t('llm.sheet.keys.functionalUseCases')]: jsonSheetWithoutId.functionalUseCases,
         [t('llm.sheet.keys.tools')]: jsonSheetWithoutId.tools,
+        [t('llm.sheet.keys.organizations')]: jsonSheetWithoutId.organizations || [],
       });
 
       return documentPrompt.withConfig({ runName: 'document_formatter' }).invoke({ ...document.metadata, page_content: updatedPageContent }, config);

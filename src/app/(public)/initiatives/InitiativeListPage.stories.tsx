@@ -1,5 +1,6 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { userEvent, within } from '@storybook/test';
+import { NuqsAdapter } from 'nuqs/adapters/react';
 
 import { ComponentProps, StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { playFindProgressBar } from '@etabli/.storybook/testing';
@@ -18,6 +19,15 @@ export default {
   ...generateMetaDefault({
     parameters: {},
   }),
+  // The mocked Next.js router does not reflect `router.push()` into `useSearchParams()`, so the Next.js adapter of `nuqs` reverted
+  // the URL state right after each change (the typed search was erased). This adapter relies on the browser history instead
+  decorators: [
+    (Story) => (
+      <NuqsAdapter>
+        <Story />
+      </NuqsAdapter>
+    ),
+  ],
 } as Meta<ComponentType>;
 
 const mswListInitiativesParameters = {
@@ -34,11 +44,7 @@ const defaultMswParameters = {
   },
 };
 
-const commonComponentProps: ComponentProps<ComponentType> = {
-  params: {
-    authorityId: 'b79cb3ba-745e-5d9a-8903-4a02327a7e01',
-  },
-};
+const commonComponentProps: ComponentProps<ComponentType> = {};
 
 async function playFindSearchInput(canvasElement: HTMLElement): Promise<HTMLElement> {
   return await within(canvasElement).findByPlaceholderText(/rechercher/i);
@@ -101,6 +107,12 @@ SearchLoadingWithLayoutStory.args = {
 SearchLoadingWithLayoutStory.parameters = {
   layout: 'fullscreen',
   counter: 0,
+  a11y: {
+    config: {
+      // While refreshing, the previous results are intentionally faded (and marked busy), so only their contrast is not checked
+      rules: [{ id: 'color-contrast', selector: '*:not([aria-busy="true"] *)' }],
+    },
+  },
   msw: {
     handlers: [
       getTRPCMock({
@@ -130,7 +142,7 @@ SearchLoadingWithLayoutStory.play = async ({ canvasElement }) => {
 
   await userEvent.type(searchInput, 'Ma belle recherche');
 
-  await playFindProgressBar(canvasElement, /liste/i);
+  await playFindProgressBar(canvasElement, /mise à jour des résultats/i);
 };
 
 export const SearchLoadingWithLayout = prepareStory(SearchLoadingWithLayoutStory, {

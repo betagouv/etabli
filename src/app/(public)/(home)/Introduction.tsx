@@ -7,7 +7,7 @@ import Image from 'next/image';
 import * as React from 'react';
 
 import style from '@etabli/src/app/(public)/(home)/Introduction.module.scss';
-import hero from '@etabli/src/assets/images/hero.png';
+import hero from '@etabli/src/assets/images/hero.webp';
 import { useSingletonExploreModal } from '@etabli/src/components/ExploreModal';
 import { IntroductionContainer } from '@etabli/src/components/IntroductionContainer';
 

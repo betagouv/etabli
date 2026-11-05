@@ -2,20 +2,27 @@ import { eachOfLimit } from 'async';
 import { parse } from 'csv-parse';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { subDays } from 'date-fns/subDays';
+import { subMonths } from 'date-fns/subMonths';
 import fsSync from 'fs';
 import fs from 'fs/promises';
 import https from 'https';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { FetchError } from 'node-fetch';
 import { ParseResultType, parseDomain } from 'parse-domain';
+import { chromium as stealthChromium } from 'patchright';
 import path from 'path';
-import { chromium } from 'playwright';
+import { Browser, chromium } from 'playwright';
 import robotsParser from 'robots-parser';
 import { PeerCertificate, TLSSocket } from 'tls';
 import z from 'zod';
 
-import { downloadFile } from '@etabli/src/common';
+import { downloadFile, isFileOutdated } from '@etabli/src/common';
+import { readOfficialCommunesRecords } from '@etabli/src/features/organization';
+import { normalizeHostname } from '@etabli/src/features/organization-matching';
+import { parseOfficialWebsites } from '@etabli/src/features/territory';
+import { acceptsTlsVersion } from '@etabli/src/features/tls-probe';
 import { getWebsiteData, getWebsiteDataResponse, guessWebsiteNameFromPageTitles } from '@etabli/src/features/website';
+import { detectWebsiteProtection } from '@etabli/src/features/website-protection';
 import { Prisma, RawDomain } from '@etabli/src/generated/prisma/client';
 import { LitePeerCertificateSchema } from '@etabli/src/models/entities/certificate';
 import { BusinessDomainError, unexpectedDomainRedirectionError } from '@etabli/src/models/entities/errors';
@@ -24,11 +31,23 @@ import { rawDomainTypeCsvToModel } from '@etabli/src/models/mappers/raw-domain';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { bitsFor } from '@etabli/src/utils/bits';
+import { BlockingCircuitBreaker, shuffle } from '@etabli/src/utils/circuit-breaker';
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
+import { classifyTlsIssues } from '@etabli/src/utils/domain-security-issues';
 import { formatArrayProgress } from '@etabli/src/utils/format';
 import { containsHtml } from '@etabli/src/utils/html';
-import { chomiumMaxConcurrency, handlePrismaErrorDueToContent, handleReachabilityError } from '@etabli/src/utils/request';
+import { detectLegalLinksFromDocument } from '@etabli/src/utils/legal-links';
+import { assertPublicHost } from '@etabli/src/utils/public-address';
+import {
+  chomiumMaxConcurrency,
+  handlePrismaErrorDueToContent,
+  handleReachabilityError,
+  maximumDomainsPerRun,
+  readResponseTextWithLimit,
+} from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
+import { startVirtualDisplay } from '@etabli/src/utils/virtual-display';
+import { getDocumentVisibleText, getWebsiteVisibleText, slimWebsiteDocument, slimWebsiteHtml } from '@etabli/src/utils/website-html';
 
 const __root_dirname = process.cwd();
 
@@ -65,7 +84,7 @@ export const CsvDomainSchema = z
     name: z.string().min(1).max(500), // The name corresponds to the hostname of the domain `hello.aaa.com` in case of `http://hello.aaa.com:443/`
     http_status: z.string().or(z.number().int()), // Integer is an exception in the list but taking it into account (it's not even a 200 code)
     https_status: z.string().or(z.number().int()), // Integer is an exception in the list but taking it into account (it's not even a 200 code)
-    SIREN: z.string(),
+    SIREN: z.coerce.string(), // The CSV parser casts it as a number when filled
     type: CsvDomainTypeSchema,
     sources: z.string(),
     script: z.string(),
@@ -74,9 +93,59 @@ export const CsvDomainSchema = z
 export type CsvDomainSchemaType = z.infer<typeof CsvDomainSchema>;
 
 export async function saveDomainCsvFile(cache = true) {
-  if (!cache || !fsSync.existsSync(localCsvPath)) {
+  if (!cache || (await isFileOutdated(localCsvPath))) {
     await downloadFile(latestRemoteCsvUrl, localCsvPath);
   }
+}
+
+// Filter the best as we can all domains that are not for production:
+// - some technical patterns are regularly used and isolated by separator characters (".", "-")
+// - temporary websites (for review apps for example) can be tricky to catch due to random pattern `app-x2gh58d.example.com` (but since temporary they should not have returned a 200 response)
+const knownTechnicalPatterns: string[] = [
+  'api',
+  'qa',
+  'preview',
+  'dev',
+  'staging',
+  'alpha',
+  'beta',
+  'test',
+  'tst',
+  'recette',
+  'rec',
+  'demo',
+  'review',
+  'preprod',
+  'tmp',
+  'pr',
+  'chore',
+  'feat',
+  'fix',
+  'ci',
+  'deploy',
+  'mail',
+  'auth',
+  'oauth',
+  'link',
+  'status',
+  'ftp',
+  'login',
+  'wiki',
+  'cdn',
+  'forum',
+];
+
+// A domain we cannot analyze is considered as technical
+export function isTechnicalDomain(domainName: string): boolean {
+  const parsedDomain = parseDomain(domainName);
+  if (parsedDomain.type !== ParseResultType.Listed) {
+    return true;
+  }
+
+  // Only look at subdomains because some of the main parts could contain technical patterns (even if low probability)
+  const isolatedParts: string[] = parsedDomain.subDomains.join('.').split(/\.|-|_/);
+
+  return knownTechnicalPatterns.some((pattern) => isolatedParts.includes(pattern));
 }
 
 export async function formatDomainsIntoDatabase() {
@@ -109,56 +178,32 @@ export async function formatDomainsIntoDatabase() {
       continue;
     }
 
-    // Now filter the best as we can all domains that are not for production:
-    // - some technical patterns are regularly used and isolated by separator characters (".", "-")
-    // - temporary websites (for review apps for example) can be tricky to catch due to random pattern `app-x2gh58d.example.com` (but since temporary they should not have returned a 200 response)
-    const knownTechnicalPatterns: string[] = [
-      'api',
-      'qa',
-      'preview',
-      'dev',
-      'staging',
-      'alpha',
-      'beta',
-      'test',
-      'tst',
-      'recette',
-      'rec',
-      'demo',
-      'review',
-      'preprod',
-      'tmp',
-      'pr',
-      'chore',
-      'feat',
-      'fix',
-      'ci',
-      'deploy',
-      'mail',
-      'auth',
-      'oauth',
-      'link',
-      'status',
-      'ftp',
-      'login',
-      'wiki',
-      'cdn',
-      'forum',
-    ];
-
-    // Only look at subdomains because some of the main parts could contain technical patterns (even if low probability)
-    const parsedDomain = parseDomain(csvDomain.name);
-    if (parsedDomain.type !== ParseResultType.Listed) {
-      continue;
-    }
-
-    const { subDomains } = parsedDomain;
-    const isolatedParts: string[] = subDomains.join('.').split(/\.|-|_/);
-    if (knownTechnicalPatterns.some((pattern) => isolatedParts.includes(pattern))) {
+    if (isTechnicalDomain(csvDomain.name)) {
       continue;
     }
 
     csvDomains.push(csvDomain);
+  }
+
+  // The list is not complete, and its reachability statuses can be outdated since they come from a single check. The websites declared
+  // to the administration are official so they are all kept, processing them will tell if they can be reached
+  const knownHostnames = new Set(csvDomains.map((csvDomain) => normalizeHostname(csvDomain.name)));
+  for (const officialWebsite of parseOfficialWebsites(await readOfficialCommunesRecords())) {
+    if (!knownHostnames.has(normalizeHostname(officialWebsite.hostname))) {
+      knownHostnames.add(normalizeHostname(officialWebsite.hostname));
+
+      csvDomains.push(
+        CsvDomainSchema.parse({
+          name: officialWebsite.hostname,
+          http_status: '',
+          https_status: '',
+          SIREN: officialWebsite.siren,
+          type: officialWebsite.type === 'commune' ? 'Commune' : officialWebsite.type === 'epci' ? 'EPCI' : 'Collectivité',
+          sources: 'Présence Numérique des Territoires (ANCT)',
+          script: '',
+        })
+      );
+    }
   }
 
   await prisma.$transaction(
@@ -284,7 +329,8 @@ export async function formatDomainsIntoDatabase() {
       for (const updatedLiteRawDomain of diffResult.updated) {
         watchGracefulExitInLoop();
 
-        const updatedRawDomain = await tx.rawDomain.update({
+        // None of these values is given to the LLM, so the initiative sheet does not have to be computed again (it is charged)
+        await tx.rawDomain.update({
           where: {
             name: updatedLiteRawDomain.name,
           },
@@ -295,27 +341,9 @@ export async function formatDomainsIntoDatabase() {
             sources: updatedLiteRawDomain.sources,
           },
           select: {
-            RawDomainsOnInitiativeMaps: {
-              select: {
-                initiativeMapId: true,
-              },
-            },
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
           },
         });
-
-        if (updatedRawDomain.RawDomainsOnInitiativeMaps) {
-          await tx.initiativeMap.update({
-            where: {
-              id: updatedRawDomain.RawDomainsOnInitiativeMaps.initiativeMapId,
-            },
-            data: {
-              update: true,
-            },
-            select: {
-              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-            },
-          });
-        }
       }
     },
     {
@@ -328,7 +356,7 @@ export async function formatDomainsIntoDatabase() {
 export async function updateRobotsTxtOnDomains() {
   const rawDomains = await prisma.rawDomain.findMany({
     where: {
-      updateIndexableFromRobotsTxt: true,
+      OR: [{ updateIndexableFromRobotsTxt: true }, { lastRobotsTxtCheckAt: { lt: subDays(new Date(), recheckDelayInDays) } }],
       redirectDomainTargetName: null,
       AND: {
         OR: [
@@ -349,11 +377,36 @@ export async function updateRobotsTxtOnDomains() {
       id: true,
       name: true,
     },
+    // The check date does not move when a domain is unreachable, so the ones that failed come last: otherwise they took the head of each
+    // run and, being more than the limit, reachable domains were never checked again. Each step resets the error on success
+    orderBy: [
+      {
+        lastUpdateAttemptWithReachabilityError: {
+          sort: 'asc',
+          nulls: 'first',
+        },
+      },
+      {
+        lastRobotsTxtCheckAt: {
+          sort: 'asc',
+          nulls: 'first',
+        },
+      },
+    ],
+    take: maximumDomainsPerRun,
   });
 
   let networkFailures: number = 0;
-  for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
+  const circuitBreaker = new BlockingCircuitBreaker(standardCircuitBreakerWindow, standardCircuitBreakerMaximumBlockedShare);
+
+  for (const [rawDomainIndex, rawDomain] of Object.entries(shuffle(rawDomains))) {
     watchGracefulExitInLoop();
+
+    if (circuitBreaker.isOpen()) {
+      console.warn(`stopping the robots.txt processing since most of the attempts are refused, remaining domains will be processed next time`);
+
+      break;
+    }
 
     console.log(
       `try to process robots.txt for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(
@@ -367,14 +420,21 @@ export async function updateRobotsTxtOnDomains() {
       const robotsUrl = `${rootUrl.toString()}robots.txt`;
 
       let result: Response;
+      let body: string;
       try {
+        await assertPublicHost(rootUrl.hostname);
+
         result = await fetch(robotsUrl, {
           signal: AbortSignal.timeout(2000), // Tiny timeout otherwise it slows down the whole processing (may be more than a minute of timeout)
         });
+
+        // The timeout also covers the body, so it may fail here for a website answering slowly
+        body = await readResponseTextWithLimit(result, maximumRobotsTxtBytes);
       } catch (error) {
         if (error instanceof Error) {
           await handleReachabilityError(rawDomain, error);
           networkFailures++;
+          circuitBreaker.record(true);
 
           // Skip this one to perform other domains
           continue;
@@ -389,9 +449,38 @@ export async function updateRobotsTxtOnDomains() {
         throw new BusinessDomainError(unexpectedDomainRedirectionError, resultingUrl.hostname);
       }
 
-      if (result.status >= 200 && result.status < 300) {
-        const body = await result.text();
+      const protection = detectWebsiteProtection({
+        status: result.status,
+        headers: Object.fromEntries(result.headers.entries()),
+        title: null,
+        html: body,
+      });
 
+      circuitBreaker.record(!!protection);
+
+      if (protection) {
+        console.log(`the robots.txt of ${rawDomain.name} is protected by "${protection}", it will be processed with the stealth browser`);
+
+        await prisma.rawDomain.update({
+          where: {
+            id: rawDomain.id,
+          },
+          data: {
+            indexableFromRobotsTxt: null,
+            updateIndexableFromRobotsTxt: false,
+            lastRobotsTxtCheckAt: new Date(),
+            robotsTxtContent: null,
+            isProtected: true,
+            protection: protection,
+            updateProtectedWebsiteData: true,
+            lastUpdateAttemptWithReachabilityError: null,
+            lastUpdateAttemptReachabilityError: null,
+          },
+          select: {
+            id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+          },
+        });
+      } else if (result.status >= 200 && result.status < 300) {
         // By default we expect the website to explicitly opt out from crawling (because by default, having no robots.txt to be fully indexed is easier)
         // Note: the HTML tag `<meta name="robots" content="noindex">` may be used to opt out, we check this into the website data processing
         let indexableAccordingToRobotsTxt = true;
@@ -414,6 +503,7 @@ export async function updateRobotsTxtOnDomains() {
           data: {
             indexableFromRobotsTxt: indexableAccordingToRobotsTxt,
             updateIndexableFromRobotsTxt: false,
+            lastRobotsTxtCheckAt: new Date(),
             robotsTxtContent: body,
             redirectDomainTargetName: null,
             redirectDomainTarget: {
@@ -435,6 +525,7 @@ export async function updateRobotsTxtOnDomains() {
           data: {
             indexableFromRobotsTxt: true,
             updateIndexableFromRobotsTxt: false,
+            lastRobotsTxtCheckAt: new Date(),
             robotsTxtContent: null,
             redirectDomainTargetName: null,
             redirectDomainTarget: {
@@ -458,6 +549,7 @@ export async function updateRobotsTxtOnDomains() {
           data: {
             indexableFromRobotsTxt: null,
             updateIndexableFromRobotsTxt: false,
+            lastRobotsTxtCheckAt: new Date(),
             robotsTxtContent: null,
             lastUpdateAttemptWithReachabilityError: null,
             lastUpdateAttemptReachabilityError: null,
@@ -502,10 +594,8 @@ export async function updateRobotsTxtOnDomains() {
         });
 
         continue;
-      } else if (error instanceof Prisma.PrismaClientUnknownRequestError) {
-        handlePrismaErrorDueToContent(error);
       } else {
-        throw error;
+        handlePrismaErrorDueToContent(error);
       }
     }
 
@@ -517,7 +607,7 @@ export async function updateRobotsTxtOnDomains() {
 export async function updateWildcardCertificateOnDomains() {
   const rawDomains = await prisma.rawDomain.findMany({
     where: {
-      updateWildcardCertificate: true,
+      OR: [{ updateWildcardCertificate: true }, { lastCertificateCheckAt: { lt: subDays(new Date(), recheckDelayInDays) } }],
       redirectDomainTargetName: null,
       AND: {
         OR: [
@@ -538,11 +628,42 @@ export async function updateWildcardCertificateOnDomains() {
       id: true,
       name: true,
     },
+    // The check date does not move when a domain is unreachable, so the ones that failed come last: otherwise they took the head of each
+    // run and, being more than the limit, reachable domains were never checked again. Each step resets the error on success
+    orderBy: [
+      {
+        lastUpdateAttemptWithReachabilityError: {
+          sort: 'asc',
+          nulls: 'first',
+        },
+      },
+      {
+        lastCertificateCheckAt: {
+          sort: 'asc',
+          nulls: 'first',
+        },
+      },
+    ],
+    take: maximumDomainsPerRun,
   });
 
   let networkFailures: number = 0;
-  for (const [rawDomainIndex, rawDomain] of Object.entries(rawDomains)) {
+  const circuitBreaker = new BlockingCircuitBreaker(standardCircuitBreakerWindow, standardCircuitBreakerMaximumBlockedShare);
+
+  let isStopped = false;
+
+  // Most of the time is spent waiting for handshakes, so several domains are processed at once
+  await eachOfLimit(shuffle(rawDomains), certificateConcurrency, async (rawDomain, rawDomainIndex) => {
     watchGracefulExitInLoop();
+
+    if (isStopped) {
+      return;
+    } else if (circuitBreaker.isOpen()) {
+      isStopped = true;
+      console.warn(`stopping the certificates processing since most of the attempts are refused, remaining domains will be processed next time`);
+
+      return;
+    }
 
     console.log(
       `try to process SSL certificate for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(
@@ -551,29 +672,58 @@ export async function updateWildcardCertificateOnDomains() {
       )} (${networkFailures}/${rawDomains.length} network issues)`
     );
 
+    try {
+      await assertPublicHost(rawDomain.name);
+    } catch (error) {
+      if (error instanceof Error) {
+        await handleReachabilityError(rawDomain, error);
+        networkFailures++;
+
+        return;
+      }
+
+      throw error;
+    }
+
     let toSkip: boolean = false;
+    let isCertificateReceived = false;
+    let authorizationError: string | null = null;
+    let tlsProtocol: string | null = null;
     const certificate = await new Promise<PeerCertificate | null>((resolve, reject) => {
       const request = https.request(
         {
           host: rawDomain.name,
           port: 443, // Should always be this one
           method: 'GET',
+          rejectUnauthorized: false, // An invalid certificate is an information to keep, not a reason to give up
           signal: AbortSignal.timeout(2000), // Tiny timeout otherwise it slows down the whole processing (may be more than a minute of timeout)
         },
         (response) => {
-          if (response.socket instanceof TLSSocket) {
-            resolve(response.socket.getPeerCertificate());
-          } else {
-            resolve(null);
+          const socket = response.socket;
+          const peerCertificate = socket instanceof TLSSocket ? socket.getPeerCertificate() : null;
+
+          if (socket instanceof TLSSocket) {
+            authorizationError = socket.authorized ? null : String(socket.authorizationError);
+            tlsProtocol = socket.getProtocol();
           }
+
+          // The certificate is all we need. Without closing the response, the timeout would still fire on it and be taken for a network failure
+          isCertificateReceived = true;
+          response.destroy();
+          resolve(peerCertificate);
         }
       );
 
       request.on('error', async (error) => {
+        if (isCertificateReceived) {
+          return;
+        }
+
         try {
           if (error instanceof Error) {
             await handleReachabilityError(rawDomain, error);
             networkFailures++;
+            circuitBreaker.record(true);
 
             // Skip this one to perform other domains
             toSkip = true;
@@ -590,14 +740,32 @@ export async function updateWildcardCertificateOnDomains() {
     });
 
     if (toSkip) {
-      continue;
+      return;
     }
+
+    circuitBreaker.record(false);
+
+    // Only asked when the website answers, it would otherwise look like a refusal of these old versions
+    const [acceptsTls10, acceptsTls11] = certificate
+      ? await Promise.all([acceptsTlsVersion(rawDomain.name, 'TLSv1'), acceptsTlsVersion(rawDomain.name, 'TLSv1.1')])
+      : [null, null];
+    const certificateExpiresAt = certificate?.valid_to ? new Date(certificate.valid_to) : null;
+    const tlsAssessment = certificate
+      ? classifyTlsIssues({
+          authorizationError: authorizationError,
+          expiresAt: certificateExpiresAt,
+          acceptsTls10: acceptsTls10,
+          acceptsTls11: acceptsTls11,
+        })
+      : null;
 
     // The content has no defined structure, we just kept the library format to debug if needed main processed values as it comes
     let certificateContent: object | null = null;
     if (certificate) {
       const deepcopyContent = JSON.parse(JSON.stringify(certificate));
-      certificateContent = LitePeerCertificateSchema.parse(deepcopyContent); // To only keep wanted values (excluding unreadable values)
+      // To only keep wanted values (excluding unreadable values), an unexpected certificate format must not stop the whole processing
+      const parsedContent = LitePeerCertificateSchema.safeParse(deepcopyContent);
+      certificateContent = parsedContent.success ? parsedContent.data : null;
     }
 
     await prisma.rawDomain.update({
@@ -607,7 +775,15 @@ export async function updateWildcardCertificateOnDomains() {
       data: {
         wildcardCertificate: certificate?.issuer.CN === `*.${rawDomain.name}`,
         updateWildcardCertificate: !certificate,
+        lastCertificateCheckAt: certificate ? new Date() : undefined,
         certificateContent: certificateContent ? JSON.stringify(certificateContent) : null,
+        certificateAuthorizationError: authorizationError,
+        certificateExpiresAt: certificateExpiresAt,
+        tlsProtocol: tlsProtocol,
+        acceptsTls10: acceptsTls10,
+        acceptsTls11: acceptsTls11,
+        tlsIssues: tlsAssessment?.issues ?? [],
+        tlsLevel: tlsAssessment?.level ?? null,
         lastUpdateAttemptWithReachabilityError: null,
         lastUpdateAttemptReachabilityError: null,
       },
@@ -618,13 +794,48 @@ export async function updateWildcardCertificateOnDomains() {
 
     // Do not flood network (tiny delay since it's unlikely a lot consecutive domains would be managed by the same provider)
     await sleep(50);
-  }
+  });
 }
 
-export async function updateWebsiteDataOnDomains() {
+// The website is still the expected one despite its misconfiguration. It's not the case for a name not matching
+// the certificate (`ERR_TLS_CERT_ALTNAME_INVALID`), which is often a domain pointing to something else like a hosting provider
+export const readableCertificateErrors = [
+  'CERT_HAS_EXPIRED',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+];
+
+const maximumRobotsTxtBytes = 512 * 1024; // Search engines do not read more of it (Google stops at 500 KiB), a bigger one is not a real file
+
+// Websites rarely change, but a domain can be bought by someone else or start refusing being indexed
+const recheckDelayInDays = 20;
+const certificateConcurrency = 8; // Each domain is only a few handshakes, as for the mail checks it stays far from flooding
+const minimumMonthsBetweenSheetsForNewContent = 12;
+
+// Some domains are expected to be unreachable or refused, but not most of them
+const standardCircuitBreakerWindow = 200;
+const standardCircuitBreakerMaximumBlockedShare = 0.5;
+
+// Protected websites have been left aside by the standard process since their firewall refused it, this is a second chance with a
+// browser not revealing it is automated and a real user agent. It stops at challenges: no captcha is solved, and `robots.txt` is respected
+export async function updateProtectedWebsiteDataOnDomains() {
+  await updateWebsiteDataOnDomains({ stealth: true });
+}
+
+export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }) {
+  const stealth = !!options?.stealth;
+  const toProcessedData = () => ({
+    ...(stealth ? { updateProtectedWebsiteData: false } : { updateWebsiteData: false }),
+    lastWebsiteDataCheckAt: new Date(),
+  });
+
   const rawDomains = await prisma.rawDomain.findMany({
     where: {
-      updateWebsiteData: true,
+      ...(stealth
+        ? { updateProtectedWebsiteData: true }
+        : { OR: [{ updateWebsiteData: true }, { lastWebsiteDataCheckAt: { lt: subDays(new Date(), recheckDelayInDays) } }] }),
       redirectDomainTargetName: null,
       AND: {
         OR: [
@@ -644,7 +855,28 @@ export async function updateWebsiteDataOnDomains() {
     select: {
       id: true,
       name: true,
+      indexableFromRobotsTxt: true,
+      websiteTitle: true,
+      certificateAuthorizationError: true,
     },
+    // The oldest ones come first so what cannot be processed during a run is the first of the next one
+    // The check date does not move when a domain is unreachable, so the ones that failed come last: otherwise they took the head of each
+    // run and, being more than the limit, reachable domains were never checked again. Each step resets the error on success
+    orderBy: [
+      {
+        lastUpdateAttemptWithReachabilityError: {
+          sort: 'asc',
+          nulls: 'first',
+        },
+      },
+      {
+        lastWebsiteDataCheckAt: {
+          sort: 'asc',
+          nulls: 'first',
+        },
+      },
+    ],
+    take: maximumDomainsPerRun,
   });
 
   // Create a virtual JSDOM console when parsing fetched content because sometimes it fails
@@ -659,15 +891,34 @@ export async function updateWebsiteDataOnDomains() {
   });
 
   let networkFailures: number = 0;
-  const browser = await chromium.launch({
+  // Everything here has already been refused once, so a high rate is expected and only a near-total failure is meaningful
+  const circuitBreaker = stealth
+    ? new BlockingCircuitBreaker(50, 0.9)
+    : new BlockingCircuitBreaker(standardCircuitBreakerWindow, standardCircuitBreakerMaximumBlockedShare);
+  let circuitBreakerNotified = false;
+
+  const stopVirtualDisplay = stealth ? await startVirtualDisplay() : null;
+  const browser = (await (stealth ? stealthChromium : chromium).launch({
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-  });
+    headless: !stopVirtualDisplay,
+  })) as Browser;
   try {
     // Since the underlying content fetching is based on waiting a timeout on the website "to be sure" single page applications (SPA)
     // have rendered their content, it takes some time in the iteration are consecutives. Due to that we allowed the loop batching
     // Note: for a concurrency of 1 in average it was 6 seconds per website (since to 2 pages renderings with an await)
-    await eachOfLimit(rawDomains, chomiumMaxConcurrency, async function (rawDomain, rawDomainIndex) {
+    await eachOfLimit(shuffle(rawDomains), chomiumMaxConcurrency, async function (rawDomain, rawDomainIndex) {
       watchGracefulExitInLoop();
+
+      if (circuitBreaker.isOpen()) {
+        if (!circuitBreakerNotified) {
+          circuitBreakerNotified = true;
+          console.warn(
+            `stopping the website content processing since most of the attempts are refused, remaining domains will be processed next time`
+          );
+        }
+
+        return;
+      }
 
       console.log(
         `try to process website content for domain ${rawDomain.name} (${rawDomain.id}) ${formatArrayProgress(
@@ -681,7 +932,50 @@ export async function updateWebsiteDataOnDomains() {
 
         let websiteData: getWebsiteDataResponse;
         try {
-          websiteData = await getWebsiteData(browser, url.toString(), 5000);
+          const ignoreCertificateErrors =
+            !!rawDomain.certificateAuthorizationError && readableCertificateErrors.includes(rawDomain.certificateAuthorizationError);
+
+          await assertPublicHost(url.hostname);
+
+          // The `robots.txt` could not be read by the standard process, and it must allow us before going further
+          if ((stealth || ignoreCertificateErrors) && rawDomain.indexableFromRobotsTxt === null) {
+            const robotsUrl = `${url.toString()}robots.txt`;
+            const robotsData = await getWebsiteData(browser, robotsUrl, 5000, { asRegularBrowser: true, ignoreCertificateErrors });
+            const robotsContent = new JSDOM(robotsData.html).window.document.body.textContent ?? '';
+
+            if (!detectWebsiteProtection(robotsData) && (robotsData.status === 404 || (robotsData.status >= 200 && robotsData.status < 300))) {
+              const isIndexable = robotsData.status === 404 || robotsParser(robotsUrl, robotsContent).isAllowed(url.toString()) !== false;
+
+              await prisma.rawDomain.update({
+                where: {
+                  id: rawDomain.id,
+                },
+                data: {
+                  indexableFromRobotsTxt: isIndexable,
+                  robotsTxtContent: robotsData.status === 404 ? null : robotsContent,
+                },
+                select: {
+                  id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                },
+              });
+
+              if (!isIndexable) {
+                await prisma.rawDomain.update({
+                  where: {
+                    id: rawDomain.id,
+                  },
+                  data: toProcessedData(),
+                  select: {
+                    id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  },
+                });
+
+                return;
+              }
+            }
+          }
+
+          websiteData = await getWebsiteData(browser, url.toString(), 5000, { asRegularBrowser: stealth, ignoreCertificateErrors });
         } catch (error) {
           if (error instanceof BusinessDomainError) {
             // This is not only related to the network, so pass them to the upper catcher
@@ -689,12 +983,44 @@ export async function updateWebsiteDataOnDomains() {
           } else if (error instanceof Error) {
             await handleReachabilityError(rawDomain, error);
             networkFailures++;
+            circuitBreaker.record(true);
 
             // Skip this one to perform other domains
             return;
           } else {
             throw error;
           }
+        }
+
+        const protection = detectWebsiteProtection(websiteData);
+        circuitBreaker.record(!!protection);
+
+        if (protection) {
+          console.log(
+            stealth
+              ? `the stealth browser did not pass the "${protection}" protection of ${rawDomain.name}`
+              : `the website ${rawDomain.name} is protected by "${protection}", it will be processed with the stealth browser`
+          );
+
+          await prisma.rawDomain.update({
+            where: {
+              id: rawDomain.id,
+            },
+            data: {
+              isProtected: true,
+              protection: protection,
+              updateWebsiteData: false,
+              updateProtectedWebsiteData: !stealth,
+              lastWebsiteDataCheckAt: new Date(),
+              lastUpdateAttemptWithReachabilityError: null,
+              lastUpdateAttemptReachabilityError: null,
+            },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+            },
+          });
+
+          return;
         }
 
         if (websiteData.status >= 200 && websiteData.status < 300) {
@@ -718,6 +1044,7 @@ export async function updateWebsiteDataOnDomains() {
 
             const headContent = dom.window.document.head.innerHTML;
             const hasStyle = dom.window.document.querySelectorAll('link[rel="stylesheet"], style').length > 0;
+            const legalLinks = detectLegalLinksFromDocument(dom.window.document);
 
             // Since looking at text content would include content from `script` and `noscript` tags, we do proper analysis aside
             const deepcopyBody = dom.window.document.body.cloneNode(true) as HTMLElement;
@@ -769,7 +1096,7 @@ export async function updateWebsiteDataOnDomains() {
 
                     let anotherPageData: getWebsiteDataResponse;
                     try {
-                      anotherPageData = await getWebsiteData(browser, anotherPageUrl.toString(), 5000);
+                      anotherPageData = await getWebsiteData(browser, anotherPageUrl.toString(), 5000, { asRegularBrowser: stealth });
                     } catch (error) {
                       if (error instanceof BusinessDomainError) {
                         // This is not only related to the network, so pass them to the upper catcher
@@ -837,12 +1164,25 @@ export async function updateWebsiteDataOnDomains() {
               probableRepositoryUrl = new URL(matchingLinks[0]);
             }
 
+            // Everything above has read the page, what is stored can drop what nothing reads (it was the most of the database size)
+            slimWebsiteDocument(dom.window.document);
+            const storedHtml = dom.serialize();
+
+            const previousWebsite = await prisma.rawDomain.findUnique({
+              where: {
+                id: rawDomain.id,
+              },
+              select: {
+                websiteRawContent: true,
+              },
+            });
+
             await prisma.rawDomain.update({
               where: {
                 id: rawDomain.id,
               },
               data: {
-                websiteRawContent: websiteData.html,
+                websiteRawContent: storedHtml,
                 websiteTitle: !properWebsiteName ? websiteData.title : null,
                 websiteAnotherPageTitle: !properWebsiteName ? anotherPageTitle : null,
                 websiteInferredName:
@@ -850,11 +1190,13 @@ export async function updateWebsiteDataOnDomains() {
                   (websiteData.title && anotherPageTitle ? guessWebsiteNameFromPageTitles(websiteData.title, anotherPageTitle) : null),
                 websiteHasContent: hasContent,
                 websiteHasStyle: hasStyle,
+                websiteHasLegalNotice: legalLinks.hasLegalNotice,
+                websiteHasPrivacyPolicy: legalLinks.hasPrivacyPolicy,
                 websiteContentIndexable: isIndexableAccordingToWebsiteData,
                 websitePseudoFingerprint: headContent || null,
                 probableRepositoryUrl: probableRepositoryUrl?.toString() || null,
                 probableRepositoryDomain: probableRepositoryUrl?.hostname || null,
-                updateWebsiteData: false,
+                ...toProcessedData(),
                 redirectDomainTargetName: null,
                 redirectDomainTarget: {
                   disconnect: true,
@@ -866,6 +1208,38 @@ export async function updateWebsiteDataOnDomains() {
                 id: true, // Ref: https://github.com/prisma/prisma/issues/6252
               },
             });
+
+            // A website is checked again over time, a different title means its sheet may be outdated (the domain may even have been
+            // bought by someone else). The content changes all the time for no reason (news...), so it only matters for an old sheet since each one is charged
+            const hasDifferentTitle = !!rawDomain.websiteTitle && !!websiteData.title && rawDomain.websiteTitle.trim() !== websiteData.title.trim();
+            const hasDifferentContent =
+              !!previousWebsite?.websiteRawContent &&
+              previousWebsite.websiteRawContent !== storedHtml && // Parsing the previous page only when there is something to compare
+              getWebsiteVisibleText(previousWebsite.websiteRawContent) !== getDocumentVisibleText(dom.window.document);
+
+            if (hasDifferentTitle || hasDifferentContent) {
+              await prisma.initiativeMap.updateMany({
+                where: {
+                  RawDomainsOnInitiativeMaps: {
+                    some: {
+                      rawDomainId: rawDomain.id,
+                    },
+                  },
+                  ...(hasDifferentTitle
+                    ? {}
+                    : {
+                        Initiative: {
+                          is: {
+                            OR: [{ computedAt: null }, { computedAt: { lt: subMonths(new Date(), minimumMonthsBetweenSheetsForNewContent) } }],
+                          },
+                        },
+                      }),
+                },
+                data: {
+                  update: true,
+                },
+              });
+            }
           } else {
             await prisma.rawDomain.update({
               where: {
@@ -878,9 +1252,11 @@ export async function updateWebsiteDataOnDomains() {
                 websiteInferredName: rawDomain.name,
                 websiteHasContent: false,
                 websiteHasStyle: false,
+                websiteHasLegalNotice: false,
+                websiteHasPrivacyPolicy: false,
                 websiteContentIndexable: true, // Since no specific tag, we consider it as indexable even if we won't due to missing HTML content
                 websitePseudoFingerprint: null,
-                updateWebsiteData: false,
+                ...toProcessedData(),
                 lastUpdateAttemptWithReachabilityError: null,
                 lastUpdateAttemptReachabilityError: null,
               },
@@ -904,9 +1280,11 @@ export async function updateWebsiteDataOnDomains() {
               websiteInferredName: null,
               websiteHasContent: null,
               websiteHasStyle: null,
+              websiteHasLegalNotice: null,
+              websiteHasPrivacyPolicy: null,
               websiteContentIndexable: null,
               websitePseudoFingerprint: null,
-              updateWebsiteData: false,
+              ...toProcessedData(),
               lastUpdateAttemptWithReachabilityError: null,
               lastUpdateAttemptReachabilityError: null,
             },
@@ -931,7 +1309,7 @@ export async function updateWebsiteDataOnDomains() {
               id: rawDomain.id,
             },
             data: {
-              updateWebsiteData: false,
+              ...toProcessedData(),
               redirectDomainTargetName: error.domain,
               redirectDomainTarget: {
                 connect: !!relatedRawDomain
@@ -950,10 +1328,8 @@ export async function updateWebsiteDataOnDomains() {
           });
 
           return;
-        } else if (error instanceof Prisma.PrismaClientUnknownRequestError) {
-          handlePrismaErrorDueToContent(error);
         } else {
-          throw error;
+          handlePrismaErrorDueToContent(error);
         }
       }
 
@@ -962,7 +1338,20 @@ export async function updateWebsiteDataOnDomains() {
     });
   } finally {
     await browser.close();
+    stopVirtualDisplay?.();
   }
+}
+
+// `www.example.com` and `example.com` are almost always the same website, even if their head content differs a bit (absolute
+// URLs, generated tokens...), so comparing fingerprints is not enough to gather them
+export function getWwwTwinDomainName(domainName: string): string | null {
+  const parsedDomain = parseDomain(domainName);
+
+  if (parsedDomain.type === ParseResultType.Listed && parsedDomain.subDomains[0] === 'www') {
+    return domainName.substring('www.'.length);
+  }
+
+  return null;
 }
 
 export async function matchDomains() {
@@ -1026,6 +1415,28 @@ export async function matchDomains() {
     return (b.name.match(/\./g) || []).length - (a.name.match(/\./g) || []).length;
   });
 
+  // The domain without `www.` is the main one, as long as it serves a website by itself
+  const wwwTwinsNames = rawDomainsToUpdate.flatMap((rawDomainToUpdate) => getWwwTwinDomainName(rawDomainToUpdate.name) ?? []);
+  const wwwTwinRawDomains = await prisma.rawDomain.findMany({
+    where: {
+      name: {
+        in: wwwTwinsNames,
+      },
+      redirectDomainTargetName: null,
+    },
+    select: {
+      id: true,
+      name: true,
+      websiteHasContent: true,
+      indexableFromRobotsTxt: true,
+    },
+  });
+  const wwwTwinRawDomainByName = new Map(
+    wwwTwinRawDomains
+      .filter((wwwTwin) => wwwTwin.websiteHasContent !== false && wwwTwin.indexableFromRobotsTxt !== false)
+      .map((wwwTwin) => [wwwTwin.name, wwwTwin])
+  );
+
   for (const [rawDomainToUpdateIndex, rawDomainToUpdate] of Object.entries(rawDomainsToUpdate)) {
     watchGracefulExitInLoop();
 
@@ -1069,6 +1480,11 @@ export async function matchDomains() {
 
         mainSameParentDomainClone =
           mainRawDomainClones.find((rawDomainClone) => {
+            // The domain without `www.` is the main one, they must not target each other
+            if (rawDomainClone.name === `www.${rawDomainToUpdate.name}`) {
+              return false;
+            }
+
             const parsedCloneDomain = parseDomain(rawDomainClone.name);
 
             if (
@@ -1093,7 +1509,10 @@ export async function matchDomains() {
     // TODO: some websites may use the same code (the same shell) with different sets of data. A solution can be to look
     // at equivalent inferred website name under a same subdomain/domain (exclundig gTLD). It allows gathering cloned sites but
     // the negative side is: which one to process? None? If one, how to tell it's more important than other...
-    const similarRawDomain = rootRawDomain || mainSameParentDomainClone;
+    const wwwTwinName = getWwwTwinDomainName(rawDomainToUpdate.name);
+    const wwwTwinRawDomain = wwwTwinName ? wwwTwinRawDomainByName.get(wwwTwinName) : undefined;
+
+    const similarRawDomain = rootRawDomain || wwwTwinRawDomain || mainSameParentDomainClone;
 
     await prisma.rawDomain.update({
       where: {
@@ -1117,11 +1536,63 @@ export async function matchDomains() {
   }
 }
 
+// Pages stored before their content was slimmed down at retrieval. No request is sent, it can be run again (an already slimmed page is left as is)
+export async function slimStoredWebsitesContent(): Promise<{ processedPages: number; slimmedPages: number; savedCharacters: number }> {
+  const chunkSize = 100;
+  let lastId: string | null = null;
+  let processedPages = 0;
+  let slimmedPages = 0;
+  let savedCharacters = 0;
+
+  while (true) {
+    watchGracefulExitInLoop();
+
+    const rawDomains: { id: string; websiteRawContent: string | null }[] = await prisma.rawDomain.findMany({
+      where: { websiteRawContent: { not: null }, ...(lastId ? { id: { gt: lastId } } : {}) },
+      select: { id: true, websiteRawContent: true },
+      orderBy: { id: 'asc' },
+      take: chunkSize,
+    });
+
+    if (rawDomains.length === 0) {
+      break;
+    }
+
+    for (const rawDomain of rawDomains) {
+      const content = rawDomain.websiteRawContent as string;
+
+      if (containsHtml(content)) {
+        const slimmedContent = slimWebsiteHtml(content);
+
+        if (slimmedContent.length < content.length) {
+          await prisma.rawDomain.update({
+            where: { id: rawDomain.id },
+            data: { websiteRawContent: slimmedContent },
+            select: { id: true }, // Ref: https://github.com/prisma/prisma/issues/6252
+          });
+
+          slimmedPages++;
+          savedCharacters += content.length - slimmedContent.length;
+        }
+      }
+
+      processedPages++;
+    }
+
+    lastId = rawDomains[rawDomains.length - 1].id;
+
+    console.log(`${processedPages} pages processed, ${slimmedPages} slimmed (${Math.round(savedCharacters / 1_000_000)} million characters saved)`);
+  }
+
+  return { processedPages, slimmedPages, savedCharacters };
+}
+
 export async function enhanceDomainsIntoDatabase() {
   // We do not parallelize with `Promise.all` to have
   // logs readable to not flood the network and be consider as a bad actor
   await updateRobotsTxtOnDomains();
   await updateWildcardCertificateOnDomains();
   await updateWebsiteDataOnDomains();
+  await updateProtectedWebsiteDataOnDomains();
   await matchDomains();
 }

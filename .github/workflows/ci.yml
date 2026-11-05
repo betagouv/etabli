@@ -22,7 +22,8 @@ concurrency:
 jobs:
   requirements:
     name: Continuous Integration
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -30,9 +31,10 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set environment for branch
         run: |
@@ -47,7 +49,7 @@ jobs:
           fi
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -68,7 +70,7 @@ jobs:
         run: |
           echo "STORE_PATH=$(npm config get cache)" >> $GITHUB_ENV
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v6
         name: Setup npm cache
         with:
           path: ${{ env.STORE_PATH }}
@@ -76,15 +78,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-store-
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v6
         name: Setup Next.js build cache
         with:
           path: ${{ github.workspace }}/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.[jt]s', '**/*.[jt]sx', '!node_modules/**', '!.next/**') }}
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v6
         name: Setup pretrained models cache
         with:
           path: ${{ github.workspace }}/.cache/models
@@ -92,15 +94,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pretrained-models-
 
+      - uses: actions/cache@v6
+        name: Setup node_modules cache
+        id: node-modules-cache
+        with:
+          path: ${{ github.workspace }}/node_modules
+          key: ${{ runner.os }}-node-modules-${{ env.NODE_VERSION }}-${{ hashFiles('**/package-lock.json', 'patches/**') }}
+
       - name: Install tools
         run: bundle --gemfile src/bibliothecary/Gemfile && pip install -r src/semgrep/requirements.txt
 
       - name: Install dependencies
+        if: ${{ steps.node-modules-cache.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ env.STORE_PATH }}/${{ env.PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX }}
-        run: make deps
+        run: make deps-ci
 
       - name: Download pretrained models
+        # Authenticate the HuggingFace download so it is not throttled (HTTP 429) on the shared CI IPs.
+        # `@xenova/transformers` reads `HF_TOKEN` from the environment automatically. A read-only token is enough.
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: make download-models
 
       - name: Prepare linting
@@ -127,7 +141,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xvfb && npm run playwright install-deps chromium
 
       - name: Get number of CPU cores for the following test step
-        uses: SimenB/github-actions-cpu-cores@v2
+        uses: SimenB/github-actions-cpu-cores@v3
         id: cpu-cores
 
       - name: Test unit

@@ -5,5 +5,6 @@ export async function scheduleCronTasks() {
   const bossClient = await getBossClientInstance();
 
   // Schedule tasks
-  await bossClient.schedule(updateEntitiesDataTopic, `0 19 * * 0,3`, undefined, { tz: 'Europe/Paris' }); // Each sunday and wednesday at 7pm since the entire flow can be a bit long, it will run over night
+  // At night to not compete with visitors, and early in the week so someone is around when it finishes to handle a problem
+  await bossClient.schedule(updateEntitiesDataTopic, `0 2 * * 1,2,3,4`, undefined, { tz: 'Europe/Paris' }); // Monday to Thursday at 2am
 }

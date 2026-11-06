@@ -23,7 +23,6 @@ import { Digraph, toDot } from 'ts-graphviz';
 import { toFile } from 'ts-graphviz/adapter';
 import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
-import Wappalyzer from 'wappalyzer';
 
 import manifestsEndingPatterns from '@etabli/src/bibliothecary/manifests-patterns.json';
 import { ChunkEventEmitter, llmManagerInstance } from '@etabli/src/features/llm';
@@ -41,12 +40,7 @@ import {
   resultSchemaDefinition,
 } from '@etabli/src/gpt/template';
 import { getServerTranslation } from '@etabli/src/i18n';
-import {
-  llmResponseFormatError,
-  noInitiativeContentToComputeError,
-  promiseTimeoutError,
-  tokensReachTheLimitError,
-} from '@etabli/src/models/entities/errors';
+import { llmResponseFormatError, noInitiativeContentToComputeError, tokensReachTheLimitError } from '@etabli/src/models/entities/errors';
 import { LiteInitiativeMapSchema, LiteInitiativeMapSchemaType } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
@@ -57,10 +51,8 @@ import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/fo
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
 import { getMergedInitiativeMapsIdentifiers, getMovedInitiativeMaps } from '@etabli/src/utils/initiative-map';
 import { languagesExtensions } from '@etabli/src/utils/languages';
-import { promiseWithFatalTimeout } from '@etabli/src/utils/maintenance';
-import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond } from '@etabli/src/utils/request';
+import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond, maximumInitiativesPerRun } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
-import { WappalyzerResultSchema } from '@etabli/src/wappalyzer';
 
 const __root_dirname = process.cwd();
 
@@ -85,24 +77,6 @@ const filesToKeepGitEndingPatterns: (string | RegExp)[] = [
 const noImgAndSvgFilterPath = path.resolve(__root_dirname, './src/pandoc/no-img-and-svg.lua');
 const extractMetaDescriptionFilterPath = path.resolve(__root_dirname, './src/pandoc/extract-meta-description.lua');
 const removeInlineFileContentFilterPath = path.resolve(__root_dirname, './src/pandoc/remove-inline-file-content.lua');
-
-const wappalyzer = new Wappalyzer({
-  debug: false,
-  headers: {
-    'Cache-Control': 'no-cache', // Tell the websites servers to not respond with a 304 status code that would use the local Chromium cache (the local Puppeteer cache cannot be disabled from Wappalyzer settings)
-  },
-  delay: 0, // Since not analysing multiple pages we are fine with no delay
-  maxDepth: 1,
-  maxUrls: 1,
-  noRedirect: true,
-  maxWait: 5000, // Per page
-  recursive: true,
-  probe: true,
-  userAgent:
-    'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/W.X.Y.Z Safari/537.36', // Use an user agent that will be ignored by tracking analytics to not pollute (https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers#googlebot-desktop)
-  htmlMaxCols: 2000,
-  htmlMaxRows: 10000, // Is necessary if limiting the columns (cf. `node_modules/wappalyzer/driver.js`)
-});
 
 export type NodeLabel =
   | {
@@ -799,13 +773,21 @@ export async function feedInitiativesFromDatabase() {
     },
   });
 
+  // Tools of websites come from the inventory of domains, so what it has not reached yet waits for a next run
+  const domainsWithoutInventory = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT d."id"
+    FROM "RawDomain" d
+    LEFT JOIN "DomainInventory" i ON i."domain" = d."name"
+    WHERE i."lastCheckAt" IS NULL
+  `;
+  const domainsWithoutInventoryIds = new Set(domainsWithoutInventory.map((rawDomain) => rawDomain.id));
+  const initiativeMapsToProcess = initiativeMaps
+    .filter((initiativeMap) => !initiativeMap.RawDomainsOnInitiativeMaps.some(({ rawDomainId }) => domainsWithoutInventoryIds.has(rawDomainId)))
+    .slice(0, maximumInitiativesPerRun);
+
+  console.log(`${initiativeMapsToProcess.length}/${initiativeMaps.length} initiative maps are ready to be processed`);
+
   try {
-    await wappalyzer.init();
-
-    // [WORKAROUND] In case we call `wappalyzer.destroy()` too quickly (errors or no loop iteration) it will hang forever
-    // We figured out waiting a bit will prevent this, which is necessary when the process is deployed in a server without cancelation possibility
-    await sleep(500);
-
     // Prepare the message template used to ask GPT about the initiative
     const initiativeGptTemplateContent = await fs.readFile(path.resolve(__root_dirname, './src/gpt/templates/initiative.md'), 'utf-8');
     const websiteGptTemplateContent = await fs.readFile(path.resolve(__root_dirname, './src/gpt/templates/website.md'), 'utf-8');
@@ -820,7 +802,7 @@ export async function feedInitiativesFromDatabase() {
       lng: 'fr',
     });
 
-    // Since the underlying wappalyzer analysis per initiative map can take some time due to being in a Chromium environment
+    // Since the underlying analysis per initiative map can take some time due to being in a Chromium environment
     // we parallelize hoping to save some time. But still, we take in considerations the LLM API rate limit
     const iterationLlmManagerApiCalls = 2; // One for the embeddings of the tools, and the other for the computation of the initiative sheet
     const iterationMinimumDurationInSeconds = 2; // It's maybe not fully exact
@@ -836,10 +818,10 @@ export async function feedInitiativesFromDatabase() {
 
     console.log(`initiative maps will be computed with a maximum concurrency of ${maxConcurrency}`);
 
-    await eachOfLimit(initiativeMaps, maxConcurrency, async function (initiativeMap, initiativeMapIndex) {
+    await eachOfLimit(initiativeMapsToProcess, maxConcurrency, async function (initiativeMap, initiativeMapIndex) {
       watchGracefulExitInLoop();
 
-      console.log(`feed initiative ${initiativeMap.id} ${formatArrayProgress(initiativeMapIndex, initiativeMaps.length)}`);
+      console.log(`feed initiative ${initiativeMap.id} ${formatArrayProgress(initiativeMapIndex, initiativeMapsToProcess.length)}`);
 
       // To debug easily we write each result on disk (also, since using lot of CLIs we have no other choice :D)
       const projectDirectory = path.resolve(__root_dirname, './data/initiatives/', initiativeMap.id);
@@ -942,86 +924,47 @@ export async function feedInitiativesFromDatabase() {
             websiteMarkdownContent = await fs.readFile(markdownPath, 'utf-8');
           }
 
-          // Try to deduce tools used from the frontend
-          const wappalyzerAnalysisPath = path.resolve(projectDirectory, 'wappalyzer-analysis.json');
-
-          if (!useLocalFileCache || !fsSync.existsSync(wappalyzerAnalysisPath)) {
-            const headers = {};
-            const storage = {
-              local: {},
-              session: {},
-            };
-
-            // This is a default from Wappalyzer but they use `acceptInsecureCerts: true` with puppeteer
-            // meaning the certificate is no longer checked. It's mitigated by the fact we checked it when enhancing
-            // the raw domain metadata, but is still a risk it has changed since then
-            let retriableErrorMessage: string | null = null;
-
-            try {
-              const site = await wappalyzer.open(`https://${rawDomain.name}`, headers, storage);
-              const results = await site.analyze();
-              const parsedResults = WappalyzerResultSchema.parse(results);
-
-              // If we fetched at least a page with an eligible status code we continue
-              const requestMetadataPerUrl = Object.values(parsedResults.urls);
-
-              if (requestMetadataPerUrl.some((metadata) => metadata.status >= 200 && metadata.status < 300)) {
-                // It's good to go further into the process
-                await fs.mkdir(path.dirname(wappalyzerAnalysisPath), { recursive: true });
-                await fs.writeFile(wappalyzerAnalysisPath, JSON.stringify(results, null, 2));
-              } else {
-                // No page for this website is reachable, it can comes from either:
-                // - a network error (net::ERR_CONNECTION_REFUSED... like for our Playwright calls) with a status code of 0
-                // - a server error with a status code of 404, 500...
-                //
-                // We skip this initiative calculation due to a network error, until a fix if done to remove the erroring website or until the website is parsable again
-
-                // To debug easily since errors could be into multiple URLs, we just gather each URL request metadata
-                retriableErrorMessage = JSON.stringify(parsedResults.urls);
-              }
-            } catch (error) {
-              if (error instanceof Error && error.message.includes('Navigation timeout of')) {
-                // This is an error from Puppeteer that is retriable (note other timeouts are handled by Wappalyzer, don't know exactly why this one is leaking)
-                retriableErrorMessage = error.message;
-              } else {
-                throw error;
-              }
-            }
-
-            if (!!retriableErrorMessage) {
-              await prisma.initiativeMap.update({
-                where: {
-                  id: initiativeMap.id,
-                },
-                data: {
-                  lastUpdateAttemptWithReachabilityError: new Date(),
-                  lastUpdateAttemptReachabilityError: retriableErrorMessage,
-                },
+          // Tools used by the website come from the inventory of domains, which is a prerequisite of this step
+          const inventory = await prisma.domainInventory.findUnique({
+            where: {
+              domain: rawDomain.name,
+            },
+            select: {
+              lastCheckAt: true,
+              lastCheckError: true,
+              DomainTechnology: {
                 select: {
-                  id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  technology: true,
                 },
-              });
+              },
+            },
+          });
 
-              console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its websites`);
-              console.error(retriableErrorMessage);
+          if (!inventory?.lastCheckAt) {
+            console.log(`skip processing ${initiativeMap.id} since ${rawDomain.name} has not been analyzed yet by the inventory`);
 
-              return;
-            }
+            return;
+          } else if (inventory.lastCheckError) {
+            await prisma.initiativeMap.update({
+              where: {
+                id: initiativeMap.id,
+              },
+              data: {
+                lastUpdateAttemptWithReachabilityError: new Date(),
+                lastUpdateAttemptReachabilityError: inventory.lastCheckError,
+              },
+              select: {
+                id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+              },
+            });
 
-            // Wait a bit in case websites from this initiative are on the same servers (tiny delay in this loop because)
-            await sleep(50);
+            console.error(`skip processing ${initiativeMap.id} due to an error while analyzing one of its websites`);
+            console.error(inventory.lastCheckError);
+
+            return;
           }
 
-          const wappalyzerAnalysisDataString = await fs.readFile(wappalyzerAnalysisPath, 'utf-8');
-          const wappalyzerAnalysisDataObject = JSON.parse(wappalyzerAnalysisDataString);
-          const wappalyzerAnalysisData = WappalyzerResultSchema.parse(wappalyzerAnalysisDataObject);
-
-          const deducedTools: string[] = wappalyzerAnalysisData.technologies
-            .filter((technology) => {
-              // Set a minimum so uncertain tools like backend ones for compilation are ignored
-              return technology.confidence >= 75;
-            })
-            .map((technology) => technology.name);
+          const deducedTools: string[] = inventory.DomainTechnology.map((domainTechnology) => domainTechnology.technology);
 
           mixedInitiativeTools.push(...deducedTools);
 
@@ -1755,18 +1698,6 @@ export async function feedInitiativesFromDatabase() {
       console.error(error);
 
       throw error;
-    }
-  } finally {
-    // For whatever reason despite the official documentation when doing it may hang forever (ref: https://github.com/enthec/webappanalyzer/issues/74)
-    // If not done the program may not quit (it's random), and if done it may be stuck on it... an acceptable workaround is to set a timeout
-    try {
-      await promiseWithFatalTimeout(wappalyzer.destroy(), `wappalyzer.destroy()`, secondsToMilliseconds(4));
-    } catch (error) {
-      if (error === promiseTimeoutError) {
-        console.warn('wappalyzer seems stuck closing, you may have to force terminating the program if it seems to hang forever');
-      } else {
-        throw error;
-      }
     }
   }
 }

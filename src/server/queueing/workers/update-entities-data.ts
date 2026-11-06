@@ -1,7 +1,7 @@
 import { Job } from 'pg-boss';
 
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/src/features/domain';
-import { maximumInventoryDomainsPerRun, updateDomainsInventory } from '@etabli/src/features/domain-inventory';
+import { updateDomainsInventory } from '@etabli/src/features/domain-inventory';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/src/features/initiative';
 import { ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem } from '@etabli/src/features/llm';
 import { bindOrganizationsToInitiatives, formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
@@ -28,7 +28,7 @@ export async function updateEntitiesData(job: Job<void>) {
   await formatRepositoryOrganizationsIntoDatabase();
 
   await enhanceDomainsIntoDatabase();
-  await updateDomainsInventory({ maximumDomains: maximumInventoryDomainsPerRun });
+  await updateDomainsInventory();
   await enhanceRepositoriesIntoDatabase();
   await enhanceToolsIntoDatabase();
 

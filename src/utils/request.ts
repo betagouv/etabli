@@ -8,6 +8,14 @@ import { prisma } from '@etabli/src/prisma';
 export const chomiumMaxConcurrency = !!process.env.CHROMIUM_MAXIMUM_CONCURRENCY ? parseInt(process.env.CHROMIUM_MAXIMUM_CONCURRENCY, 10) : 1;
 assert(chomiumMaxConcurrency >= 1);
 
+// Optional limits for each step of the data update, so a recurrent job fits in its time slot. Without them everything due is processed
+function parseOptionalLimit(value: string | undefined): number | undefined {
+  return !!value ? parseInt(value, 10) : undefined;
+}
+
+export const maximumDomainsPerRun = parseOptionalLimit(process.env.MAXIMUM_DOMAINS_PER_RUN);
+export const maximumInitiativesPerRun = parseOptionalLimit(process.env.MAXIMUM_INITIATIVES_PER_RUN);
+
 export const llmManagerMaximumApiRequestsPerSecond = !!process.env.LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND
   ? parseInt(process.env.LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND, 10)
   : 5; // 5 is the default when creating an account onto the MistralAI platform

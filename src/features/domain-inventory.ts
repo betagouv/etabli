@@ -6,17 +6,15 @@ import Wappalyzer from 'wappalyzer';
 
 import { CsvDomainSchema, isTechnicalDomain, localCsvPath } from '@etabli/src/features/domain';
 import { buildOrganizationMatcher } from '@etabli/src/features/organization';
+import { loadLatestWappalyzerFingerprints } from '@etabli/src/features/wappalyzer-fingerprints';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { BlockingCircuitBreaker, shuffle } from '@etabli/src/utils/circuit-breaker';
 import { formatArrayProgress } from '@etabli/src/utils/format';
-import { chomiumMaxConcurrency } from '@etabli/src/utils/request';
+import { chomiumMaxConcurrency, maximumDomainsPerRun } from '@etabli/src/utils/request';
 import { WappalyzerResultSchema } from '@etabli/src/wappalyzer';
 
 const recheckDelayInDays = 20;
-
-// Enough to go over all the domains between 2 checks with 2 runs per week, without taking the time of the next steps of the data update
-export const maximumInventoryDomainsPerRun = 7000;
 
 export interface DetectedTechnology {
   technology: string;
@@ -84,15 +82,32 @@ export async function updateDomainsInventory(options?: { maximumDomains?: number
     skipDuplicates: true,
   });
 
-  // The oldest ones come first so what cannot be processed during a run is the first of the next one
-  const domains = await prisma.domainInventory.findMany({
-    where: {
-      OR: [{ lastCheckAt: null }, { lastCheckAt: { lt: subDays(new Date(), recheckDelayInDays) } }],
-    },
-    select: { domain: true },
-    orderBy: { lastCheckAt: { sort: 'asc', nulls: 'first' } },
-    take: options?.maximumDomains,
-  });
+  // Initiatives waiting to be computed need their domains analyzed first. Then the oldest ones come first so what cannot be processed
+  // during a run is the first of the next one
+  const maximumDomains = options?.maximumDomains ?? maximumDomainsPerRun ?? null;
+  const dueDomains = await prisma.$queryRaw<{ domain: string; isRequired: boolean }[]>`
+    SELECT i."domain", bool_or(m."id" IS NOT NULL) AS "isRequired"
+    FROM "DomainInventory" i
+    LEFT JOIN "RawDomain" d ON d."name" = i."domain"
+    LEFT JOIN "RawDomainsOnInitiativeMaps" dm ON dm."rawDomainId" = d."id"
+    LEFT JOIN "InitiativeMap" m ON m."id" = dm."initiativeMapId" AND m."update" = TRUE
+    WHERE i."lastCheckAt" IS NULL
+      OR i."lastCheckAt" < ${subDays(new Date(), recheckDelayInDays)}
+      OR (i."lastCheckError" IS NOT NULL AND i."lastCheckAt" < ${subDays(new Date(), 1)}) -- Initiatives wait for it, so a failure is retried soon
+    GROUP BY i."domain", i."lastCheckAt"
+    ORDER BY bool_or(m."id" IS NOT NULL) DESC, i."lastCheckAt" ASC NULLS FIRST
+    LIMIT ${maximumDomains}
+  `;
+
+  // Randomized to not hit the same provider on a row, without losing the priority in case the run does not reach the end
+  const domains = [
+    ...shuffle(dueDomains.filter((dueDomain) => dueDomain.isRequired)),
+    ...shuffle(dueDomains.filter((dueDomain) => !dueDomain.isRequired)),
+  ];
+
+  console.log(
+    `${domains.length} domains to analyze, including ${dueDomains.filter((dueDomain) => dueDomain.isRequired).length} needed by initiatives`
+  );
 
   const wappalyzer = new Wappalyzer({
     debug: false,
@@ -111,10 +126,11 @@ export async function updateDomainsInventory(options?: { maximumDomains?: number
   const circuitBreaker = new BlockingCircuitBreaker(200, 0.8);
   let notified = false;
 
+  await loadLatestWappalyzerFingerprints();
   await wappalyzer.init();
 
   try {
-    await eachOfLimit(shuffle(domains), chomiumMaxConcurrency, async ({ domain }, index) => {
+    await eachOfLimit(domains, chomiumMaxConcurrency, async ({ domain }, index) => {
       watchGracefulExitInLoop();
 
       if (circuitBreaker.isOpen()) {
@@ -162,6 +178,13 @@ export async function updateDomainsInventory(options?: { maximumDomains?: number
         }
       } catch (error) {
         // The main analysis has already told if the domain is reachable
+      }
+
+      // The browser could not start (Wappalyzer uses a fixed profile directory), it says nothing about the domain so it will be taken next time
+      if (checkError?.includes('Failed to launch the browser process')) {
+        console.warn(`the analysis of ${domain} is postponed since the browser could not start`);
+
+        return;
       }
 
       circuitBreaker.record(!!checkError);

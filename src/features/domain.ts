@@ -33,7 +33,7 @@ import { BlockingCircuitBreaker, shuffle } from '@etabli/src/utils/circuit-break
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { formatArrayProgress } from '@etabli/src/utils/format';
 import { containsHtml } from '@etabli/src/utils/html';
-import { chomiumMaxConcurrency, handlePrismaErrorDueToContent, handleReachabilityError } from '@etabli/src/utils/request';
+import { chomiumMaxConcurrency, handlePrismaErrorDueToContent, handleReachabilityError, maximumDomainsPerRun } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
 import { startVirtualDisplay } from '@etabli/src/utils/virtual-display';
 
@@ -382,6 +382,13 @@ export async function updateRobotsTxtOnDomains() {
       id: true,
       name: true,
     },
+    orderBy: {
+      lastRobotsTxtCheckAt: {
+        sort: 'asc',
+        nulls: 'first',
+      },
+    },
+    take: maximumDomainsPerRun,
   });
 
   let networkFailures: number = 0;
@@ -614,6 +621,13 @@ export async function updateWildcardCertificateOnDomains() {
       id: true,
       name: true,
     },
+    orderBy: {
+      lastCertificateCheckAt: {
+        sort: 'asc',
+        nulls: 'first',
+      },
+    },
+    take: maximumDomainsPerRun,
   });
 
   let networkFailures: number = 0;
@@ -718,10 +732,6 @@ export async function updateWildcardCertificateOnDomains() {
 // Websites rarely change, but a domain can be bought by someone else or start refusing being indexed
 const recheckDelayInDays = 20;
 
-// Rendering pages is what takes hours whereas the data synchronization still has its next steps to run. With 2 runs per week about 6000
-// websites come back each time, so it leaves some margin to catch up when late (it also needs `CHROMIUM_MAXIMUM_CONCURRENCY` to fit)
-const maximumWebsitesPerRun = 7000;
-
 // Some domains are expected to be unreachable or refused, but not most of them
 const standardCircuitBreakerWindow = 200;
 const standardCircuitBreakerMaximumBlockedShare = 0.5;
@@ -732,7 +742,7 @@ export async function updateProtectedWebsiteDataOnDomains() {
   await updateWebsiteDataOnDomains({ stealth: true });
 }
 
-export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean; maximumDomains?: number }) {
+export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }) {
   const stealth = !!options?.stealth;
   const toProcessedData = () => ({
     ...(stealth ? { updateProtectedWebsiteData: false } : { updateWebsiteData: false }),
@@ -773,7 +783,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean; 
         nulls: 'first',
       },
     },
-    take: options?.maximumDomains,
+    take: maximumDomainsPerRun,
   });
 
   // Create a virtual JSDOM console when parsing fetched content because sometimes it fails
@@ -1398,7 +1408,7 @@ export async function enhanceDomainsIntoDatabase() {
   // logs readable to not flood the network and be consider as a bad actor
   await updateRobotsTxtOnDomains();
   await updateWildcardCertificateOnDomains();
-  await updateWebsiteDataOnDomains({ maximumDomains: maximumWebsitesPerRun });
+  await updateWebsiteDataOnDomains();
   await updateProtectedWebsiteDataOnDomains();
   await matchDomains();
 }

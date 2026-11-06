@@ -5,13 +5,15 @@ import { z } from 'zod';
 import { BusinessError } from '@etabli/src/models/entities/errors';
 import { MaintenanceDataSchemaType, MaintenanceWrapperDataSchema } from '@etabli/src/models/jobs/maintenance';
 import { getBossClientInstance } from '@etabli/src/server/queueing/client';
+import { updateEntitiesDataTopic } from '@etabli/src/server/queueing/workers/update-entities-data';
 import { apiHandlerWrapper } from '@etabli/src/utils/api';
 import { assertMaintenanceOperationAuthenticated } from '@etabli/src/utils/maintenance';
 
-export const replayableJobStates: JobWithMetadata['state'][] = ['completed', 'expired', 'cancelled', 'failed'];
+export const replayableJobStates: JobWithMetadata['state'][] = ['completed', 'cancelled', 'failed'];
 
 export const HandlerBodySchema = z
   .object({
+    jobName: z.string().min(1).default(updateEntitiesDataTopic),
     jobId: z.string().uuid(),
   })
   .strict();
@@ -23,7 +25,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
   const body = HandlerBodySchema.parse(req.body);
 
   const bossClient = await getBossClientInstance();
-  const job = await bossClient.getJobById(body.jobId);
+  const job = await bossClient.getJobById<Record<string, unknown>>(body.jobName, body.jobId);
 
   if (!job) {
     throw new BusinessError('jobNotFoundWithId', 'no job found with this id');
@@ -55,20 +57,8 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
     }),
   };
 
-  const newJobId = await bossClient.send(job.name, dataWithMaintenanceMetadata, {
-    // The options are not formatted the same way when getting from the database
-    // and as input. So we map manually, but only those that make sense, not the absolute dates...
-    expireInMinutes: job.expirein.minutes,
-    // Even if the following was undefined when passed, it was triggering the error like `configuration assert: expireInHours must be at least every hour`
-    // so only keeping `expireInMinutes` for now
-    // ---
-    // expireInSeconds: job.expirein.seconds,
-    // expireInHours: job.expirein.hours,
-    retryLimit: job.retrylimit,
-    retryDelay: job.retrydelay,
-    retryBackoff: job.retrybackoff,
-    onComplete: job.oncomplete !== undefined ? job.oncomplete : (job as any).on_complete, // It seems there is a difference between the type and the real property into the job from the database
-  });
+  // Options such as the expiration and the retries are defined by the queue
+  const newJobId = await bossClient.send(job.name, dataWithMaintenanceMetadata);
 
   res.send(`The job has been replayed with the id "${newJobId}"`);
 }

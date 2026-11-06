@@ -15,7 +15,7 @@ import robotsParser from 'robots-parser';
 import { PeerCertificate, TLSSocket } from 'tls';
 import z from 'zod';
 
-import { downloadFile } from '@etabli/src/common';
+import { downloadFile, isFileOutdated } from '@etabli/src/common';
 import { readOfficialCommunesRecords } from '@etabli/src/features/organization';
 import { normalizeHostname } from '@etabli/src/features/organization-matching';
 import { parseOfficialWebsites } from '@etabli/src/features/territory';
@@ -81,7 +81,7 @@ export const CsvDomainSchema = z
 export type CsvDomainSchemaType = z.infer<typeof CsvDomainSchema>;
 
 export async function saveDomainCsvFile(cache = true) {
-  if (!cache || !fsSync.existsSync(localCsvPath)) {
+  if (!cache || (await isFileOutdated(localCsvPath))) {
     await downloadFile(latestRemoteCsvUrl, localCsvPath);
   }
 }

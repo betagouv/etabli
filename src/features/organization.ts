@@ -1,12 +1,11 @@
 import { randomUUID } from 'crypto';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
-import fsSync from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import { gunzipSync } from 'zlib';
 import z from 'zod';
 
-import { downloadFile } from '@etabli/src/common';
+import { downloadFile, isFileOutdated } from '@etabli/src/common';
 import { addEducationWebsitesToRectorates } from '@etabli/src/features/education';
 import {
   MatchableOrganization,
@@ -102,15 +101,15 @@ export const JsonOrganizationSchema = z.object({
 export type JsonOrganizationSchemaType = z.infer<typeof JsonOrganizationSchema>;
 
 export async function saveOrganizationListFile(cache = true) {
-  if (!cache || !fsSync.existsSync(localJsonPath)) {
+  if (!cache || (await isFileOutdated(localJsonPath))) {
     await downloadFile(latestRemoteJsonUrl, localJsonPath, minutesToMilliseconds(10));
   }
 
-  if (!cache || !fsSync.existsSync(localEducationJsonPath)) {
+  if (!cache || (await isFileOutdated(localEducationJsonPath))) {
     await downloadFile(latestRemoteEducationJsonUrl, localEducationJsonPath, minutesToMilliseconds(5));
   }
 
-  if (!cache || !fsSync.existsSync(localCommunesJsonPath)) {
+  if (!cache || (await isFileOutdated(localCommunesJsonPath))) {
     await downloadFile(latestRemoteCommunesUrl, localCommunesJsonPath, minutesToMilliseconds(5));
   }
 }

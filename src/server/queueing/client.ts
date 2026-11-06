@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/nextjs';
-import PgBoss from 'pg-boss';
+import { Job, PgBoss } from 'pg-boss';
 
 import { BusinessError } from '@etabli/src/models/entities/errors';
 import { dbPool } from '@etabli/src/prisma/pool';
@@ -16,18 +16,16 @@ export let bossClient =
   new PgBoss({
     db: {
       executeSql: async (text, values) => {
-        const result = await dbPool.query(text, values);
-
-        // `pg` types `rowCount` as `number | null`, while pg-boss expects a plain `number`
-        return { rows: result.rows, rowCount: result.rowCount ?? 0 };
+        // `pg` types `rowCount` as `number | null` while pg-boss expects a plain `number`, and for a multi-statement query it
+        // returns an array of results at runtime that pg-boss handles by itself
+        return (await dbPool.query(text, values)) as unknown as { rows: any[]; rowCount: number };
       },
     },
-    newJobCheckIntervalSeconds: 30, // No need to check every 2 seconds as set by default to look at new jobs
-    deleteAfterDays: 45, // Give some time before cleaning archives so an issue can be investigated without dealing with database backups
   });
 if (process.env.NODE_ENV !== 'production') global.bossClient = bossClient;
 
-bossClient.on('error', (error) => {
+// [WORKAROUND] The event emitter generics of `pg-boss` are not understood with our version of the Node.js types
+(bossClient as unknown as NodeJS.EventEmitter).on('error', (error: unknown) => {
   // This error catcher is just for internal operations on pb-boss (fetching, maintenance...)
   // `onComplete` is the proper way to watch job errors
   console.error(error);
@@ -45,7 +43,18 @@ export async function getBossClientInstance(): Promise<PgBoss> {
       await bossClient.start();
 
       // Bind listeners
-      await bossClient.work(updateEntitiesDataTopic, handlerWrapper(updateEntitiesData));
+      await bossClient.createQueue(updateEntitiesDataTopic, {
+        policy: 'exclusive', // The data update takes hours, a scheduled occurrence must not start while the previous one is still running
+        retryLimit: 0, // A failure is reported, the next scheduled occurrence takes back from what remains to be done
+        expireInSeconds: 24 * 60 * 60, // Maximum allowed. When exceeded the job is marked as failed but the worker waits for the handler to return
+        deleteAfterSeconds: 45 * 24 * 60 * 60, // Give some time before cleaning archives so an issue can be investigated
+      });
+
+      await bossClient.work(
+        updateEntitiesDataTopic,
+        { pollingIntervalSeconds: 30 }, // No need to check more often for new jobs
+        handlerWrapper(updateEntitiesData)
+      );
     })();
   }
 
@@ -65,26 +74,28 @@ export async function stopBossClientInstance(): Promise<void> {
   }
 }
 
-export function handlerWrapper<ReqData>(handler: PgBoss.WorkHandler<ReqData>): PgBoss.WorkHandler<ReqData> {
-  return async (job: PgBoss.Job<ReqData>) => {
-    try {
-      await handler(job);
-    } catch (error) {
-      console.error(error);
+export function handlerWrapper<ReqData>(handler: (job: Job<ReqData>) => Promise<void>): (jobs: Job<ReqData>[]) => Promise<void> {
+  return async (jobs: Job<ReqData>[]) => {
+    for (const job of jobs) {
+      try {
+        await handler(job);
+      } catch (error) {
+        console.error(error);
 
-      // Wrapping to report error is required since there is no working way to watch job changes easily with `work()` method
-      // Ref: https://github.com/timgit/pg-boss/issues/273#issuecomment-1788162895
-      if (!(error instanceof BusinessError)) {
-        Sentry.withScope(function (scope) {
-          // Gather retry errors for the same event at the same place in Sentry
-          scope.setFingerprint(['pgboss', job.id]);
+        // Wrapping to report error is required since there is no working way to watch job changes easily with `pg-boss`
+        // Ref: https://github.com/timgit/pg-boss/issues/273#issuecomment-1788162895
+        if (!(error instanceof BusinessError)) {
+          Sentry.withScope(function (scope) {
+            // Gather retry errors for the same event at the same place in Sentry
+            scope.setFingerprint(['pgboss', job.id]);
 
-          Sentry.captureException(error);
-        });
+            Sentry.captureException(error);
+          });
+        }
+
+        // Forward the error so pg-boss handles the error correctly
+        throw error;
       }
-
-      // Forward the error so pg-boss handles the error correctly
-      throw error;
     }
   };
 }

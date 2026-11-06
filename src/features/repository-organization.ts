@@ -1,11 +1,10 @@
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
-import fsSync from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import { parse as parseYaml } from 'yaml';
 import z from 'zod';
 
-import { downloadFile } from '@etabli/src/common';
+import { downloadFile, isFileOutdated } from '@etabli/src/common';
 import { normalizeRepositoryUrl } from '@etabli/src/features/organization-matching';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { LiteRepositoryOrganizationSchema, LiteRepositoryOrganizationSchemaType } from '@etabli/src/models/entities/organization';
@@ -50,7 +49,7 @@ export const YamlRepositoryOrganizationsSchema = z.record(
 export type YamlRepositoryOrganizationsSchemaType = z.infer<typeof YamlRepositoryOrganizationsSchema>;
 
 export async function saveRepositoryOrganizationListFile(cache = true) {
-  if (!cache || !fsSync.existsSync(localYamlPath)) {
+  if (!cache || (await isFileOutdated(localYamlPath))) {
     await downloadFile(latestRemoteYamlUrl, localYamlPath);
   }
 }

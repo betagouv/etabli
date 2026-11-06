@@ -1,4 +1,4 @@
-import PgBoss from 'pg-boss';
+import { Job } from 'pg-boss';
 
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/src/features/domain';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/src/features/initiative';
@@ -10,7 +10,7 @@ import { enhanceToolsIntoDatabase, formatToolsIntoDatabase, saveToolCsvFile } fr
 
 export const updateEntitiesDataTopic = 'update-entities-data';
 
-export async function updateEntitiesData(job: PgBoss.Job<void>) {
+export async function updateEntitiesData(job: Job<void>) {
   // The following will perform end-to-end update for any data needed to compute initiatives sheets
   // It may take some time to process depending on how many entries need to be updated
 

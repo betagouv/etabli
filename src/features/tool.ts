@@ -5,7 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import z from 'zod';
 
-import { downloadFile } from '@etabli/src/common';
+import { downloadFile, isFileOutdated } from '@etabli/src/common';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { LiteToolSchema, LiteToolSchemaType, ToolCategorySchema } from '@etabli/src/models/entities/tool';
 import { toolTypeCsvToModel } from '@etabli/src/models/mappers/tool';
@@ -59,7 +59,7 @@ export const CsvToolSchema = z
 export type CsvToolSchemaType = z.infer<typeof CsvToolSchema>;
 
 export async function saveToolCsvFile(cache = true) {
-  if (!cache || !fsSync.existsSync(localCsvPath)) {
+  if (!cache || (await isFileOutdated(localCsvPath))) {
     await downloadFile(latestRemoteCsvUrl, localCsvPath);
   }
 }
@@ -76,8 +76,18 @@ export async function formatToolsIntoDatabase() {
   );
 
   const csvTools: CsvToolSchemaType[] = [];
+  let invalidRecordsCount = 0;
   for await (const record of parser) {
-    const csvTool = CsvToolSchema.parse(record);
+    // The dataset evolves on its own (new categories, tools with missing fields...), a record we cannot read must not prevent
+    // synchronizing all the others and the rest of the data update
+    const result = CsvToolSchema.safeParse(record);
+
+    if (!result.success) {
+      invalidRecordsCount++;
+      continue;
+    }
+
+    const csvTool = result.data;
 
     // Since the tool list will be used by GPT to infer tools of initiatives
     // we skip those not widely used to not add noise during the matching to get better results
@@ -86,6 +96,10 @@ export async function formatToolsIntoDatabase() {
     }
 
     csvTools.push(csvTool);
+  }
+
+  if (invalidRecordsCount > 0) {
+    console.warn(`${invalidRecordsCount} tools of the dataset cannot be read and have been skipped`);
   }
 
   await prisma.$transaction(

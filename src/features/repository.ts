@@ -1,13 +1,12 @@
 import { differenceInDays } from 'date-fns/differenceInDays';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { subDays } from 'date-fns/subDays';
-import fsSync from 'fs';
 import fs from 'fs/promises';
 import linkifyit from 'linkify-it';
 import path from 'path';
 import z from 'zod';
 
-import { downloadFile } from '@etabli/src/common';
+import { downloadFile, isFileOutdated } from '@etabli/src/common';
 import { Prisma, RawRepository } from '@etabli/src/generated/prisma/client';
 import { LiteRawRepositorySchema, LiteRawRepositorySchemaType } from '@etabli/src/models/entities/raw-repository';
 import { rawRepositoryPlatformJsonToModel } from '@etabli/src/models/mappers/raw-repository';
@@ -65,7 +64,7 @@ export const JsonRepositorySchema = z
 export type JsonRepositorySchemaType = z.infer<typeof JsonRepositorySchema>;
 
 export async function saveRepositoryListFile(cache = true) {
-  if (!cache || !fsSync.existsSync(localJsonPath)) {
+  if (!cache || (await isFileOutdated(localJsonPath))) {
     await downloadFile(latestRemoteJsonUrl, localJsonPath);
   }
 }

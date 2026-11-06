@@ -139,6 +139,7 @@
     "openai": "^4.25.0",
     "parse-domain": "^8.0.1",
     "patch-package": "^8.0.0",
+    "patchright": "1.52.4",
     "pg": "^8.21.0",
     "pg-boss": "^9.0.1",
     "playwright": "1.39.0",

@@ -4,11 +4,13 @@
 import {
   MatchableOrganization,
   OrganizationMatcher,
+  assertSafeOrganizationsRemoval,
+  assertUsableOrganizationsDirectory,
   extractOrganizationDomain,
   getRegistrableDomain,
   getWebsiteOwnerPriority,
   normalizeHostname,
-  normalizeRepositoryOrganizationUrl,
+  normalizeRepositoryUrl,
 } from '@etabli/src/features/organization-matching';
 
 // A small tree mimicking the DILA directory:
@@ -104,10 +106,11 @@ describe('extractOrganizationDomain()', () => {
   });
 });
 
-describe('normalizeRepositoryOrganizationUrl()', () => {
+describe('normalizeRepositoryUrl()', () => {
   it('should be comparable whatever the writing', () => {
-    expect(normalizeRepositoryOrganizationUrl(' https://GitHub.com/BetaGouv/ ')).toBe('https://github.com/betagouv');
-    expect(normalizeRepositoryOrganizationUrl('https://github.com/betagouv/repo.git')).toBe('https://github.com/betagouv/repo');
+    expect(normalizeRepositoryUrl(' https://GitHub.com/BetaGouv/ ')).toBe('https://github.com/betagouv');
+    expect(normalizeRepositoryUrl('https://github.com/betagouv/repo.git')).toBe('https://github.com/betagouv/repo');
+    expect(normalizeRepositoryUrl('https://github.com/betagouv/repo.git/')).toBe('https://github.com/betagouv/repo');
   });
 });
 
@@ -293,5 +296,30 @@ describe('getWebsiteOwnerPriority()', () => {
     expect(townHall).toBeLessThan(delegatedTownHall);
     expect(getWebsiteOwnerPriority({ name: 'CCAS', localServiceType: 'ccas' })).toBeNull();
     expect(getWebsiteOwnerPriority({ name: 'Ministère', localServiceType: null })).toBeNull();
+  });
+});
+
+describe('assertUsableOrganizationsDirectory()', () => {
+  it('should tolerate a few malformed records', () => {
+    expect(() => assertUsableOrganizationsDirectory(100, 0)).not.toThrow();
+    expect(() => assertUsableOrganizationsDirectory(100, 5)).not.toThrow();
+  });
+
+  it('should refuse an empty or mostly malformed directory', () => {
+    expect(() => assertUsableOrganizationsDirectory(0, 0)).toThrow();
+    expect(() => assertUsableOrganizationsDirectory(100, 6)).toThrow();
+    expect(() => assertUsableOrganizationsDirectory(100, 100)).toThrow();
+  });
+});
+
+describe('assertSafeOrganizationsRemoval()', () => {
+  it('should allow the first synchronization and usual changes', () => {
+    expect(() => assertSafeOrganizationsRemoval(0, 0)).not.toThrow();
+    expect(() => assertSafeOrganizationsRemoval(1000, 100)).not.toThrow();
+  });
+
+  it('should refuse removing too many organizations', () => {
+    expect(() => assertSafeOrganizationsRemoval(1000, 101)).toThrow();
+    expect(() => assertSafeOrganizationsRemoval(1000, 1000)).toThrow();
   });
 });

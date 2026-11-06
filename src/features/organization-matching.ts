@@ -13,7 +13,7 @@ export interface MatchableOrganization {
 }
 
 export interface MatchableRepositoryOrganization {
-  url: string; // Already normalized (see `normalizeRepositoryOrganizationUrl()`)
+  url: string; // Already normalized (see `normalizeRepositoryUrl()`)
   organizationId: string;
 }
 
@@ -44,6 +44,23 @@ export const MINIMUM_REPOSITORIES_SHARE_FOR_BINDING = 0.25;
 // Level of the branch 2 organizations must share to be considered as close (level 3 is ministries)
 export const MINIMUM_CLOSE_ORGANIZATIONS_LEVEL = 4;
 
+// A few malformed records are expected, but beyond these shares it means the format of the directory changed or the file is broken.
+// Synchronizing it anyway would remove most organizations (and their bindings by cascade) until the next successful run
+export const MAXIMUM_INVALID_ORGANIZATIONS_SHARE = 0.05;
+export const MAXIMUM_REMOVED_ORGANIZATIONS_SHARE = 0.1;
+
+export function assertUsableOrganizationsDirectory(recordsCount: number, invalidRecordsCount: number) {
+  if (recordsCount === 0 || invalidRecordsCount / recordsCount > MAXIMUM_INVALID_ORGANIZATIONS_SHARE) {
+    throw new Error(`the organizations directory cannot be trusted since ${invalidRecordsCount}/${recordsCount} records are malformed`);
+  }
+}
+
+export function assertSafeOrganizationsRemoval(storedCount: number, removedCount: number) {
+  if (storedCount > 0 && removedCount / storedCount > MAXIMUM_REMOVED_ORGANIZATIONS_SHARE) {
+    throw new Error(`refusing to remove ${removedCount}/${storedCount} organizations, the directory should be checked first`);
+  }
+}
+
 // Domains that no organization of the directory declares whereas they obviously belong to one of them (key being its `dilaId`)
 export const additionalOrganizationDomains: Record<string, string[]> = {
   'c4195774-f535-4d82-b03f-d5f0c6b08635': ['finances.gouv.fr'], // Ministry of economy
@@ -52,8 +69,37 @@ export const additionalOrganizationDomains: Record<string, string[]> = {
   '051be6c4-2693-45e0-9644-b84049e57f02': ['logement.gouv.fr'], // Ministry of housing
   '0aed72f5-21ba-42da-9f16-01a529b3df14': ['aviation-civile.gouv.fr'], // DGAC
   'fa33b07a-3f71-46d4-b682-569c9faf211e': ['pref.gouv.fr'], // Ministry of the interior
-  'd1a97841-b4bf-46df-a089-1003e4e266b4': ['api.gouv.fr', 'code.gouv.fr'], // DINUM
+  'd1a97841-b4bf-46df-a089-1003e4e266b4': ['api.gouv.fr', 'code.gouv.fr', 'franceconnect.gouv.fr', 'proconnect.gouv.fr'], // DINUM
+  '0c78ef90-614a-4fcb-b7af-449f6c66f6b6': ['bison-fute.gouv.fr'], // Ministry of transport
+  'da837b24-afa7-46ab-b56a-427dd4bcc159': ['conseiller-numerique.gouv.fr'], // ANCT
+  '221319d6-0ceb-4daa-9074-0db98cbdd1b2': ['ssi.gouv.fr'], // ANSSI
+  '04de2e93-42c9-475b-a284-9322c79591c3': ['chorus-pro.gouv.fr'], // AIFE
+  '2feb6b7a-3bb3-4800-9752-82518e29ea74': ['chambre-agriculture.fr'], // Chambers of agriculture
+  // Digital workspaces of schools run by regions
+  '1eac7a7e-2db9-46d0-9935-4f8f5d32ea73': ['e-lyco.fr'], // Pays de la Loire
+  '9096cb16-adfd-4dd9-b2db-91deabcf3b48': ['mon-ent-occitanie.fr'], // Occitanie
+  '65be0936-e2a9-47a9-b52e-558e99d44d44': ['monbureaunumerique.fr'], // Grand Est
+  '17adf572-5fd7-4dd9-ad4a-eee0f1a66030': ['eclat-bfc.fr'], // Bourgogne-Franche-Comté
 };
+
+// Forge accounts of organizations that the code.gouv.fr list does not reference
+export const additionalRepositoryOrganizations: { url: string; dilaId: string }[] = [
+  { url: 'https://forge.grandlyon.com', dilaId: '9978f4d2-62b4-4e4d-b1fe-352b9990904a' }, // Métropole de Lyon
+  { url: 'https://github.com/erasme', dilaId: '9978f4d2-62b4-4e4d-b1fe-352b9990904a' }, // Innovation lab of the Métropole de Lyon
+  { url: 'https://github.com/sigrennesmetropole', dilaId: '9c843b17-826c-4b99-be0c-ffa090632c21' }, // Rennes
+  { url: 'https://github.com/nantesmetropole', dilaId: '56df4149-fe3e-4d1a-aaca-1598242d175c' }, // Nantes
+  { url: 'https://github.com/strasbourg', dilaId: 'db057bfd-ee8f-49eb-83a9-156c8f87bc3a' }, // Strasbourg
+  { url: 'https://gitlab.mobilites-m.fr', dilaId: 'f6bb5305-3ef0-41da-8850-d0a44de6cb35' }, // Grenoble
+  { url: 'https://github.com/region-bretagne', dilaId: 'bbf7c958-e007-4b6a-a54e-e09b32aa0bf5' }, // Bretagne
+  { url: 'https://dev.ch-poitiers.fr', dilaId: 'e21b55b5-672b-43ee-a60f-60355c438827' }, // University hospital of Poitiers
+  { url: 'https://code.peren.fr', dilaId: '9f659a3a-5d44-4a9c-a626-bed586699884' }, // PEReN
+  { url: 'https://github.com/incubateur-territoires', dilaId: 'da837b24-afa7-46ab-b56a-427dd4bcc159' }, // ANCT
+  { url: 'https://gitlab.com/incubateur-territoires', dilaId: 'da837b24-afa7-46ab-b56a-427dd4bcc159' }, // ANCT
+  { url: 'https://github.com/oss-pole-emploi', dilaId: 'cb47a769-8574-403d-9130-0ad9c83c7e22' }, // France Travail
+  // code.gouv.fr links this forge to an orientation office, since the DILA directory has no entry for the university itself
+  { url: 'https://forge.univ-lyon1.fr', dilaId: '1f4f4751-162b-4aa8-8e46-189b9b28d14a' }, // Universities
+  { url: 'https://github.com/dnum-socialgouv', dilaId: 'f130ad96-4a81-4eb4-a40c-0539edad5fff' }, // Ministry of labor and solidarity
+];
 
 // Local services often share the website of the local authority they depend on (e.g. a social center (CCAS), a municipal
 // police or a delegated town hall using the town website). When standalone organizations share a website, the local
@@ -157,14 +203,6 @@ export function extractOrganizationDomain(rawWebsite: string): string | null {
   return normalizeHostname(url.hostname);
 }
 
-export function normalizeRepositoryOrganizationUrl(rawUrl: string): string {
-  return rawUrl
-    .trim()
-    .toLowerCase()
-    .replace(/\.git$/, '')
-    .replace(/\/+$/, '');
-}
-
 export class OrganizationMatcher {
   protected readonly organizations = new Map<string, MatchableOrganization>();
   protected readonly organizationsByDomain = new Map<string, string[]>();
@@ -187,10 +225,7 @@ export class OrganizationMatcher {
 
     for (const repositoryOrganization of repositoryOrganizations) {
       if (this.organizations.has(repositoryOrganization.organizationId)) {
-        this.organizationIdByRepositoryOrganizationUrl.set(
-          normalizeRepositoryOrganizationUrl(repositoryOrganization.url),
-          repositoryOrganization.organizationId
-        );
+        this.organizationIdByRepositoryOrganizationUrl.set(normalizeRepositoryUrl(repositoryOrganization.url), repositoryOrganization.organizationId);
       }
     }
   }
@@ -367,7 +402,7 @@ export class OrganizationMatcher {
   public matchRepository(repositoryUrl: string): string[] {
     let url: URL;
     try {
-      url = new URL(normalizeRepositoryOrganizationUrl(repositoryUrl));
+      url = new URL(normalizeRepositoryUrl(repositoryUrl));
     } catch (error) {
       return [];
     }

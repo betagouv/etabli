@@ -42,6 +42,7 @@ export async function retrieveInitiativesOrganizations(
               acronym: true,
               level: true,
               directoryUrl: true,
+              isTerritorial: true,
               ancestorIds: true,
             },
           },
@@ -63,6 +64,7 @@ export async function retrieveInitiativesOrganizations(
         acronym: binding.organization.acronym,
         level: binding.organization.level,
         directoryUrl: binding.organization.directoryUrl,
+        isTerritorial: binding.organization.isTerritorial,
         ancestors: binding.organization.ancestorIds.flatMap((ancestorId) => {
           const ancestor = ancestorsById.get(ancestorId);
 

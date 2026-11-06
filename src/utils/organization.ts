@@ -6,7 +6,8 @@ export const SUMMARY_ORGANIZATION_LEVEL = 3;
 
 export const organizationPathSeparator = ' › ';
 
-type OrganizationWithPath = Pick<InitiativeOrganizationSchemaType, 'id' | 'name' | 'acronym' | 'ancestors'>;
+type OrganizationWithPath = Pick<InitiativeOrganizationSchemaType, 'id' | 'name' | 'acronym' | 'ancestors'> &
+  Partial<Pick<InitiativeOrganizationSchemaType, 'isTerritorial'>>;
 
 export function getOrganizationPath(organization: OrganizationWithPath): OrganizationAncestorSchemaType[] {
   return [...organization.ancestors, { id: organization.id, name: organization.name, acronym: organization.acronym }];
@@ -22,6 +23,11 @@ export function formatOrganizationPath(organization: OrganizationWithPath): stri
 // organization of the same branch (e.g. when filtering on a direction we display the direction instead of the ministry)
 export function getSummaryOrganization(organization: OrganizationWithPath, focusedOrganizationsIds: string[] = []): OrganizationAncestorSchemaType {
   const organizationPath = getOrganizationPath(organization);
+
+  // Its ancestors only tell where it is, a town hall is not summarized as its region
+  if (organization.isTerritorial) {
+    return organizationPath[organizationPath.length - 1];
+  }
 
   for (let index = organizationPath.length - 1; index >= SUMMARY_ORGANIZATION_LEVEL; index--) {
     if (focusedOrganizationsIds.includes(organizationPath[index].id)) {
@@ -117,4 +123,14 @@ export function getUnclassifiedExplanation(websitesCount: number, repositoriesCo
   return sources.length > 0
     ? `Aucune organisation publique n'a pu être reconnue à partir ${sources.join(' et ')} de cette initiative.`
     : "Aucune organisation publique n'a pu être reconnue pour cette initiative.";
+}
+
+// What is listed when looking at a node of the organizations map, without going wider than the filters:
+// when looking at a parent of the filtered organizations, they stay what is listed
+export function narrowOrganizationsToNode(filteredOrganizations: { id: string; ancestors: { id: string }[] }[], nodeId: string): string[] {
+  const organizationsIdsUnderNode = filteredOrganizations
+    .filter((organization) => organization.id === nodeId || organization.ancestors.some((ancestor) => ancestor.id === nodeId))
+    .map((organization) => organization.id);
+
+  return organizationsIdsUnderNode.length > 0 ? organizationsIdsUnderNode : [nodeId];
 }

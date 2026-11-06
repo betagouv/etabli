@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { getRepositoryNameWithSubgroups, stripMultirepositoriesPatterns } from '@etabli/src/features/repository';
+import { getRepositoryNameWithSubgroups, isLikelyStudentRepository, stripMultirepositoriesPatterns } from '@etabli/src/features/repository';
 
 describe('stripMultirepositoriesPatterns()', () => {
   it('should confirm it can be indexed', async () => {
@@ -24,5 +24,27 @@ describe('getRepositoryNameWithSubgroups()', () => {
   it('should return the right part', async () => {
     expect(getRepositoryNameWithSubgroups('https://github.com/organization-a/project-b')).toBe('project-b');
     expect(getRepositoryNameWithSubgroups('https://gitlab.com/organization-b/mysubgroup/hello-backend')).toBe('mysubgroup/hello-backend');
+  });
+});
+
+describe('isLikelyStudentRepository()', () => {
+  const repository = {
+    repositoryUrl: 'https://forge.univ-lyon1.fr/group/game',
+    starsCount: 0,
+    forksCount: 0,
+    homepage: null,
+    creationDate: new Date('2021-02-09'),
+    lastModification: new Date('2021-07-16'),
+  };
+
+  it('should detect a short-lived repository without interest on a school forge', () => {
+    expect(isLikelyStudentRepository(repository)).toBe(true);
+  });
+
+  it('should keep what shows some life or comes from elsewhere', () => {
+    expect(isLikelyStudentRepository({ ...repository, starsCount: 1 })).toBe(false);
+    expect(isLikelyStudentRepository({ ...repository, homepage: 'https://game.fr' })).toBe(false);
+    expect(isLikelyStudentRepository({ ...repository, lastModification: new Date('2023-01-01') })).toBe(false);
+    expect(isLikelyStudentRepository({ ...repository, repositoryUrl: 'https://github.com/betagouv/game' })).toBe(false);
   });
 });

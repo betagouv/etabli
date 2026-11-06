@@ -8,6 +8,7 @@ import {
   getShortOrganizationName,
   getSummaryOrganization,
   getUnclassifiedExplanation,
+  narrowOrganizationsToNode,
   summarizeOrganizations,
 } from '@etabli/src/utils/organization';
 
@@ -22,6 +23,7 @@ const team: InitiativeOrganizationSchemaType = {
   acronym: null,
   level: 5,
   directoryUrl: null,
+  isTerritorial: false,
   ancestors: [central, government, ministry, direction],
 };
 
@@ -37,6 +39,7 @@ const townHall: InitiativeOrganizationSchemaType = {
   acronym: null,
   level: 1,
   directoryUrl: null,
+  isTerritorial: false,
   ancestors: [],
 };
 
@@ -62,6 +65,14 @@ describe('getSummaryOrganization()', () => {
 
   it('should ignore a focus on generic upper levels', () => {
     expect(getSummaryOrganization(team, [government.id])).toStrictEqual(ministry);
+  });
+});
+
+describe('getSummaryOrganization() for a located organization', () => {
+  it('should keep it instead of summarizing it as its region', () => {
+    const ancestors = ['root', 'category', 'region', 'department'].map((name) => ({ id: name, name: name, acronym: null }));
+
+    expect(getSummaryOrganization({ id: 'townHall', name: 'Mairie', acronym: null, ancestors: ancestors, isTerritorial: true }).id).toBe('townHall');
   });
 });
 
@@ -109,5 +120,26 @@ describe('getUnclassifiedExplanation()', () => {
     expect(getUnclassifiedExplanation(1, 0)).toContain('à partir du site internet de cette');
     expect(getUnclassifiedExplanation(0, 3)).toContain('à partir des dépôts de code de cette');
     expect(getUnclassifiedExplanation(2, 1)).toContain('à partir des sites internet et du dépôt de code de cette');
+  });
+});
+
+describe('narrowOrganizationsToNode()', () => {
+  const filtered = [
+    { id: 'direction-a', ancestors: [{ id: 'ministry' }] },
+    { id: 'direction-b', ancestors: [{ id: 'ministry' }] },
+    { id: 'other', ancestors: [] },
+  ];
+
+  it('should not go wider than the filters when looking at a parent', () => {
+    expect(narrowOrganizationsToNode(filtered, 'ministry')).toStrictEqual(['direction-a', 'direction-b']);
+  });
+
+  it('should keep the filtered organization being looked at', () => {
+    expect(narrowOrganizationsToNode(filtered, 'other')).toStrictEqual(['other']);
+  });
+
+  it('should target the node when going deeper than the filters or without any filter', () => {
+    expect(narrowOrganizationsToNode(filtered, 'team-under-direction-a')).toStrictEqual(['team-under-direction-a']);
+    expect(narrowOrganizationsToNode([], 'ministry')).toStrictEqual(['ministry']);
   });
 });

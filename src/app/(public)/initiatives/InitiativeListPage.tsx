@@ -43,17 +43,15 @@ import {
 } from '@etabli/src/components/InitiativeFiltersModal';
 import { InitiativeList } from '@etabli/src/components/InitiativeList';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
-import { formatOrganizationOptionContext } from '@etabli/src/components/OrganizationPicker';
+import { lightTooltipSlotProps } from '@etabli/src/components/OrganizationChip';
+import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
 import { PaginationSize } from '@etabli/src/models/actions/common';
-import {
-  ListInitiativesSchemaType,
-  maximumFilteredOrganizations,
-  standaloneOrganizationsNodeId,
-  unclassifiedInitiativesNodeId,
-} from '@etabli/src/models/actions/initiative';
+import { ListInitiativesSchemaType, maximumFilteredOrganizations, unclassifiedInitiativesNodeId } from '@etabli/src/models/actions/initiative';
 import { FunctionalUseCaseSchema } from '@etabli/src/models/entities/initiative';
 import { ListDisplay, useLocalStorageListDisplay } from '@etabli/src/utils/display';
 import { centeredAlertContainerGridProps, wideContainerGridProps } from '@etabli/src/utils/grid';
+import { narrowOrganizationsToNode } from '@etabli/src/utils/organization';
+import { getOrganizationPath } from '@etabli/src/utils/organization';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 import { AggregatedQueries } from '@etabli/src/utils/trpc';
 
@@ -81,6 +79,8 @@ const directoryParsers = {
 
 const serializeDirectoryParams = createSerializer(directoryParsers);
 
+const organizationIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const reusableCentering: GridProps['sx'] = {
   ...wideContainerGridProps.sx,
   py: 0,
@@ -104,10 +104,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
 
   // Only valid identifiers are sent to the API (the URL can be modified by hand)
   const organizationIds = useMemo(
-    () =>
-      params.orgs
-        .filter((organizationId) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(organizationId))
-        .slice(0, maximumFilteredOrganizations),
+    () => params.orgs.filter((organizationId) => organizationIdPattern.test(organizationId)).slice(0, maximumFilteredOrganizations),
     [params.orgs]
   );
 
@@ -273,18 +270,14 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     setParams({ fnc: null, tools: null, orgs: null, nc: null, hasWeb: null, hasRepo: null, page: 1 });
   };
 
-  // Leaving the map for the list narrows it to where the map is looking at, without going wider than the filters
-  // (when looking at a parent of the filtered organizations, they stay what is listed)
-  const zoomedFilteredOrganizationIds = (selectedOrganizations.data?.organizations ?? [])
-    .filter((organization) => organization.id === params.zoom || organization.ancestors.some((ancestor) => ancestor.id === params.zoom))
-    .map((organization) => organization.id);
+  // Leaving the map for the list narrows it to where the map is looking at (virtual nodes other than the unclassified one are not a filter)
   const listViewParams = {
     view: null,
     zoom: null,
     ...(params.zoom === unclassifiedInitiativesNodeId
       ? { orgs: null, nc: true }
-      : params.zoom && params.zoom !== standaloneOrganizationsNodeId
-        ? { orgs: zoomedFilteredOrganizationIds.length > 0 ? zoomedFilteredOrganizationIds : [params.zoom], nc: null }
+      : params.zoom && organizationIdPattern.test(params.zoom)
+        ? { orgs: narrowOrganizationsToNode(selectedOrganizations.data?.organizations ?? [], params.zoom), nc: null }
         : {}),
   };
 
@@ -418,22 +411,26 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                     </li>
                   )}
                   {(organizationIds.length > 0 ? selectedOrganizations.data?.organizations || [] : []).map((organization) => {
-                    const context = formatOrganizationOptionContext(organization);
-
                     return (
                       <li key={organization.id}>
-                        <Chip
-                          label={organization.name}
-                          title={context ? `${context} › ${organization.name}` : organization.name}
-                          onDelete={() => {
-                            const remainingOrganizationIds = params.orgs.filter((organizationId) => organizationId !== organization.id);
+                        <Tooltip
+                          arrow
+                          describeChild
+                          componentsProps={lightTooltipSlotProps}
+                          title={organization.ancestors.length > 0 ? <OrganizationTree paths={[getOrganizationPath(organization)]} /> : ''} // Nothing to tell for a root
+                        >
+                          <Chip
+                            label={organization.name}
+                            onDelete={() => {
+                              const remainingOrganizationIds = params.orgs.filter((organizationId) => organizationId !== organization.id);
 
-                            setParams({ orgs: remainingOrganizationIds.length > 0 ? remainingOrganizationIds : null, page: 1 });
-                          }}
-                          color="primary"
-                          variant="outlined"
-                          sx={{ maxWidth: '100%' }}
-                        />
+                              setParams({ orgs: remainingOrganizationIds.length > 0 ? remainingOrganizationIds : null, page: 1 });
+                            }}
+                            color="primary"
+                            variant="outlined"
+                            sx={{ maxWidth: '100%' }}
+                          />
+                        </Tooltip>
                       </li>
                     );
                   })}

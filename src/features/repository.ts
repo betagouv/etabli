@@ -1,3 +1,4 @@
+import { differenceInDays } from 'date-fns/differenceInDays';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { subDays } from 'date-fns/subDays';
 import fsSync from 'fs';
@@ -75,6 +76,10 @@ export async function formatRepositoriesIntoDatabase() {
   const duplicatesMarkers: string[] = [];
 
   const jsonRepositories = records
+    .filter((record) => {
+      // An empty repository has no default branch, there is nothing to analyze
+      return (record as { default_branch: unknown }).default_branch !== null;
+    })
     .map((record) => {
       return JsonRepositorySchema.parse(record);
     })
@@ -703,4 +708,22 @@ export async function enhanceRepositoriesIntoDatabase() {
   // logs readable to not flood the network and be consider as a bad actor
   await updateInferredMetadataOnRepositories();
   await matchRepositories();
+}
+
+// Most schools host their forge, where students push a few repositories for a given year and never touch them again. They stay in
+// the list of repositories but are not initiatives. No group pattern allows detecting them since each promotion has its own, so
+// this is a guess from the behavior: some small lab or association projects are also caught, which is acceptable for an annual project
+export const schoolForgePattern = /^https?:\/\/[^/]*(univ|iut|polytech|enseeiht|utc\.fr|insa|cnam|centralesupelec|ensta|ens-)/;
+export const maximumStudentRepositoryLifetimeInDays = 365;
+
+export function isLikelyStudentRepository(
+  rawRepository: Pick<RawRepository, 'repositoryUrl' | 'starsCount' | 'forksCount' | 'homepage' | 'creationDate' | 'lastModification'>
+): boolean {
+  return (
+    schoolForgePattern.test(rawRepository.repositoryUrl) &&
+    rawRepository.starsCount === 0 &&
+    rawRepository.forksCount === 0 &&
+    !rawRepository.homepage &&
+    differenceInDays(rawRepository.lastModification, rawRepository.creationDate) <= maximumStudentRepositoryLifetimeInDays
+  );
 }

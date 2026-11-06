@@ -17,7 +17,7 @@ import { useId, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 
 import { trpc } from '@etabli/src/client/trpcClient';
-import { standaloneOrganizationsNodeId } from '@etabli/src/models/actions/initiative';
+import { maximumFilteredOrganizations, standaloneOrganizationsNodeId } from '@etabli/src/models/actions/initiative';
 import { OrganizationOptionSchemaType } from '@etabli/src/models/entities/organization';
 import { SUMMARY_ORGANIZATION_LEVEL, organizationPathSeparator } from '@etabli/src/utils/organization';
 
@@ -110,7 +110,7 @@ function PickerRow(props: PickerRowProps) {
             disabled={isIncluded}
             onChange={(event) => props.onCheck?.(event.target.checked)}
             inputProps={{ 'aria-labelledby': labelId }}
-            sx={{ p: 0.75 }}
+            sx={{ p: 0.75, flexShrink: 0 }} // A long explanation next to it must not squeeze it
           />
         )}
         <Box
@@ -311,6 +311,10 @@ export function OrganizationPicker(props: OrganizationPickerProps) {
         }),
         organization.id,
       ];
+
+      if (organizationIds.length > maximumFilteredOrganizations) {
+        return;
+      }
     } else {
       organizationIds = props.value.organizationIds.filter((organizationId) => organizationId !== organization.id);
     }
@@ -359,6 +363,11 @@ export function OrganizationPicker(props: OrganizationPickerProps) {
           sx: { flexWrap: 'wrap', py: '6px', '& > input': { width: 'auto', flex: '1 1 160px', py: '10px' } },
         }}
       />
+      {props.value.organizationIds.length >= maximumFilteredOrganizations && (
+        <Typography role="status" variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5, mb: 0 }}>
+          Vous avez atteint la limite de {maximumFilteredOrganizations} organisations, retirez-en une pour en ajouter une autre.
+        </Typography>
+      )}
       <Box
         role="tree"
         aria-label="organisations"

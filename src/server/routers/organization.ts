@@ -82,8 +82,8 @@ const childrenPageSize = 50;
 export const isHierarchyRootSql = Prisma.sql`EXISTS (SELECT 1 FROM "Organization" d WHERE d."ancestorIds" @> ARRAY[o."id"] AND d."level" >= ${SUMMARY_ORGANIZATION_LEVEL})`;
 
 // Cache since computing the composition of the whole tree takes a bit of time, and it only changes when data is synchronized
-// The cache is invalidated as soon as the data changes (the signature combines the bindings and the last organizations update,
-// knowing the initiatives count refresh at the end of a binding updates the organizations)
+// The cache is invalidated as soon as the data changes: a change of bindings or of what initiatives are made of updates the initiative,
+// and the initiatives count refresh at the end of a binding updates organizations
 let organizationsMapCache: {
   signature: string;
   value: OrganizationsMapSchemaType;
@@ -94,6 +94,7 @@ async function getOrganizationsMapSignature(): Promise<string> {
     SELECT concat_ws(
       '|',
       (SELECT max("updatedAt")::text FROM "Organization"),
+      (SELECT max("updatedAt")::text FROM "Initiative"),
       (SELECT count(*)::text FROM "OrganizationsOnInitiatives"),
       (SELECT count(*)::text FROM "Initiative" WHERE "deletedAt" IS NULL)
     ) AS "signature"
@@ -147,7 +148,10 @@ export const organizationRouter = router({
           FROM "Organization" o
           -- Organizations without initiatives are only useful through a meaningful ancestor, which excludes thousands of
           -- standalone ones (town halls...) early and keeps the text matching cheap
-          WHERE (o."initiativesCount" > 0 OR o."level" > ${SUMMARY_ORGANIZATION_LEVEL}) AND ${Prisma.join(conditions, ' AND ')}
+          WHERE (o."initiativesCount" > 0 OR (o."level" > ${SUMMARY_ORGANIZATION_LEVEL} AND NOT o."isTerritorial")) AND ${Prisma.join(
+            conditions,
+            ' AND '
+          )}
         ),
         resolved AS (
           SELECT
@@ -450,7 +454,7 @@ export const organizationRouter = router({
 
     const organizations = await prisma.organization.findMany({
       where: { initiativesCount: { gt: 0 } },
-      select: { id: true, parentOrganizationId: true, name: true, acronym: true, level: true },
+      select: { id: true, parentOrganizationId: true, name: true, acronym: true, level: true, isTerritorial: true },
     });
 
     const toComposition = (row?: InitiativesCompositionSchemaType): InitiativesCompositionSchemaType => ({
@@ -483,6 +487,7 @@ export const organizationRouter = router({
             acronym: organization.acronym,
             level: organization.level,
             isHierarchyRoot: hierarchyRootsIds.has(organization.id),
+            isTerritorial: organization.isTerritorial,
             composition: toComposition(subtree),
             own: toComposition(own),
             ownWeights: {

@@ -4,6 +4,7 @@ import { z } from 'zod';
 export const ResultSchema = z
   .object({
     name: z.string(),
+    isPublicService: z.boolean(),
     businessUseCases: z.array(z.string()),
     description: z.string(),
     tools: z.array(z.string()),
@@ -35,6 +36,7 @@ export type ResultSchemaType = z.infer<typeof ResultSchema>;
 export const resultSchemaDefinition: string = `
 interface ResultSchemaType {
   name: string;
+  isPublicService: boolean;
   businessUseCases: string[];
   description: string;
   tools: string[];

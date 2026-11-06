@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/nextjs';
 import assert from 'assert';
 import { errors as playwrightErrors } from 'playwright';
 
-import { Prisma, RawDomain } from '@etabli/src/generated/prisma/client';
+import { RawDomain } from '@etabli/src/generated/prisma/client';
 import { prisma } from '@etabli/src/prisma';
 
 export const chomiumMaxConcurrency = !!process.env.CHROMIUM_MAXIMUM_CONCURRENCY ? parseInt(process.env.CHROMIUM_MAXIMUM_CONCURRENCY, 10) : 1;
@@ -95,9 +95,14 @@ export async function handleReachabilityError(rawDomain: Pick<RawDomain, 'id' | 
   });
 }
 
-export function handlePrismaErrorDueToContent(error: Prisma.PrismaClientUnknownRequestError) {
+export function handlePrismaErrorDueToContent(error: unknown) {
+  // Depending on the layer the error may be from Prisma or from its driver adapter, so only the message is reliable
+  if (!(error instanceof Error)) {
+    throw error;
+  }
+
   // If matching our rules skip the error since it's extremely rare and we are fine to skip non-compliant websites.
-  if (error.message.includes('invalid byte sequence for encoding \\"UTF8\\": 0x00')) {
+  if (error.message.includes('invalid byte sequence for encoding')) {
     // For whatever reason the website is having a null charater in its content which is unallowed by PostgreSQL for text fields (ref: https://stackoverflow.com/a/1348551/3608410)
   } else if (error.message.includes('is not a valid unicode code point')) {
     // It's a bit complex to understand why the encoding is failing

@@ -6,7 +6,7 @@ import { parse as parseYaml } from 'yaml';
 import z from 'zod';
 
 import { downloadFile } from '@etabli/src/common';
-import { normalizeRepositoryOrganizationUrl } from '@etabli/src/features/organization-matching';
+import { normalizeRepositoryUrl } from '@etabli/src/features/organization-matching';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { LiteRepositoryOrganizationSchema, LiteRepositoryOrganizationSchemaType } from '@etabli/src/models/entities/organization';
 import { prisma } from '@etabli/src/prisma';
@@ -68,7 +68,7 @@ export function parseRepositoryOrganizations(
       return;
     }
 
-    const normalizedUrl = normalizeRepositoryOrganizationUrl(url);
+    const normalizedUrl = normalizeRepositoryUrl(url);
 
     liteRepositoryOrganizations.set(
       normalizedUrl,

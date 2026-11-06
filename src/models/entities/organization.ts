@@ -1,5 +1,11 @@
 import z from 'zod';
 
+// `z.string().url()` also accepts schemes like `javascript:` whereas these URLs come from an external dataset and are rendered as links
+export const HttpUrlSchema = z
+  .string()
+  .url()
+  .regex(/^https?:\/\//i);
+
 // Used to compare the DILA directory with what is stored, so only the meaningful properties are listed
 export const LiteOrganizationSchema = z
   .object({
@@ -10,8 +16,9 @@ export const LiteOrganizationSchema = z
     name: z.string().min(1),
     acronym: z.string().min(1).nullable(),
     domains: z.array(z.string().min(1)),
-    directoryUrl: z.string().url().nullable(),
+    directoryUrl: HttpUrlSchema.nullable(),
     localServiceType: z.string().min(1).nullable(),
+    isTerritorial: z.boolean(),
   })
   .strict();
 export type LiteOrganizationSchemaType = z.infer<typeof LiteOrganizationSchema>;
@@ -40,7 +47,8 @@ export const InitiativeOrganizationSchema = z
     name: z.string().min(1),
     acronym: z.string().min(1).nullable(),
     level: z.number().int().positive(),
-    directoryUrl: z.string().url().nullable(),
+    directoryUrl: HttpUrlSchema.nullable(),
+    isTerritorial: z.boolean(),
     ancestors: z.array(OrganizationAncestorSchema), // From the root to the direct parent
   })
   .strict();
@@ -93,6 +101,7 @@ export const OrganizationsMapItemSchema = z
     acronym: z.string().min(1).nullable(),
     level: z.number().int().positive(),
     isHierarchyRoot: z.boolean(), // A root category of the directory (others at level 1 are standalone organizations)
+    isTerritorial: z.boolean(),
     composition: InitiativesCompositionSchema, // Distinct initiatives of the whole subtree
     own: InitiativesCompositionSchema, // Initiatives directly bound to this organization
     ownWeights: InitiativesCompositionWeightsSchema,

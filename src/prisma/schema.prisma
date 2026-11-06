@@ -149,6 +149,10 @@ model RawDomain {
   probableRepositoryDomain String?
   updateWebsiteData        Boolean  @default(true)
 
+  isProtected                Boolean @default(false) // A firewall or an anti-bot service answered instead of the website
+  protection                 String? // Which one, see `detectWebsiteProtection()`
+  updateProtectedWebsiteData Boolean @default(false) // To be processed again with the stealth browser
+
   mainSimilarDomainId     String? @db.Uuid
   updateMainSimilarDomain Boolean @default(true)
 
@@ -179,6 +183,7 @@ model Organization {
   domains              String[] // Normalized hostnames (without `www.`) the organization declares as websites
   directoryUrl         String? // The organization page on the DILA directory
   localServiceType     String? // For local services, their type in the DILA directory (`mairie`, `ccas`, `epci`...)
+  isTerritorial        Boolean  @default(false) // Its parent only tells where it is (e.g. a town hall in a department), it is not an authority above it
   initiativesCount     Int      @default(0) // Number of initiatives bound to this organization or to any of its descendants (refreshed when binding initiatives)
 
   createdAt DateTime @default(now())

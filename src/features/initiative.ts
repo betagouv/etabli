@@ -29,7 +29,7 @@ import manifestsEndingPatterns from '@etabli/src/bibliothecary/manifests-pattern
 import { ChunkEventEmitter, llmManagerInstance } from '@etabli/src/features/llm';
 import { buildOrganizationMatcher } from '@etabli/src/features/organization';
 import { getComparableWebsiteName, normalizeHostname, normalizeRepositoryUrl } from '@etabli/src/features/organization-matching';
-import { hasProbableGenericDomain } from '@etabli/src/features/repository';
+import { hasProbableGenericDomain, isLikelyStudentRepository } from '@etabli/src/features/repository';
 import { FunctionalUseCase, Prisma, RawDomain, RawRepository } from '@etabli/src/generated/prisma/client';
 import {
   InitiativeTemplateSchema,
@@ -55,7 +55,7 @@ import { bitsFor } from '@etabli/src/utils/bits';
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
-import { getMergedInitiativeMapsIdentifiers } from '@etabli/src/utils/initiative-map';
+import { getMergedInitiativeMapsIdentifiers, getMovedInitiativeMaps } from '@etabli/src/utils/initiative-map';
 import { languagesExtensions } from '@etabli/src/utils/languages';
 import { promiseWithFatalTimeout } from '@etabli/src/utils/maintenance';
 import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond } from '@etabli/src/utils/request';
@@ -157,13 +157,17 @@ export async function inferInitiativesFromDatabase() {
     ],
   };
 
-  const rawRepositories = await prisma.rawRepository.findMany({
+  const eligibleAndStudentRawRepositories = await prisma.rawRepository.findMany({
     where: rawRepositoryCriterias,
     select: {
       id: true,
       name: true,
       repositoryUrl: true,
       homepage: true,
+      starsCount: true,
+      forksCount: true,
+      creationDate: true,
+      lastModification: true,
       probableWebsiteUrl: true,
       probableWebsiteDomain: true,
       similarRepositories: {
@@ -179,7 +183,15 @@ export async function inferInitiativesFromDatabase() {
     },
   });
 
-  console.log(`inferring according to ${rawDomains.length} raw domains and ${rawRepositories.length} raw repositories`);
+  // They are kept as raw data but they must not become initiatives (the similar ones are ignored the same way below)
+  const studentRawRepositoriesIds = new Set(
+    eligibleAndStudentRawRepositories.filter(isLikelyStudentRepository).map((rawRepository) => rawRepository.id)
+  );
+  const rawRepositories = eligibleAndStudentRawRepositories.filter((rawRepository) => !studentRawRepositoriesIds.has(rawRepository.id));
+
+  console.log(
+    `inferring according to ${rawDomains.length} raw domains and ${rawRepositories.length} raw repositories (${studentRawRepositoriesIds.size} repositories skipped as likely student projects)`
+  );
 
   // Below we use a graph logic to be more explicit in what happens
   // It may also helps fixing "parent - child" pairs from the database (we tried to have only 2 levels, but after multiple updates it's possible we have 2+ levels due to nested `mainSimilarXxx`)
@@ -211,6 +223,10 @@ export async function inferInitiativesFromDatabase() {
     // If will create the node with only "id" if not existing, and over next iterations it will put details onto it
     // Note: we avoid having loops between 2 nodes of the same type (complicating the logic to calculate the path then)
     for (const similarRepository of rawRepository.similarRepositories) {
+      if (studentRawRepositoriesIds.has(similarRepository.id)) {
+        continue;
+      }
+
       if (!graph.edge(rawRepository.id, similarRepository.id)) {
         graph.setEdge(similarRepository.id, rawRepository.id, 1 / 1);
       }
@@ -497,11 +513,34 @@ export async function inferInitiativesFromDatabase() {
         ...diffResult.updated,
         ...diffResult.unchanged,
       ]);
+      const movedInitiativeMaps = getMovedInitiativeMaps(
+        diffResult.removed.filter((initiativeMap) => !mergedInitiativeMapsIdentifiers.includes(initiativeMap.mainItemIdentifier)),
+        diffResult.added
+      );
       const duplicatedInitiatives = await tx.initiative.deleteMany({
         where: {
           origin: {
             mainItemIdentifier: {
-              in: mergedInitiativeMapsIdentifiers,
+              in: [...mergedInitiativeMapsIdentifiers, ...movedInitiativeMaps.duplicated],
+            },
+          },
+        },
+      });
+
+      // To be retrieved before removing their map since it would remove the link
+      const initiativesToMove = await tx.initiative.findMany({
+        where: {
+          origin: {
+            mainItemIdentifier: {
+              in: movedInitiativeMaps.moved.map((movedInitiativeMap) => movedInitiativeMap.fromMainItemIdentifier),
+            },
+          },
+        },
+        select: {
+          id: true,
+          origin: {
+            select: {
+              mainItemIdentifier: true,
             },
           },
         },
@@ -595,11 +634,12 @@ export async function inferInitiativesFromDatabase() {
         });
       }
 
+      const addedInitiativeMapIdByMainItemIdentifier = new Map<string, string>();
       for (const addedLiteRawDomain of diffResult.added) {
         watchGracefulExitInLoop();
 
         // `createMany` cannot be used due to nested many creations (ref: https://github.com/prisma/prisma/issues/5455)
-        await tx.initiativeMap.create({
+        const addedInitiativeMap = await tx.initiativeMap.create({
           data: {
             mainItemIdentifier: addedLiteRawDomain.mainItemIdentifier,
             update: true,
@@ -632,7 +672,34 @@ export async function inferInitiativesFromDatabase() {
             id: true, // Ref: https://github.com/prisma/prisma/issues/6252
           },
         });
+
+        addedInitiativeMapIdByMainItemIdentifier.set(addedLiteRawDomain.mainItemIdentifier, addedInitiativeMap.id);
       }
+
+      // The upsert when feeding initiatives will update them instead of creating a second one
+      const movedToByFrom = new Map(movedInitiativeMaps.moved.map((moved) => [moved.fromMainItemIdentifier, moved.toMainItemIdentifier]));
+      for (const initiativeToMove of initiativesToMove) {
+        watchGracefulExitInLoop();
+
+        const toMainItemIdentifier = initiativeToMove.origin ? movedToByFrom.get(initiativeToMove.origin.mainItemIdentifier) : undefined;
+        const originId = toMainItemIdentifier ? addedInitiativeMapIdByMainItemIdentifier.get(toMainItemIdentifier) : undefined;
+
+        if (originId) {
+          await tx.initiative.update({
+            where: {
+              id: initiativeToMove.id,
+            },
+            data: {
+              originId: originId,
+            },
+            select: {
+              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+            },
+          });
+        }
+      }
+
+      console.log(`${initiativesToMove.length} initiatives have followed their initiative map since its main item has changed`);
 
       if (diffResult.added.length > 0 || diffResult.removed.length > 0 || diffResult.updated.length > 0) {
         // There is a modification so on the next job we should tell the LLM system about new updates
@@ -1340,6 +1407,35 @@ export async function feedInitiativesFromDatabase() {
               } else {
                 throw error;
               }
+            }
+
+            // A domain listed as public can have been bought afterwards, the content is the only way to know it. It stays out of the
+            // directory until something changes in this initiative map
+            if (!answerData.isPublicService && initiativeMapRawDomains.length > 0) {
+              console.warn(`[${initiativeMap.id}] skipped since it does not look like a public service ("${answerData.name}")`);
+
+              await prisma.$transaction([
+                prisma.initiative.deleteMany({
+                  where: {
+                    originId: initiativeMap.id,
+                  },
+                }),
+                prisma.initiativeMap.update({
+                  where: {
+                    id: initiativeMap.id,
+                  },
+                  data: {
+                    update: false,
+                    lastUpdateAttemptWithReachabilityError: null,
+                    lastUpdateAttemptReachabilityError: null,
+                  },
+                  select: {
+                    id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+                  },
+                }),
+              ]);
+
+              return;
             }
 
             // Sanitize a bit free entry fields

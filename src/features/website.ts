@@ -17,16 +17,35 @@ export interface getWebsiteDataResponse {
 }
 
 // We pass the browser from the parent since it's always used into loops and that launching + closing last for 600ms
-export async function getWebsiteData(browser: Browser, url: string, timeoutForDomContentLoaded?: number): Promise<getWebsiteDataResponse> {
+export async function getWebsiteData(
+  browser: Browser,
+  url: string,
+  timeoutForDomContentLoaded?: number,
+  options?: { asRegularBrowser?: boolean }
+): Promise<getWebsiteDataResponse> {
   console.log(`getting the page content of ${url}`);
 
-  const page: Page = await browser.newPage({
-    extraHTTPHeaders: {
-      'Cache-Control': 'no-cache', // Tell the websites servers to not respond with a 304 status code that would use the local Chromium cache (we didn't find a simple way to disable it from Playwright settings)
-    },
-    userAgent:
-      'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/W.X.Y.Z Safari/537.36', // Use an user agent that will be ignored by tracking analytics to not pollute (https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers#googlebot-desktop)
-  });
+  const page: Page = await browser.newPage(
+    options?.asRegularBrowser
+      ? {
+          // Firewalls verify the origin of what pretends to be Googlebot, and compare the user agent with other browser signals. So it
+          // follows the version of the running browser (no list to maintain) since the default value says "HeadlessChrome"
+          userAgent: `Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${
+            browser.version().split('.')[0]
+          }.0.0.0 Safari/537.36`,
+          locale: 'fr-FR',
+          timezoneId: 'Europe/Paris',
+          viewport: { width: 1440, height: 900 },
+        }
+      : {
+          extraHTTPHeaders: {
+            'Cache-Control': 'no-cache', // Tell the websites servers to not respond with a 304 status code that would use the local Chromium cache (we didn't find a simple way to disable it from Playwright settings)
+          },
+          // Use an user agent that will be ignored by tracking analytics to not pollute (https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers#googlebot-desktop)
+          userAgent:
+            'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/W.X.Y.Z Safari/537.36',
+        }
+  );
   try {
     const response = await new Promise<Response | null>((resolve, reject) => {
       let errorWithDetailsIntoListener: Error | null = null;

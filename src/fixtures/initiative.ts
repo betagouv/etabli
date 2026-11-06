@@ -20,6 +20,7 @@ export const organizations: InitiativeOrganizationSchemaType[] = [
     acronym: null,
     level: 5,
     directoryUrl: 'https://lannuaire.service-public.gouv.fr/gouvernement/c79cb3ba-745e-5d9a-8903-4a02327a7e05',
+    isTerritorial: false,
     ancestors: [centralAdministration, government, ministry, dinum],
   }),
   InitiativeOrganizationSchema.parse({
@@ -28,6 +29,7 @@ export const organizations: InitiativeOrganizationSchemaType[] = [
     acronym: null,
     level: 3,
     directoryUrl: null,
+    isTerritorial: false,
     ancestors: [centralAdministration, government],
   }),
   InitiativeOrganizationSchema.parse({
@@ -36,6 +38,7 @@ export const organizations: InitiativeOrganizationSchemaType[] = [
     acronym: null,
     level: 1,
     directoryUrl: null,
+    isTerritorial: false,
     ancestors: [],
   }),
 ];
@@ -117,6 +120,7 @@ const asItem = (
   acronym: organization.acronym,
   level: level,
   isHierarchyRoot: isHierarchyRoot,
+  isTerritorial: false,
   composition: composition,
   own: own,
   ownWeights: own,

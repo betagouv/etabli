@@ -5,6 +5,7 @@ import {
   formatDomainsIntoDatabase,
   matchDomains,
   saveDomainCsvFile,
+  updateProtectedWebsiteDataOnDomains,
   updateRobotsTxtOnDomains,
   updateWebsiteDataOnDomains,
   updateWildcardCertificateOnDomains,
@@ -60,7 +61,7 @@ domain
     new Option(
       '-t, --type <type...>',
       'type of metadata to enhance (locally you may need to use "npm run cli --- -t certificate" for example)'
-    ).choices(['indexing', 'certificate', 'content', 'matching'] as const)
+    ).choices(['indexing', 'certificate', 'content', 'protected', 'matching'] as const)
   )
   .action(async (options) => {
     if (!!options.type) {
@@ -74,6 +75,10 @@ domain
 
       if (options.type.includes('content')) {
         await updateWebsiteDataOnDomains();
+      }
+
+      if (options.type.includes('protected')) {
+        await updateProtectedWebsiteDataOnDomains();
       }
 
       if (options.type.includes('matching')) {

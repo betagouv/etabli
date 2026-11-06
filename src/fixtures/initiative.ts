@@ -1,4 +1,4 @@
-import { FunctionalUseCaseSchema, InitiativeSchema, InitiativeSchemaType } from '@etabli/src/models/entities/initiative';
+import { DomainReputationSchemaType, FunctionalUseCaseSchema, InitiativeSchema, InitiativeSchemaType } from '@etabli/src/models/entities/initiative';
 import {
   InitiativeOrganizationSchema,
   InitiativeOrganizationSchemaType,
@@ -56,6 +56,49 @@ export const organizationOptions: OrganizationOptionSchemaType[] = [
   }),
 ];
 
+export const domainsReputation: DomainReputationSchemaType[] = [
+  {
+    domain: 'great-project.local',
+    rank: 62,
+    backlinks: 45039,
+    referringPages: 43731,
+    referringDomains: 2760,
+    referringDomainsNofollow: 1544,
+    referringMainDomains: 1931,
+    referringIps: 1347,
+    backlinksSpamScore: 17,
+    brokenBacklinks: 543,
+    brokenPages: 38,
+    firstSeenAt: new Date('January 16, 2019 04:11:05 UTC'),
+    lastCheckAt: new Date('November 6, 2026 14:00:00 UTC'),
+    linksSemanticLocations: { footer: 20251, section: 13079, '': 3515, main: 2645, nav: 2305, article: 1721 },
+    linksTypes: { anchor: 41983, image: 1739, redirect: 9 },
+    linksPlatformTypes: { unknown: 41207, blogs: 1500, cms: 1495, organization: 1174, news: 228 },
+    linksCountries: { FR: 37222, '': 4943, IO: 450, IT: 373 },
+    linksTopLevelDomains: { 'gouv.fr': 21323, fr: 15231, online: 1815, com: 1500 },
+  },
+  {
+    domain: 'docs.great-project.local',
+    rank: null,
+    backlinks: null,
+    referringPages: null,
+    referringDomains: null,
+    referringDomainsNofollow: null,
+    referringMainDomains: null,
+    referringIps: null,
+    backlinksSpamScore: null,
+    brokenBacklinks: null,
+    brokenPages: null,
+    firstSeenAt: null,
+    lastCheckAt: new Date('November 6, 2026 14:00:00 UTC'),
+    linksSemanticLocations: null,
+    linksTypes: null,
+    linksPlatformTypes: null,
+    linksCountries: null,
+    linksTopLevelDomains: null,
+  },
+];
+
 export const initiatives: InitiativeSchemaType[] = [
   InitiativeSchema.parse({
     id: 'b79cb3ba-745e-5d9a-8903-4a02327a7e01',
@@ -68,6 +111,7 @@ export const initiatives: InitiativeSchemaType[] = [
     functionalUseCases: [FunctionalUseCaseSchema.Values.GENERATES_PDF, FunctionalUseCaseSchema.Values.SENDS_EMAILS],
     tools: ['Next.js', 'JavaScript', 'PostgreSQL'],
     organizations: [organizations[0], organizations[1]],
+    reputationRank: 62,
     createdAt: new Date('December 17, 2022 03:24:00 UTC'),
     updatedAt: new Date('December 19, 2022 04:33:00 UTC'),
     deletedAt: null,
@@ -83,6 +127,7 @@ export const initiatives: InitiativeSchemaType[] = [
     functionalUseCases: [FunctionalUseCaseSchema.Values.SENDS_EMAILS, FunctionalUseCaseSchema.Values.HAS_VIRTUAL_EMAIL_INBOXES],
     tools: ['Ruby', 'Brevo', 'Sentry'],
     organizations: [organizations[0]],
+    reputationRank: null,
     createdAt: new Date('December 17, 2022 03:24:00 UTC'),
     updatedAt: new Date('December 19, 2022 04:33:00 UTC'),
     deletedAt: null,
@@ -98,6 +143,7 @@ export const initiatives: InitiativeSchemaType[] = [
     functionalUseCases: [FunctionalUseCaseSchema.Values.SENDS_EMAILS],
     tools: ['Python', 'Django', 'React', 'Matomo'],
     organizations: [],
+    reputationRank: null,
     createdAt: new Date('December 17, 2022 03:24:00 UTC'),
     updatedAt: new Date('December 19, 2022 04:33:00 UTC'),
     deletedAt: null,

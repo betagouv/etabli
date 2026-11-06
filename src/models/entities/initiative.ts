@@ -22,6 +22,33 @@ export const FunctionalUseCaseSchema = z.enum([
 ]);
 export type FunctionalUseCaseSchemaType = z.infer<typeof FunctionalUseCaseSchema>;
 
+const LinksDistributionSchema = z.record(z.string(), z.number().nonnegative()).nullable();
+
+// Reputation of a website according to the links it receives, a null value means the provider did not give it
+export const DomainReputationSchema = z
+  .object({
+    domain: z.string().min(1),
+    rank: z.number().int().nonnegative().nullable(),
+    backlinks: z.number().int().nonnegative().nullable(),
+    referringPages: z.number().int().nonnegative().nullable(),
+    referringDomains: z.number().int().nonnegative().nullable(),
+    referringDomainsNofollow: z.number().int().nonnegative().nullable(),
+    referringMainDomains: z.number().int().nonnegative().nullable(),
+    referringIps: z.number().int().nonnegative().nullable(),
+    backlinksSpamScore: z.number().int().nonnegative().nullable(),
+    brokenBacklinks: z.number().int().nonnegative().nullable(),
+    brokenPages: z.number().int().nonnegative().nullable(),
+    firstSeenAt: z.date().nullable(),
+    lastCheckAt: z.date(),
+    linksSemanticLocations: LinksDistributionSchema,
+    linksTypes: LinksDistributionSchema,
+    linksPlatformTypes: LinksDistributionSchema,
+    linksCountries: LinksDistributionSchema,
+    linksTopLevelDomains: LinksDistributionSchema,
+  })
+  .strict();
+export type DomainReputationSchemaType = z.infer<typeof DomainReputationSchema>;
+
 export const InitiativeSchema = z
   .object({
     id: z.string().uuid(),
@@ -33,6 +60,7 @@ export const InitiativeSchema = z
     functionalUseCases: z.array(FunctionalUseCaseSchema),
     tools: z.array(z.string()),
     organizations: z.array(InitiativeOrganizationSchema),
+    reputationRank: z.number().int().nonnegative().nullable(), // Best score of its websites, from 0 to 100
     createdAt: z.date(),
     updatedAt: z.date(),
     deletedAt: z.date().nullable(),

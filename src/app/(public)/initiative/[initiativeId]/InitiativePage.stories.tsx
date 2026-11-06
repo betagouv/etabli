@@ -4,7 +4,7 @@ import { within } from '@storybook/test';
 import { ComponentProps, StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { AsVisitor as PublicLayoutAsVisitorStory } from '@etabli/src/app/(public)/PublicLayout.stories';
 import { InitiativePage } from '@etabli/src/app/(public)/initiative/[initiativeId]/InitiativePage';
-import { initiatives } from '@etabli/src/fixtures/initiative';
+import { domainsReputation, initiatives } from '@etabli/src/fixtures/initiative';
 import { getTRPCMock } from '@etabli/src/server/mock/trpc';
 
 type ComponentType = typeof InitiativePage;
@@ -26,6 +26,13 @@ const defaultMswParameters = {
         path: ['getInitiative'],
         response: {
           initiative: initiatives[0],
+        },
+      }),
+      getTRPCMock({
+        type: 'query',
+        path: ['getInitiativeReputation'],
+        response: {
+          domains: domainsReputation,
         },
       }),
     ],

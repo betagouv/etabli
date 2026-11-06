@@ -11,6 +11,12 @@ import {
   updateWildcardCertificateOnDomains,
 } from '@etabli/src/features/domain';
 import { printDomainsUsingTechnology, updateDomainsInventory } from '@etabli/src/features/domain-inventory';
+import {
+  defaultMaximumCost,
+  flagDomainsForReputationUpdate,
+  updateDomainsReputation,
+  updateInitiativesReputation,
+} from '@etabli/src/features/domain-reputation';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/src/features/llm';
 import { bindOrganizationsToInitiatives, formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
@@ -96,6 +102,37 @@ domain
   .option('-l, --limit <number>', 'maximum of domains to analyze', parseInt)
   .action(async (options) => {
     await updateDomainsInventory({ maximumDomains: options.limit });
+  });
+
+domain
+  .command('reputation')
+  .description('retrieve the reputation of flagged domains (this is charged by the provider, so it is never run automatically)')
+  .option('-l, --limit <number>', 'maximum number of domains to process')
+  .option('-c, --maximum-cost <dollars>', 'stop before exceeding this amount', `${defaultMaximumCost}`)
+  .option('--domains-per-request <number>', 'maximum number of different domains per request')
+  .option('--dry-run', 'only display what would be done and its estimated cost')
+  .action(async (options) => {
+    await updateDomainsReputation({
+      maximumDomains: options.limit ? parseInt(options.limit, 10) : undefined,
+      maximumCost: parseFloat(options.maximumCost),
+      maximumDifferentDomains: options.domainsPerRequest ? parseInt(options.domainsPerRequest, 10) : undefined,
+      dryRun: !!options.dryRun,
+    });
+  });
+
+domain
+  .command('reputation-flag')
+  .description('flag domains so the next `domain reputation` retrieves them again (all of them if none is specified)')
+  .argument('[domains...]', 'domains to flag')
+  .action(async (domains: string[]) => {
+    console.log(`${await flagDomainsForReputationUpdate(domains.length > 0 ? domains : undefined)} domains flagged`);
+  });
+
+domain
+  .command('reputation-apply')
+  .description('recompute the reputation of initiatives from the stored one of their domains (it costs nothing)')
+  .action(async () => {
+    console.log(`${await updateInitiativesReputation()} initiatives updated`);
   });
 
 domain

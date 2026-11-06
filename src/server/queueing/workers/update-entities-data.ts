@@ -2,6 +2,7 @@ import { Job } from 'pg-boss';
 
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/src/features/domain';
 import { updateDomainsInventory } from '@etabli/src/features/domain-inventory';
+import { updateInitiativesReputation } from '@etabli/src/features/domain-reputation';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/src/features/initiative';
 import { ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem } from '@etabli/src/features/llm';
 import { bindOrganizationsToInitiatives, formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
@@ -39,6 +40,9 @@ export async function updateEntitiesData(job: Job<void>) {
 
   // Organizations are part of the initiative sheet, so they must be bound before ingesting initiatives into the LLM system
   await bindOrganizationsToInitiatives();
+
+  // Only what is already stored, retrieving the reputation of domains is charged so it stays a manual action
+  await updateInitiativesReputation();
 
   await ingestInitiativeListToLlmSystem();
 }

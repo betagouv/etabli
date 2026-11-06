@@ -14,7 +14,13 @@ export type GetInitiativeSchemaType = z.infer<typeof GetInitiativeSchema>;
 // Same limit when filtering and when retrieving the selected organizations to display them
 export const maximumFilteredOrganizations = 50;
 
+export const InitiativesOrderSchema = z.enum(['name', 'reputation']);
+export type InitiativesOrderSchemaType = z.infer<typeof InitiativesOrderSchema>;
+
 export const ListInitiativesSchema = GetterInputSchema.extend({
+  orderBy: z.object({
+    field: InitiativesOrderSchema.optional(),
+  }),
   filterBy: z.object({
     query: z.string().nullable(),
     functionalUseCases: z.array(FunctionalUseCaseSchema).optional(),

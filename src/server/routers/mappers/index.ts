@@ -20,6 +20,7 @@ export function initiativePrismaToModel(
     functionalUseCases: initiative.functionalUseCases,
     tools: initiative.tools,
     organizations: initiative.organizations,
+    reputationRank: initiative.reputationRank,
     createdAt: initiative.createdAt,
     updatedAt: initiative.updatedAt,
     deletedAt: initiative.deletedAt,
@@ -27,7 +28,7 @@ export function initiativePrismaToModel(
 }
 
 export function datasetInitiativePrismaToModel(
-  initiative: Omit<Initiative, 'originId'> & {
+  initiative: Omit<Initiative, 'originId' | 'reputationRank'> & {
     businessUseCases: string[];
     tools: string[];
     organizations: InitiativeOrganizationSchemaType[];

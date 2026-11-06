@@ -130,26 +130,26 @@ model RawDomain {
   redirectDomainTargetId   String? @unique @db.Uuid
 
   indexableFromRobotsTxt       Boolean?
-  updateIndexableFromRobotsTxt Boolean  @default(true)
+  updateIndexableFromRobotsTxt Boolean   @default(true)
   lastRobotsTxtCheckAt         DateTime?
   robotsTxtContent             String?
 
   wildcardCertificate       Boolean?
-  updateWildcardCertificate Boolean  @default(true)
+  updateWildcardCertificate Boolean   @default(true)
   lastCertificateCheckAt    DateTime?
   certificateContent        String?
 
-  websiteRawContent        String?  @db.Text
-  websiteTitle             String?  @db.Text
-  websiteAnotherPageTitle  String?  @db.Text
-  websiteInferredName      String?  @db.Text
+  websiteRawContent        String?   @db.Text
+  websiteTitle             String?   @db.Text
+  websiteAnotherPageTitle  String?   @db.Text
+  websiteInferredName      String?   @db.Text
   websiteHasContent        Boolean?
   websiteHasStyle          Boolean?
   websiteContentIndexable  Boolean?
   websitePseudoFingerprint String?
   probableRepositoryUrl    String?
   probableRepositoryDomain String?
-  updateWebsiteData        Boolean  @default(true)
+  updateWebsiteData        Boolean   @default(true)
   lastWebsiteDataCheckAt   DateTime?
 
   isProtected                Boolean @default(false) // A firewall or an anti-bot service answered instead of the website
@@ -185,6 +185,36 @@ model DomainInventory {
   updatedAt DateTime @default(now()) @updatedAt
 
   DomainTechnology DomainTechnology[]
+}
+
+// Each retrieval is charged, so it's never part of the recurrent job: rows are flagged manually and processed by a manual command
+model DomainReputation {
+  domain                   String    @id
+  update                   Boolean   @default(true)
+  rank                     Int? // From 0 to 100
+  backlinks                Int?
+  referringPages           Int?
+  referringDomains         Int?
+  referringDomainsNofollow Int?
+  referringMainDomains     Int?
+  referringIps             Int?
+  backlinksSpamScore       Int?
+  brokenBacklinks          Int?
+  brokenPages              Int?
+  firstSeenAt              DateTime?
+  // Number of links per category, the last 2 are limited to the 10 main ones by the provider
+  linksSemanticLocations   Json?
+  linksTypes               Json?
+  linksPlatformTypes       Json?
+  linksCountries           Json?
+  linksTopLevelDomains     Json?
+  summary                  Json? // The whole statistics since all of them are paid, it does not contain any linking website and must not be exposed
+  lastCheckAt              DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([update])
 }
 
 model DomainTechnology {
@@ -382,6 +412,7 @@ model Initiative {
   websites           String[]
   repositories       String[]
   functionalUseCases FunctionalUseCase[]
+  reputationRank     Int? // Best rank of its domains, only stored to sort the directory on it
   searchableText     Unsupported("tsvector")? // based on `name` + `description` taking into account french and english (see migration)
 
   createdAt DateTime  @default(now())
@@ -393,4 +424,6 @@ model Initiative {
   BusinessUseCasesOnInitiatives BusinessUseCasesOnInitiatives[]
   InitiativeLlmDocument         InitiativeLlmDocument?
   OrganizationsOnInitiatives    OrganizationsOnInitiatives[]
+
+  @@index([reputationRank])
 }

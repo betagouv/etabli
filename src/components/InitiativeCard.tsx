@@ -2,6 +2,7 @@
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import LanguageIcon from '@mui/icons-material/Language';
+import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Grid from '@mui/material/Grid';
@@ -12,6 +13,7 @@ import { useMemo } from 'react';
 import ShowMoreText from 'react-show-more-text';
 
 import { OrganizationChips } from '@etabli/src/components/OrganizationChip';
+import { ReputationChip } from '@etabli/src/components/ReputationChip';
 import { InitiativeSchemaType } from '@etabli/src/models/entities/initiative';
 import { ulComponentResetStyles } from '@etabli/src/utils/grid';
 import { summarizeOrganizations } from '@etabli/src/utils/organization';
@@ -102,6 +104,11 @@ export function InitiativeCard(props: InitiativeCardProps) {
               linkToInitiatives
               sx={interactiveLayer}
             />
+            {!!props.initiative.reputationRank && (
+              <Box sx={{ mt: 1 }}>
+                <ReputationChip rank={props.initiative.reputationRank} sx={interactiveLayer} />
+              </Box>
+            )}
           </Grid>
           <Grid item xs={12}>
             <Typography component="div">

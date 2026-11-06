@@ -16,6 +16,7 @@ import { trpc } from '@etabli/src/client/trpcClient';
 import { BusinessUseCaseChip } from '@etabli/src/components/BusinessUseCaseChip';
 import { ErrorAlert } from '@etabli/src/components/ErrorAlert';
 import { FunctionalUseCaseChip } from '@etabli/src/components/FunctionalUseCaseChip';
+import { InitiativeReputationDashboard } from '@etabli/src/components/InitiativeReputationDashboard';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
 import { getOrganizationInitiativesLink, organizationsBindingDisclaimer } from '@etabli/src/components/OrganizationChip';
 import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
@@ -226,6 +227,7 @@ export function InitiativePage({ params: { initiativeId } }: InitiativePageProps
             </Grid>
           </Grid>
         )}
+        <InitiativeReputationDashboard initiativeId={initiative.id} />
         <Grid item xs={12}>
           <Typography component="div" variant="caption" sx={{ fontStyle: 'italic', mt: 2 }}>
             Fiche mise à jour le {t('date.longWithTime', { date: initiative.updatedAt })}

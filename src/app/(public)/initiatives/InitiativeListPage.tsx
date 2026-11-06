@@ -46,7 +46,13 @@ import { LoadingArea } from '@etabli/src/components/LoadingArea';
 import { lightTooltipSlotProps } from '@etabli/src/components/OrganizationChip';
 import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
 import { PaginationSize } from '@etabli/src/models/actions/common';
-import { ListInitiativesSchemaType, maximumFilteredOrganizations, unclassifiedInitiativesNodeId } from '@etabli/src/models/actions/initiative';
+import {
+  InitiativesOrderSchema,
+  InitiativesOrderSchemaType,
+  ListInitiativesSchemaType,
+  maximumFilteredOrganizations,
+  unclassifiedInitiativesNodeId,
+} from '@etabli/src/models/actions/initiative';
 import { FunctionalUseCaseSchema } from '@etabli/src/models/entities/initiative';
 import { ListDisplay, useLocalStorageListDisplay } from '@etabli/src/utils/display';
 import { centeredAlertContainerGridProps, wideContainerGridProps } from '@etabli/src/utils/grid';
@@ -74,6 +80,7 @@ const directoryParsers = {
   zoom: parseAsString, // Where the map is looking at, it never changes the criteria
   hasWeb: parseAsBoolean.withDefault(false),
   hasRepo: parseAsBoolean.withDefault(false),
+  sort: parseAsStringLiteral(InitiativesOrderSchema.options).withDefault('name'),
   page: parseAsInteger.withDefault(1),
 };
 
@@ -148,7 +155,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     {
       page: params.page,
       pageSize: pageSize,
-      orderBy: {},
+      orderBy: { field: params.sort },
       filterBy: filterBy,
     },
     { enabled: !isMapView }
@@ -349,6 +356,21 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                     ),
                   }}
                 />
+                {!isMapView && (
+                  <TextField
+                    select
+                    size="small"
+                    label="Trier par"
+                    value={params.sort}
+                    onChange={(event) => {
+                      setParams({ sort: event.target.value as InitiativesOrderSchemaType, page: 1 });
+                    }}
+                    sx={{ flex: '0 0 150px' }}
+                  >
+                    <MenuItem value="name">{hasSearchQuery ? 'Pertinence' : 'Nom'}</MenuItem>
+                    <MenuItem value="reputation">Réputation</MenuItem>
+                  </TextField>
+                )}
                 <Button
                   variant={activeFiltersCount > 0 ? 'contained' : 'outlined'}
                   color="primary"

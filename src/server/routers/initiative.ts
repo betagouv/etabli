@@ -1,7 +1,10 @@
+import z from 'zod';
+
 import { retrieveInitiativesOrganizations } from '@etabli/src/features/organization-read';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { GetInitiativeSchema, ListInitiativesSchema } from '@etabli/src/models/actions/initiative';
 import { initiativeNotFoundError } from '@etabli/src/models/entities/errors';
+import { DomainReputationSchema } from '@etabli/src/models/entities/initiative';
 import { prisma } from '@etabli/src/prisma/client';
 import { buildInitiativeFilters, searchRankedInitiativesIds } from '@etabli/src/server/routers/common/initiative-filters';
 import { initiativePrismaToModel } from '@etabli/src/server/routers/mappers';
@@ -60,6 +63,59 @@ export const initiativeRouter = router({
       }),
     };
   }),
+  getInitiativeReputation: publicProcedure.input(GetInitiativeSchema).query(async ({ ctx, input }) => {
+    const initiative = await prisma.initiative.findUnique({
+      where: { id: input.id },
+      select: {
+        origin: {
+          select: {
+            RawDomainsOnInitiativeMaps: {
+              orderBy: { main: 'desc' },
+              select: { rawDomain: { select: { name: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!initiative) {
+      throw initiativeNotFoundError;
+    }
+
+    const domains = initiative.origin?.RawDomainsOnInitiativeMaps.map(({ rawDomain }) => rawDomain.name) ?? [];
+
+    // Only the reviewed columns are returned, `summary` stays internal
+    const reputations = await prisma.domainReputation.findMany({
+      where: { domain: { in: domains }, lastCheckAt: { not: null } },
+      select: {
+        domain: true,
+        rank: true,
+        backlinks: true,
+        referringPages: true,
+        referringDomains: true,
+        referringDomainsNofollow: true,
+        referringMainDomains: true,
+        referringIps: true,
+        backlinksSpamScore: true,
+        brokenBacklinks: true,
+        brokenPages: true,
+        firstSeenAt: true,
+        lastCheckAt: true,
+        linksSemanticLocations: true,
+        linksTypes: true,
+        linksPlatformTypes: true,
+        linksCountries: true,
+        linksTopLevelDomains: true,
+      },
+    });
+
+    // The best one first since it's the one giving the initiative its score
+    reputations.sort((a, b) => (b.rank ?? -1) - (a.rank ?? -1) || domains.indexOf(a.domain) - domains.indexOf(b.domain));
+
+    return {
+      domains: z.array(DomainReputationSchema).parse(reputations),
+    };
+  }),
   listInitiatives: publicProcedure.input(ListInitiativesSchema).query(async ({ ctx, input }) => {
     const extraFilters = buildInitiativeFilters(input.filterBy);
 
@@ -83,6 +139,17 @@ export const initiativeRouter = router({
         });
         const keptSet = new Set(kept.map((k) => k.id));
         filteredIds = rankedIds.filter((id) => keptSet.has(id));
+      }
+
+      // Otherwise the order stays the relevance. The sort being stable, it remains the tiebreaker between equal scores
+      if (input.orderBy.field === 'reputation') {
+        const ranks = await prisma.initiative.findMany({
+          where: { id: { in: filteredIds } },
+          select: { id: true, reputationRank: true },
+        });
+        const rankById = new Map(ranks.map((initiative) => [initiative.id, initiative.reputationRank ?? -1]));
+
+        filteredIds = [...filteredIds].sort((a, b) => (rankById.get(b) ?? -1) - (rankById.get(a) ?? -1));
       }
 
       const totalCount = filteredIds.length;
@@ -116,7 +183,7 @@ export const initiativeRouter = router({
       prisma.initiative.findMany({
         where: extraWhere,
         include: includeRelations,
-        orderBy: { name: 'asc' },
+        orderBy: input.orderBy.field === 'reputation' ? [{ reputationRank: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }] : { name: 'asc' },
         skip: (input.page - 1) * input.pageSize,
         take: input.pageSize,
       }),

@@ -27,6 +27,9 @@ export function buildInitiativeFilters(filterBy: InitiativeFilterBy): Prisma.Ini
   if (filterBy.tlsGrades && filterBy.tlsGrades.length > 0) {
     extraFilters.push({ tlsGrade: { in: expandGradeLetters(filterBy.tlsGrades) } });
   }
+  if (filterBy.foreignDependencyLevels && filterBy.foreignDependencyLevels.length > 0) {
+    extraFilters.push({ foreignDependencyLevel: { in: filterBy.foreignDependencyLevels } });
+  }
   if (filterBy.legalNotice) {
     extraFilters.push({ hasLegalNotice: filterBy.legalNotice === 'with' });
   }

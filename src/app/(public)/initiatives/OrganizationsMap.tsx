@@ -3,6 +3,9 @@
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
+import MenuItem from '@mui/material/MenuItem';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 import { useMemo, useState } from 'react';
 import { useIsomorphicLayoutEffect } from 'react-use';
 
@@ -14,12 +17,15 @@ import { LoadingArea } from '@etabli/src/components/LoadingArea';
 import { ListInitiativesSchemaType } from '@etabli/src/models/actions/initiative';
 import { centeredAlertContainerGridProps } from '@etabli/src/utils/grid';
 import {
+  MapColorMode,
   MapNode,
   compositionColorsSx,
   computeAnnotations,
   computeCircles,
   countInitiatives,
   layoutOrganizationsMap,
+  mapColorModeOptions,
+  mapScaleSteps,
   viewSize,
 } from '@etabli/src/utils/organizations-map';
 
@@ -29,6 +35,8 @@ export interface OrganizationsMapProps {
   onFocus: (nodeId: string | null) => void;
   listHref: string; // Same as `onShowList`, for browser features (e.g. open in a new tab)
   onShowList: () => void;
+  colorMode: MapColorMode;
+  onColorModeChange: (mode: MapColorMode) => void;
 }
 
 // Where the element starts in the page, to make it fit in the screen whatever is displayed above it
@@ -50,6 +58,56 @@ function usePageTop(element: HTMLElement | null): number | null {
   }, [element]);
 
   return top;
+}
+
+function OrganizationsMapColorControl(props: { mode: MapColorMode; onChange: (mode: MapColorMode) => void }) {
+  const option = mapColorModeOptions.find((item) => item.mode === props.mode);
+
+  return (
+    <Box
+      sx={{
+        position: { xs: 'relative', md: 'absolute' },
+        top: { md: 16 },
+        left: { md: 16 },
+        zIndex: 1,
+        width: { xs: 'auto', md: 220 },
+        mx: { xs: 2, md: 0 },
+        mb: { xs: 2, md: 0 },
+      }}
+    >
+      <TextField
+        select
+        size="small"
+        fullWidth
+        label="Couleur des bulles"
+        value={props.mode}
+        onChange={(event) => props.onChange(event.target.value as MapColorMode)}
+        sx={{ backgroundColor: 'var(--background-default-grey)' }}
+      >
+        {mapColorModeOptions.map((item) => (
+          <MenuItem key={item.mode} value={item.mode}>
+            {item.label}
+          </MenuItem>
+        ))}
+      </TextField>
+      {option?.legendStart && (
+        <Box sx={{ mt: 1, p: 1, borderRadius: '4px', backgroundColor: 'var(--background-default-grey)' }}>
+          <Box sx={{ display: 'flex', gap: '2px', height: 10 }} aria-hidden="true">
+            {mapScaleSteps.map((step) => (
+              <Box key={step} sx={{ flex: 1, bgcolor: `var(--organizations-map-scale-${step})` }} />
+            ))}
+          </Box>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+            <Typography variant="caption">{option.legendStart}</Typography>
+            <Typography variant="caption">{option.legendEnd}</Typography>
+          </Box>
+          <Typography variant="caption" component="p" color="text.secondary" sx={{ mt: 0.5, mb: 0, lineHeight: 1.3 }}>
+            {option.description}. Les bulles grises n&apos;ont pas de valeur.
+          </Typography>
+        </Box>
+      )}
+    </Box>
+  );
 }
 
 export function OrganizationsMap(props: OrganizationsMapProps) {
@@ -83,7 +141,7 @@ export function OrganizationsMap(props: OrganizationsMapProps) {
   const focus = requestedNode && requestedNode.data.type !== 'composition' ? requestedNode : startingNode;
   const scale = focus ? viewSize / 2 / focus.r : 1;
 
-  const circles = useMemo(() => (focus ? computeCircles(focus, scale) : []), [focus, scale]);
+  const circles = useMemo(() => (focus ? computeCircles(focus, scale, props.colorMode) : []), [focus, scale, props.colorMode]);
   const annotations = useMemo(
     () => (focus ? computeAnnotations(focus, circles, scale) : { labeledNodes: [], countedNodes: [] }),
     [circles, focus, scale]
@@ -174,6 +232,7 @@ export function OrganizationsMap(props: OrganizationsMapProps) {
           />
         </Box>
       </Box>
+      <OrganizationsMapColorControl mode={props.colorMode} onChange={props.onColorModeChange} />
       <OrganizationsMapPanel
         filterBy={props.filterBy}
         root={root}

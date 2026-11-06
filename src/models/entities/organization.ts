@@ -105,6 +105,8 @@ export const OrganizationsMapItemSchema = z
     composition: InitiativesCompositionSchema, // Distinct initiatives of the whole subtree
     own: InitiativesCompositionSchema, // Initiatives directly bound to this organization
     ownWeights: InitiativesCompositionWeightsSchema,
+    relativeReputation: z.number().nonnegative().nullable(), // Median of the whole subtree
+    averageForeignDependencyLevel: z.number().nonnegative().nullable(), // Average of the whole subtree
   })
   .strict();
 export type OrganizationsMapItemSchemaType = z.infer<typeof OrganizationsMapItemSchema>;

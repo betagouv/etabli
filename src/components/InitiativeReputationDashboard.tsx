@@ -12,6 +12,7 @@ import { useState } from 'react';
 
 import { trpc } from '@etabli/src/client/trpcClient';
 import { DomainReputationSchemaType } from '@etabli/src/models/entities/initiative';
+import { getForeignDependencyLevelLabel } from '@etabli/src/utils/foreign-dependencies';
 
 const unavailableValue = 'Valeur non disponible';
 const notSignificantValue = 'Non significatif';
@@ -222,6 +223,13 @@ function DomainReputation({ reputation }: { reputation: DomainReputationSchemaTy
           label="Note TLS"
           value={reputation.tlsGrade ?? unavailableValue}
           description="Note de A+ à F donnée par SSL Labs à la configuration du chiffrement des connexions. T indique un certificat non reconnu, M un certificat établi pour un autre site."
+        />
+        <Metric
+          label="Dépendance hors UE"
+          value={getForeignDependencyLevelLabel(reputation.foreignDependencyLevel) ?? unavailableValue}
+          description={`Ce qui se voit de l'extérieur du site, selon la nationalité des prestataires : hébergement, CDN, messagerie, scripts tiers. Les services appelés par ses serveurs ne sont pas visibles.${
+            reputation.foreignDependencies.length > 0 ? ` Détecté ici : ${reputation.foreignDependencies.join(' ; ')}.` : ''
+          }`}
         />
         <Metric
           label="Mentions légales"

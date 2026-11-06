@@ -1,4 +1,5 @@
 import { retrieveOrganizationsAncestors } from '@etabli/src/features/organization-read';
+import { getReputationReferenceRank } from '@etabli/src/features/reputation-read';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import {
   GetOrganizationsMapSchema,
@@ -24,6 +25,7 @@ import { prisma } from '@etabli/src/prisma/client';
 import { retrieveFilteredInitiativesIds } from '@etabli/src/server/routers/common/initiative-filters';
 import { publicProcedure, router } from '@etabli/src/server/trpc';
 import { SUMMARY_ORGANIZATION_LEVEL } from '@etabli/src/utils/organization';
+import { getRelativeReputation } from '@etabli/src/utils/reputation';
 import { computeToolsBreakdown } from '@etabli/src/utils/tools-breakdown';
 
 const organizationOptionSelect = {
@@ -120,7 +122,12 @@ async function computeOrganizationsMap(
     COUNT(DISTINCT s."id") FILTER (WHERE s."hasWebsite" AND s."hasRepository")::int AS "both"
   `;
   const scopedInitiatives = Prisma.sql`
-    SELECT i."id", cardinality(i."websites") > 0 AS "hasWebsite", cardinality(i."repositories") > 0 AS "hasRepository"
+    SELECT
+      i."id",
+      cardinality(i."websites") > 0 AS "hasWebsite",
+      cardinality(i."repositories") > 0 AS "hasRepository",
+      i."reputationRank",
+      i."foreignDependencyLevel"
     FROM "Initiative" i
     WHERE i."deletedAt" IS NULL AND ${filterCondition}
   `;
@@ -158,9 +165,15 @@ async function computeOrganizationsMap(
       GROUP BY s."organizationId"
     `,
     // Distinct initiatives of each organization and its descendants
-    prisma.$queryRaw<(InitiativesCompositionSchemaType & { id: string })[]>`
+    prisma.$queryRaw<
+      (InitiativesCompositionSchemaType & { id: string; medianReputationRank: number | null; averageForeignDependencyLevel: number | null })[]
+    >`
       WITH s AS (${scopedInitiatives})
-      SELECT target."id", ${compositionColumns}
+      SELECT
+        target."id",
+        ${compositionColumns},
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY s."reputationRank") FILTER (WHERE s."reputationRank" > 0) AS "medianReputationRank",
+        AVG(s."foreignDependencyLevel")::float AS "averageForeignDependencyLevel"
       FROM s
       JOIN ${bindings} oi ON oi."initiativeId" = s."id"
       JOIN "Organization" bound ON bound."id" = oi."organizationId"
@@ -211,6 +224,8 @@ async function computeOrganizationsMap(
   const classified = toComposition(overallRows.find((row) => !row.unclassified));
   const unclassified = toComposition(overallRows.find((row) => row.unclassified));
 
+  const reputationReferenceRank = await getReputationReferenceRank();
+
   const value = OrganizationsMapSchema.parse({
     // Organizations without any matching initiative are not part of the map
     organizations: organizations.flatMap((organization) => {
@@ -237,6 +252,8 @@ async function computeOrganizationsMap(
             repositoriesOnly: own?.repositoriesOnlyWeight ?? 0,
             both: own?.bothWeight ?? 0,
           },
+          relativeReputation: getRelativeReputation(subtree.medianReputationRank, reputationReferenceRank),
+          averageForeignDependencyLevel: subtree.averageForeignDependencyLevel,
         },
       ];
     }),

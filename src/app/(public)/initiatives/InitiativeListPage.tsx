@@ -54,9 +54,11 @@ import {
 } from '@etabli/src/models/actions/initiative';
 import { FunctionalUseCaseSchema, GradeLetterSchema, LegalLinkPresenceSchema } from '@etabli/src/models/entities/initiative';
 import { ListDisplay, useLocalStorageListDisplay } from '@etabli/src/utils/display';
+import { getForeignDependencyLevelLabel } from '@etabli/src/utils/foreign-dependencies';
 import { centeredAlertContainerGridProps, wideContainerGridProps } from '@etabli/src/utils/grid';
 import { narrowOrganizationsToNode } from '@etabli/src/utils/organization';
 import { getOrganizationPath } from '@etabli/src/utils/organization';
+import { mapColorModes } from '@etabli/src/utils/organizations-map';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 import { AggregatedQueries } from '@etabli/src/utils/trpc';
 
@@ -67,7 +69,7 @@ export enum ListFilter {
 }
 
 // The directory can be read as a list, or as a map of the organizations using the same criteria
-const initiativesViews = ['liste', 'carte'] as const;
+const initiativesViews = ['list', 'map'] as const;
 
 const directoryParsers = {
   q: parseAsString.withDefault(''),
@@ -75,7 +77,7 @@ const directoryParsers = {
   tools: parseAsArrayOf(parseAsString).withDefault([]),
   orgs: parseAsArrayOf(parseAsString).withDefault([]),
   nc: parseAsBoolean.withDefault(false),
-  view: parseAsStringLiteral(initiativesViews).withDefault('liste'),
+  view: parseAsStringLiteral(initiativesViews).withDefault('list'),
   zoom: parseAsString, // Where the map is looking at, it never changes the criteria
   hasWeb: parseAsBoolean.withDefault(false),
   hasRepo: parseAsBoolean.withDefault(false),
@@ -83,6 +85,8 @@ const directoryParsers = {
   tls: parseAsArrayOf(parseAsStringLiteral(GradeLetterSchema.options)).withDefault([]),
   ml: parseAsStringLiteral(LegalLinkPresenceSchema.options),
   pc: parseAsStringLiteral(LegalLinkPresenceSchema.options),
+  foreign: parseAsArrayOf(parseAsInteger).withDefault([]),
+  color: parseAsStringLiteral(mapColorModes).withDefault('composition'),
   sort: parseAsStringLiteral(InitiativesOrderSchema.options).withDefault('name'),
   page: parseAsInteger.withDefault(1),
 };
@@ -130,11 +134,24 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
       tlsGrades: params.tls,
       legalNotice: params.ml,
       privacyPolicy: params.pc,
+      foreignDependencyLevels: params.foreign,
     }),
-    [params.fnc, params.tools, organizationIds, params.nc, params.hasWeb, params.hasRepo, params.httpSec, params.tls, params.ml, params.pc]
+    [
+      params.fnc,
+      params.tools,
+      organizationIds,
+      params.nc,
+      params.hasWeb,
+      params.hasRepo,
+      params.httpSec,
+      params.tls,
+      params.ml,
+      params.pc,
+      params.foreign,
+    ]
   );
 
-  const isMapView = params.view === 'carte';
+  const isMapView = params.view === 'map';
 
   const activeFiltersCount = countActiveFilters(filtersValue);
   const hasSearchQuery = params.q.trim().length > 0;
@@ -160,6 +177,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     tlsGrades: params.tls.length > 0 ? params.tls : undefined,
     legalNotice: params.ml ?? undefined,
     privacyPolicy: params.pc ?? undefined,
+    foreignDependencyLevels: params.foreign.length > 0 ? params.foreign : undefined,
   };
 
   const listInitiatives = trpc.listInitiatives.useQuery(
@@ -283,13 +301,27 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
       tls: next.tlsGrades.length > 0 ? next.tlsGrades : null,
       ml: next.legalNotice,
       pc: next.privacyPolicy,
+      foreign: next.foreignDependencyLevels.length > 0 ? next.foreignDependencyLevels : null,
       page: 1,
     });
     setFiltersModalOpen(false);
   };
 
   const resetFilters = () => {
-    setParams({ fnc: null, tools: null, orgs: null, nc: null, hasWeb: null, hasRepo: null, httpSec: null, tls: null, ml: null, pc: null, page: 1 });
+    setParams({
+      fnc: null,
+      tools: null,
+      orgs: null,
+      nc: null,
+      hasWeb: null,
+      hasRepo: null,
+      httpSec: null,
+      tls: null,
+      ml: null,
+      pc: null,
+      foreign: null,
+      page: 1,
+    });
   };
 
   // Leaving the map for the list narrows it to where the map is looking at (virtual nodes other than the unclassified one are not a filter)
@@ -329,16 +361,16 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                 exclusive
                 onChange={(event, newValue) => {
                   if (newValue !== null) {
-                    setParams(newValue === 'liste' ? { ...listViewParams, page: 1 } : { view: newValue, page: 1 });
+                    setParams(newValue === 'list' ? { ...listViewParams, page: 1 } : { view: newValue, page: 1 });
                     push(['trackEvent', 'directory', 'changeView', newValue]);
                   }
                 }}
                 aria-label="vue des initiatives"
               >
-                <ToggleButton value="liste" sx={{ px: 2, gap: 1 }}>
+                <ToggleButton value="list" sx={{ px: 2, gap: 1 }}>
                   <ViewListIcon fontSize="small" /> Liste
                 </ToggleButton>
-                <ToggleButton value="carte" sx={{ px: 2, gap: 1 }}>
+                <ToggleButton value="map" sx={{ px: 2, gap: 1 }}>
                   <BubbleChartIcon fontSize="small" /> Carte
                 </ToggleButton>
               </ToggleButtonGroup>
@@ -535,6 +567,16 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                       />
                     </li>
                   ))}
+                  {params.foreign.map((level) => (
+                    <li key={`foreign-${level}`}>
+                      <Chip
+                        label={`Dépendance hors UE : ${getForeignDependencyLevelLabel(level)?.toLowerCase()}`}
+                        onDelete={() => setParams({ foreign: params.foreign.filter((item) => item !== level), page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  ))}
                   {params.ml && (
                     <li>
                       <Chip
@@ -568,6 +610,8 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                   filterBy={filterBy}
                   focusedNodeId={params.zoom}
                   onFocus={(nodeId) => setParams({ zoom: nodeId })}
+                  colorMode={params.color}
+                  onColorModeChange={(mode) => setParams({ color: mode })}
                   listHref={`${linkRegistry.get('initiatives', undefined)}${serializeDirectoryParams({ ...params, ...listViewParams, page: null })}`}
                   onShowList={() => setParams({ ...listViewParams, page: 1 })}
                 />

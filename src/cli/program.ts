@@ -18,6 +18,7 @@ import {
   updateDomainsReputation,
   updateInitiativesReputation,
 } from '@etabli/src/features/domain-reputation';
+import { updateDomainsSovereignty } from '@etabli/src/features/domain-sovereignty';
 import { flagDomainsForTlsSecurityUpdate, updateDomainsTlsSecurity } from '@etabli/src/features/domain-tls-security';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
 import { updateDomainsLegalLinks, updateInitiativesIndicators } from '@etabli/src/features/initiative-indicators';
@@ -176,6 +177,14 @@ domain
   .argument('[domains...]', 'domains to flag')
   .action(async (domains: string[]) => {
     console.log(`${await flagDomainsForTlsSecurityUpdate(domains.length > 0 ? domains : undefined)} domains flagged`);
+  });
+
+domain
+  .command('sovereignty')
+  .description('detect foreign dependencies from DNS records and stored home pages (no request is sent to websites)')
+  .option('-l, --limit <number>', 'maximum number of domains to process')
+  .action(async (options) => {
+    await updateDomainsSovereignty({ maximumDomains: options.limit ? parseInt(options.limit, 10) : undefined });
   });
 
 domain

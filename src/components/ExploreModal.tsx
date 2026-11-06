@@ -70,7 +70,7 @@ export function ExploreModal(props: ExploreModalProps) {
           <Card variant="outlined" sx={{ mt: 3 }}>
             <CardActionArea
               component={NextLink}
-              href={`${initiativesPath}?view=carte`}
+              href={`${initiativesPath}?view=map`}
               rel="nofollow" // An interactive view not worth being crawled, and it is costly to compute
               onClick={props.onClose}
               sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, backgroundImage: 'none !important' }} // DSFR paints a link underline as a background

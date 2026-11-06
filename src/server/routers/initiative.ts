@@ -113,9 +113,10 @@ export const initiativeRouter = router({
     });
 
     // Only the grades are public, the detail of failing tests would be a list of weaknesses to exploit
-    const [httpSecurities, tlsSecurities, rawDomains] = await Promise.all([
+    const [httpSecurities, tlsSecurities, sovereignties, rawDomains] = await Promise.all([
       prisma.domainHttpSecurity.findMany({ where: { domain: { in: domains } }, select: { domain: true, grade: true } }),
       prisma.domainTlsSecurity.findMany({ where: { domain: { in: domains } }, select: { domain: true, grade: true } }),
+      prisma.domainSovereignty.findMany({ where: { domain: { in: domains } }, select: { domain: true, level: true, dependencies: true } }),
       prisma.rawDomain.findMany({
         where: { name: { in: domains } },
         select: { name: true, websiteHasLegalNotice: true, websiteHasPrivacyPolicy: true },
@@ -123,6 +124,7 @@ export const initiativeRouter = router({
     ]);
     const httpSecurityGrades = new Map(httpSecurities.map(({ domain, grade }) => [domain, grade]));
     const tlsGrades = new Map(tlsSecurities.map(({ domain, grade }) => [domain, grade]));
+    const sovereigntiesByDomain = new Map(sovereignties.map((sovereignty) => [sovereignty.domain, sovereignty]));
     const legalLinks = new Map(rawDomains.map((rawDomain) => [rawDomain.name, rawDomain]));
 
     // The best one first since it's the one giving the initiative its score

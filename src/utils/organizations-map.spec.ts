@@ -19,6 +19,8 @@ function toItem(id: string, parentId: string | null, websites: number, isHierarc
     composition: own,
     own: own,
     ownWeights: own,
+    relativeReputation: null,
+    averageForeignDependencyLevel: null,
   };
 }
 

@@ -33,6 +33,7 @@ export const ListInitiativesSchema = GetterInputSchema.extend({
     tlsGrades: z.array(GradeLetterSchema).optional(),
     legalNotice: LegalLinkPresenceSchema.optional(),
     privacyPolicy: LegalLinkPresenceSchema.optional(),
+    foreignDependencyLevels: z.array(z.number().int().min(0).max(3)).optional(),
   }),
 }).strict();
 export type ListInitiativesSchemaType = z.infer<typeof ListInitiativesSchema>;

@@ -4,13 +4,17 @@
 import { fixFingerprints } from '@etabli/src/features/wappalyzer-fingerprints';
 
 describe('fixFingerprints()', () => {
-  it('should not confuse Matomo with Piwik PRO anymore', () => {
+  it('should not rely on what the code of scripts mentions', () => {
     const fixed = fixFingerprints({
-      'Piwik PRO Core': { excludes: ['Matomo Analytics'], scriptSrc: ['\\.piwik\\.pro/'], scripts: ['piwik'] },
-      Other: { scripts: ['other'] },
+      'Yandex.Metrika': {
+        js: { yandex_metrika: '' },
+        scriptSrc: ['mc\\.yandex\\.ru/metrika/tag\\.js'],
+        scripts: ['mc\\.yandex\\.ru/metrika/tag\\.js'],
+      },
+      Eskimi: { scripts: ['eskimi\\.com'] },
     });
 
-    expect(fixed['Piwik PRO Core']).toStrictEqual({ excludes: ['Matomo Analytics'], scriptSrc: ['\\.piwik\\.pro/'] });
-    expect(fixed['Other']).toStrictEqual({ scripts: ['other'] });
+    expect(fixed['Yandex.Metrika']).toStrictEqual({ js: { yandex_metrika: '' }, scriptSrc: ['mc\\.yandex\\.ru/metrika/tag\\.js'] });
+    expect(fixed['Eskimi']).toStrictEqual({});
   });
 });

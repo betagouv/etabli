@@ -14,7 +14,7 @@ export function handler(req: NextApiRequest, res: NextApiResponse) {
       `
 User-agent: *
 Allow: /
-Disallow: /*view=carte
+Disallow: /*view=map
 Disallow: /api/trpc/*getOrganizationsMap
 Sitemap: ${linkRegistry.get('sitemapIndex', undefined, { absolute: true })}
 `.trim()

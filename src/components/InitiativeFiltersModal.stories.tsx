@@ -121,6 +121,7 @@ WithPreselectedStory.args = {
     tlsGrades: [],
     legalNotice: 'without',
     privacyPolicy: null,
+    foreignDependencyLevels: [],
   },
 };
 WithPreselectedStory.parameters = { ...defaultMswParameters };

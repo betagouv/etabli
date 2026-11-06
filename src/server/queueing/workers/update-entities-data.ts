@@ -3,6 +3,7 @@ import { Job } from 'pg-boss';
 import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFile } from '@etabli/src/features/domain';
 import { updateDomainsInventory } from '@etabli/src/features/domain-inventory';
 import { updateInitiativesReputation } from '@etabli/src/features/domain-reputation';
+import { updateDomainsSovereignty } from '@etabli/src/features/domain-sovereignty';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/src/features/initiative';
 import { updateInitiativesIndicators } from '@etabli/src/features/initiative-indicators';
 import { ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem } from '@etabli/src/features/llm';
@@ -31,6 +32,7 @@ export async function updateEntitiesData(job: Job<void>) {
 
   await enhanceDomainsIntoDatabase();
   await updateDomainsInventory();
+  await updateDomainsSovereignty();
   await enhanceRepositoriesIntoDatabase();
   await enhanceToolsIntoDatabase();
 

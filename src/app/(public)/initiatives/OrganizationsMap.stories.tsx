@@ -59,6 +59,8 @@ const Template: StoryFn<ComponentType> = (args) => {
 
 const commonArgs = {
   focusedNodeId: null,
+  colorMode: 'composition' as const,
+  onColorModeChange: () => {},
   onFocus: () => {},
   listHref: '/initiatives',
   onShowList: () => {},

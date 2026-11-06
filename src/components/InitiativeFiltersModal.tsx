@@ -25,6 +25,7 @@ import {
   LegalLinkPresenceSchema,
   LegalLinkPresenceSchemaType,
 } from '@etabli/src/models/entities/initiative';
+import { foreignDependencyLevels, getForeignDependencyLevelLabel } from '@etabli/src/utils/foreign-dependencies';
 
 export interface InitiativeFiltersValue {
   functionalUseCases: FunctionalUseCaseSchemaType[];
@@ -37,6 +38,7 @@ export interface InitiativeFiltersValue {
   tlsGrades: GradeLetterSchemaType[];
   legalNotice: LegalLinkPresenceSchemaType | null;
   privacyPolicy: LegalLinkPresenceSchemaType | null;
+  foreignDependencyLevels: number[];
 }
 
 export const emptyInitiativeFilters: InitiativeFiltersValue = {
@@ -50,6 +52,7 @@ export const emptyInitiativeFilters: InitiativeFiltersValue = {
   tlsGrades: [],
   legalNotice: null,
   privacyPolicy: null,
+  foreignDependencyLevels: [],
 };
 
 export function countActiveFilters(value: InitiativeFiltersValue): number {
@@ -63,7 +66,8 @@ export function countActiveFilters(value: InitiativeFiltersValue): number {
     value.httpSecurityGrades.length +
     value.tlsGrades.length +
     (value.legalNotice ? 1 : 0) +
-    (value.privacyPolicy ? 1 : 0)
+    (value.privacyPolicy ? 1 : 0) +
+    value.foreignDependencyLevels.length
   );
 }
 
@@ -193,6 +197,21 @@ export function InitiativeFiltersModal(props: InitiativeFiltersModalProps) {
                 label="Note TLS"
                 helperText="Note du site le moins bien noté de l'initiative, F inclut les problèmes de certificat"
                 placeholder={draft.tlsGrades.length === 0 ? 'Toutes' : undefined}
+              />
+            )}
+          />
+          <Autocomplete
+            multiple
+            options={foreignDependencyLevels.map((level) => level.value as number)}
+            value={draft.foreignDependencyLevels}
+            getOptionLabel={(value) => getForeignDependencyLevelLabel(value) ?? ''}
+            onChange={(_, next) => setDraft((d) => ({ ...d, foreignDependencyLevels: next }))}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Dépendance hors UE"
+                helperText="Selon ce qui se voit de l'extérieur, pour le site le plus dépendant de l'initiative"
+                placeholder={draft.foreignDependencyLevels.length === 0 ? 'Toutes' : undefined}
               />
             )}
           />

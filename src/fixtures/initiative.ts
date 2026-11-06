@@ -80,6 +80,8 @@ export const domainsReputation: DomainReputationSchemaType[] = [
     tlsGrade: 'A+',
     hasLegalNotice: true,
     hasPrivacyPolicy: false,
+    foreignDependencyLevel: 1,
+    foreignDependencies: ['Scripts et contenus tiers : Google'],
   },
   {
     domain: 'docs.great-project.local',
@@ -104,6 +106,8 @@ export const domainsReputation: DomainReputationSchemaType[] = [
     tlsGrade: null,
     hasLegalNotice: null,
     hasPrivacyPolicy: null,
+    foreignDependencyLevel: null,
+    foreignDependencies: [],
   },
 ];
 
@@ -184,6 +188,8 @@ const asItem = (
   composition: composition,
   own: own,
   ownWeights: own,
+  relativeReputation: 48,
+  averageForeignDependencyLevel: 1.5,
 });
 
 export const organizationsMap: OrganizationsMapSchemaType = OrganizationsMapSchema.parse({

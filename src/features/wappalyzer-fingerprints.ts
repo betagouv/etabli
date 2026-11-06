@@ -16,18 +16,16 @@ const categoriesFile = 'categories.json';
 type Fingerprints = Record<string, Record<string, unknown>>;
 
 export function fixFingerprints(technologies: Fingerprints): Fingerprints {
-  const fixedTechnologies = { ...technologies };
+  // These rules look for a text inside the code of scripts, which says nothing about what the website really uses: a cookie consent
+  // tool like tarteaucitron mentions the URLs of tens of services it supports, so all websites using it were seen as using Yandex.Metrika,
+  // DoubleClick... And it was also seeing Matomo (formerly Piwik) as Piwik PRO. Services really loaded are found thanks to the other rules
+  return Object.fromEntries(
+    Object.entries(technologies).map(([name, technology]) => {
+      const { scripts, ...fixedTechnology } = technology;
 
-  // Its pattern matches any script mentioning "piwik", so websites using Matomo (formerly Piwik) are seen as using this commercial
-  // product (and since it excludes Matomo, they are no longer seen as using Matomo). The domain of the product is the reliable part
-  if (fixedTechnologies['Piwik PRO Core']) {
-    const piwikPro = { ...fixedTechnologies['Piwik PRO Core'] };
-    delete piwikPro.scripts;
-
-    fixedTechnologies['Piwik PRO Core'] = piwikPro;
-  }
-
-  return fixedTechnologies;
+      return [name, fixedTechnology];
+    })
+  );
 }
 
 async function saveFingerprintsFile(file: string): Promise<void> {

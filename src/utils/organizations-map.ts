@@ -7,6 +7,7 @@ import {
   OrganizationsMapItemSchemaType,
   OrganizationsMapSchemaType,
 } from '@etabli/src/models/entities/organization';
+import { maximumForeignDependencyLevel } from '@etabli/src/utils/foreign-dependencies';
 
 // What initiatives are made of, each kind being a categorical color (validated for color vision deficiencies on both themes)
 export type CompositionKind = keyof InitiativesCompositionSchemaType;
@@ -22,12 +23,60 @@ export const compositionColorsSx = {
   '--organizations-map-websites': '#2a78d6',
   '--organizations-map-repositories': '#eb6834',
   '--organizations-map-both': '#1baf7a',
+  '--organizations-map-scale-1': '#dbe8f8',
+  '--organizations-map-scale-2': '#a9c9ef',
+  '--organizations-map-scale-3': '#6ea3e3',
+  '--organizations-map-scale-4': '#2f73cc',
+  '--organizations-map-scale-5': '#123f80',
+  '--organizations-map-scale-none': '#e5e5e5',
   '[data-fr-theme="dark"] &': {
+    '--organizations-map-scale-1': '#1d3557',
+    '--organizations-map-scale-2': '#2a5288',
+    '--organizations-map-scale-3': '#3f79c4',
+    '--organizations-map-scale-4': '#7dabe6',
+    '--organizations-map-scale-5': '#c7ddf6',
+    '--organizations-map-scale-none': '#3a3a3a',
     '--organizations-map-websites': '#3987e5',
     '--organizations-map-repositories': '#d95926',
     '--organizations-map-both': '#199e70',
   },
 };
+
+// How circles are colored. The two last ones are a magnitude so they use a single hue, from light to dark
+export const mapColorModes = ['composition', 'reputation', 'foreign'] as const;
+export type MapColorMode = (typeof mapColorModes)[number];
+
+export const mapScaleSteps = [1, 2, 3, 4, 5] as const;
+
+export const mapColorModeOptions: { mode: MapColorMode; label: string; legendStart?: string; legendEnd?: string; description?: string }[] = [
+  { mode: 'composition', label: 'Sites et dépôts' },
+  {
+    mode: 'reputation',
+    label: 'Réputation',
+    legendStart: 'Faible',
+    legendEnd: 'Forte',
+    description: 'Réputation médiane des initiatives de chaque organisation',
+  },
+  {
+    mode: 'foreign',
+    label: 'Dépendance hors UE',
+    legendStart: 'Aucune',
+    legendEnd: 'Forte',
+    description: "Dépendance moyenne des initiatives de chaque organisation, selon ce qui se voit de l'extérieur de leurs sites",
+  },
+];
+
+// Null when the organization has no value, it stays neutral instead of looking like a low one
+export function getMapScaleStep(organization: OrganizationsMapItemSchemaType | undefined, mode: MapColorMode): number | null {
+  const share =
+    mode === 'reputation'
+      ? organization?.relativeReputation ?? null
+      : mode === 'foreign' && typeof organization?.averageForeignDependencyLevel === 'number'
+        ? (organization.averageForeignDependencyLevel / maximumForeignDependencyLevel) * 100
+        : null;
+
+  return share === null ? null : Math.min(Math.max(Math.ceil(share / 20), 1), mapScaleSteps.length);
+}
 
 export type MapNodeType = 'root' | 'group' | 'organization' | 'unclassified' | 'composition';
 
@@ -211,7 +260,7 @@ export function toScreen(node: MapNode, focus: MapNode, scale: number) {
 
 // Only what can be seen is kept: the focused subtree a few levels deep, skipping circles too small to be noticed.
 // Parents are listed before their children, so this is also the painting order.
-export function computeCircles(focus: MapNode, scale: number): MapCircle[] {
+export function computeCircles(focus: MapNode, scale: number, colorMode: MapColorMode = 'composition'): MapCircle[] {
   const items: MapCircle[] = [];
 
   const visit = (node: MapNode, relativeDepth: number) => {
@@ -231,7 +280,13 @@ export function computeCircles(focus: MapNode, scale: number): MapCircle[] {
     const isSummarized = !isComposition && !isExpanded;
     let kind: (typeof compositionKinds)[number] | undefined;
     let slices: MapCircle['slices'] = [];
-    if (isComposition || isSummarized) {
+    let scaleFill: string | undefined;
+    if ((isComposition || isSummarized) && colorMode !== 'composition') {
+      // A colored leaf belongs to the organization around it
+      const step = getMapScaleStep((isComposition ? node.parent : node)?.data.organization, colorMode);
+
+      scaleFill = `--organizations-map-scale-${step ?? 'none'}`;
+    } else if (isComposition || isSummarized) {
       const composition = node.data.composition;
       const total = countInitiatives(composition);
 
@@ -248,8 +303,8 @@ export function computeCircles(focus: MapNode, scale: number): MapCircle[] {
       x: x,
       y: y,
       r: radius,
-      fill: kind ? kind.variable : node.depth % 2 === 0 ? '--background-alt-grey' : '--background-default-grey',
-      fillOpacity: isSummarized && (!isLeaf || radius < minimumVividRadius) ? 0.55 : 1, // Thousands of tiny vivid circles would be aggressive
+      fill: scaleFill ?? kind?.variable ?? (node.depth % 2 === 0 ? '--background-alt-grey' : '--background-default-grey'),
+      fillOpacity: !scaleFill && isSummarized && (!isLeaf || radius < minimumVividRadius) ? 0.55 : 1, // Thousands of tiny vivid circles would be aggressive
       slices: slices,
       stroke: isComposition ? '--background-default-grey' : '--border-default-grey',
     });

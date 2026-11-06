@@ -55,6 +55,8 @@ export const DomainReputationSchema = z
     tlsGrade: z.string().min(1).nullable(),
     hasLegalNotice: z.boolean().nullable(),
     hasPrivacyPolicy: z.boolean().nullable(),
+    foreignDependencyLevel: z.number().int().nonnegative().nullable(),
+    foreignDependencies: z.array(z.string()),
   })
   .strict();
 export type DomainReputationSchemaType = z.infer<typeof DomainReputationSchema>;

@@ -259,6 +259,24 @@ model DomainTlsSecurity {
   @@index([update])
 }
 
+// What can be observed from DNS records and stored home pages, it says nothing about what the backend of a website calls
+model DomainSovereignty {
+  domain          String    @id
+  ipAddress       String?
+  asn             Int?
+  asnName         String?
+  asnCountry      String?
+  cnames          String[]
+  mailHosts       String[]
+  thirdPartyHosts String[]
+  level           Int? // From 0 to 3 (see `foreignDependencyLevels`)
+  dependencies    String[]
+  lastCheckAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
 model DomainTechnology {
   domain     String
   technology String
@@ -447,20 +465,21 @@ model InitiativeMap {
 }
 
 model Initiative {
-  id                 String                   @id @default(uuid()) @db.Uuid
-  originId           String?                  @unique @db.Uuid
-  name               String
-  description        String
-  websites           String[]
-  repositories       String[]
-  functionalUseCases FunctionalUseCase[]
-  reputationRank     Int? // Best rank of its websites, or computed from repositories when having no website. Only stored to sort the directory on it
-  repositoryStars    Int? // Best one of its repositories
-  httpSecurityGrade  String? // Worst one of its websites
-  tlsGrade           String? // Worst one of its websites
-  hasLegalNotice     Boolean? // `false` as soon as one of its websites has none
-  hasPrivacyPolicy   Boolean? // `false` as soon as one of its websites has none
-  searchableText     Unsupported("tsvector")? // based on `name` + `description` taking into account french and english (see migration)
+  id                     String                   @id @default(uuid()) @db.Uuid
+  originId               String?                  @unique @db.Uuid
+  name                   String
+  description            String
+  websites               String[]
+  repositories           String[]
+  functionalUseCases     FunctionalUseCase[]
+  reputationRank         Int? // Best rank of its websites, or computed from repositories when having no website. Only stored to sort the directory on it
+  repositoryStars        Int? // Best one of its repositories
+  httpSecurityGrade      String? // Worst one of its websites
+  tlsGrade               String? // Worst one of its websites
+  hasLegalNotice         Boolean? // `false` as soon as one of its websites has none
+  hasPrivacyPolicy       Boolean? // `false` as soon as one of its websites has none
+  foreignDependencyLevel Int? // Worst one of its websites
+  searchableText         Unsupported("tsvector")? // based on `name` + `description` taking into account french and english (see migration)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt

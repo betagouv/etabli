@@ -13,7 +13,8 @@ export async function updateInitiativesIndicators(): Promise<number> {
       "httpSecurityGrade" = computed."httpSecurityGrade",
       "tlsGrade" = computed."tlsGrade",
       "hasLegalNotice" = computed."hasLegalNotice",
-      "hasPrivacyPolicy" = computed."hasPrivacyPolicy"
+      "hasPrivacyPolicy" = computed."hasPrivacyPolicy",
+      "foreignDependencyLevel" = computed."foreignDependencyLevel"
     FROM (
       SELECT
         i2."id",
@@ -46,7 +47,14 @@ export async function updateInitiativesIndicators(): Promise<number> {
           FROM "RawDomainsOnInitiativeMaps" dm
           INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
           WHERE dm."initiativeMapId" = i2."originId"
-        ) AS "hasPrivacyPolicy"
+        ) AS "hasPrivacyPolicy",
+        (
+          SELECT MAX(ds."level")
+          FROM "RawDomainsOnInitiativeMaps" dm
+          INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
+          INNER JOIN "DomainSovereignty" ds ON ds."domain" = d."name"
+          WHERE dm."initiativeMapId" = i2."originId"
+        ) AS "foreignDependencyLevel"
       FROM "Initiative" i2
     ) computed
     WHERE i."id" = computed."id"

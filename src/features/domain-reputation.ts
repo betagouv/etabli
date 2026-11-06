@@ -180,20 +180,57 @@ export async function flagDomainsForReputationUpdate(domains?: string[]): Promis
   return count;
 }
 
+// Stars and websites reputation are different scales, so repositories stay below the best websites. And since stars are
+// mostly a long tail a linear scale would give 0 to almost everyone
+export const maximumRepositoryReputation = 60;
+export const archivedRepositoryReputationFactor = 0.5;
+
 // It costs nothing, so it can be part of the recurrent job to follow domains moving between initiatives
 export async function updateInitiativesReputation(): Promise<number> {
   return await prisma.$executeRaw`
     UPDATE "Initiative" i
-    SET "reputationRank" = computed."rank"
+    SET "reputationRank" = computed."rank", "repositoryStars" = computed."stars"
     FROM (
-      SELECT i2."id", MAX(r."rank") AS "rank"
-      FROM "Initiative" i2
-      LEFT JOIN "RawDomainsOnInitiativeMaps" dm ON dm."initiativeMapId" = i2."originId"
-      LEFT JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
-      LEFT JOIN "DomainReputation" r ON r."domain" = d."name"
-      GROUP BY i2."id"
+      SELECT
+        base."id",
+        NULLIF(base."stars", 0) AS "stars",
+        CASE
+          WHEN cardinality(base."websites") > 0 THEN base."websiteRank"
+          ELSE NULLIF(base."repositoryRank", 0) -- A website is the reference when there is one, repositories would lower its score
+        END AS "rank"
+      FROM (
+        SELECT
+          i2."id",
+          i2."websites",
+          (
+            SELECT MAX(r."rank")
+            FROM "RawDomainsOnInitiativeMaps" dm
+            INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
+            INNER JOIN "DomainReputation" r ON r."domain" = d."name"
+            WHERE dm."initiativeMapId" = i2."originId"
+          ) AS "websiteRank",
+          (
+            SELECT MAX(rr."starsCount")
+            FROM "RawRepositoriesOnInitiativeMaps" rm
+            INNER JOIN "RawRepository" rr ON rr."id" = rm."rawRepositoryId"
+            WHERE rm."initiativeMapId" = i2."originId"
+          ) AS "stars",
+          (
+            SELECT MAX(ROUND(
+              ${maximumRepositoryReputation}::DOUBLE PRECISION
+              * LN(1 + rr."starsCount") / LN(1 + GREATEST(maximum."stars", 1))
+              * CASE WHEN rr."isArchived" THEN ${archivedRepositoryReputationFactor}::DOUBLE PRECISION ELSE 1 END
+            ))::INTEGER
+            FROM "RawRepositoriesOnInitiativeMaps" rm
+            INNER JOIN "RawRepository" rr ON rr."id" = rm."rawRepositoryId"
+            WHERE rm."initiativeMapId" = i2."originId"
+          ) AS "repositoryRank"
+        FROM "Initiative" i2
+        CROSS JOIN (SELECT MAX("starsCount") AS "stars" FROM "RawRepository") maximum
+      ) base
     ) computed
-    WHERE i."id" = computed."id" AND i."reputationRank" IS DISTINCT FROM computed."rank"
+    WHERE i."id" = computed."id"
+      AND (i."reputationRank" IS DISTINCT FROM computed."rank" OR i."repositoryStars" IS DISTINCT FROM computed."stars")
   `;
 }
 

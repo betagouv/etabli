@@ -1,6 +1,7 @@
 import z from 'zod';
 
 import { retrieveInitiativesOrganizations } from '@etabli/src/features/organization-read';
+import { getReputationReferenceRank } from '@etabli/src/features/reputation-read';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { GetInitiativeSchema, ListInitiativesSchema } from '@etabli/src/models/actions/initiative';
 import { initiativeNotFoundError } from '@etabli/src/models/entities/errors';
@@ -53,6 +54,7 @@ export const initiativeRouter = router({
     }
 
     const organizationsByInitiativeId = await retrieveInitiativesOrganizations([initiative.id]);
+    const reputationReferenceRank = await getReputationReferenceRank();
 
     return {
       initiative: initiativePrismaToModel({
@@ -60,6 +62,7 @@ export const initiativeRouter = router({
         businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
         tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
         organizations: organizationsByInitiativeId.get(initiative.id) || [],
+        reputationReferenceRank: reputationReferenceRank,
       }),
     };
   }),
@@ -109,15 +112,31 @@ export const initiativeRouter = router({
       },
     });
 
+    // Only the grade is public, the detail of failing tests would be a list of weaknesses to exploit
+    const httpSecurities = await prisma.domainHttpSecurity.findMany({
+      where: { domain: { in: domains } },
+      select: { domain: true, grade: true },
+    });
+    const httpSecurityGrades = new Map(httpSecurities.map(({ domain, grade }) => [domain, grade]));
+
     // The best one first since it's the one giving the initiative its score
     reputations.sort((a, b) => (b.rank ?? -1) - (a.rank ?? -1) || domains.indexOf(a.domain) - domains.indexOf(b.domain));
 
     return {
-      domains: z.array(DomainReputationSchema).parse(reputations),
+      domains: z.array(DomainReputationSchema).parse(
+        reputations.map((reputation) => ({
+          ...reputation,
+          backlinks: reputation.backlinks === null ? null : Number(reputation.backlinks),
+          referringPages: reputation.referringPages === null ? null : Number(reputation.referringPages),
+          brokenBacklinks: reputation.brokenBacklinks === null ? null : Number(reputation.brokenBacklinks),
+          brokenPages: reputation.brokenPages === null ? null : Number(reputation.brokenPages),
+        }))
+      ),
     };
   }),
   listInitiatives: publicProcedure.input(ListInitiativesSchema).query(async ({ ctx, input }) => {
     const extraFilters = buildInitiativeFilters(input.filterBy);
+    const reputationReferenceRank = await getReputationReferenceRank();
 
     const extraWhere: Prisma.InitiativeWhereInput = extraFilters.length > 0 ? { AND: extraFilters } : {};
 
@@ -173,6 +192,7 @@ export const initiativeRouter = router({
             businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
             tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
             organizations: organizationsByInitiativeId.get(initiative.id) || [],
+            reputationReferenceRank: reputationReferenceRank,
           })
         ),
         totalCount,
@@ -199,6 +219,7 @@ export const initiativeRouter = router({
           businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
           tools: initiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
           organizations: organizationsByInitiativeId.get(initiative.id) || [],
+          reputationReferenceRank: reputationReferenceRank,
         })
       ),
       totalCount: totalCount,

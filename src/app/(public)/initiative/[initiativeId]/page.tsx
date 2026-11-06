@@ -85,6 +85,7 @@ export default async function Page(props: InitiativePageProps) {
       businessUseCases: dbInitiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
       tools: dbInitiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
       organizations: organizationsByInitiativeId.get(dbInitiative.id) || [],
+      reputationReferenceRank: null, // Not part of the structured data
     });
 
     initiativeJsonLd = {

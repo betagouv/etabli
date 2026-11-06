@@ -43,7 +43,6 @@ import {
 } from '@etabli/src/components/InitiativeFiltersModal';
 import { InitiativeList } from '@etabli/src/components/InitiativeList';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
-import { lightTooltipSlotProps } from '@etabli/src/components/OrganizationChip';
 import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
 import { PaginationSize } from '@etabli/src/models/actions/common';
 import {
@@ -438,7 +437,6 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                         <Tooltip
                           arrow
                           describeChild
-                          componentsProps={lightTooltipSlotProps}
                           title={organization.ancestors.length > 0 ? <OrganizationTree paths={[getOrganizationPath(organization)]} /> : ''} // Nothing to tell for a root
                         >
                           <Chip

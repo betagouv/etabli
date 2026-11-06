@@ -17,7 +17,6 @@ import { MouseEvent, useEffect, useRef } from 'react';
 import { CompositionBar } from '@etabli/src/app/(public)/initiatives/OrganizationsMapComposition';
 import { ToolsBreakdown } from '@etabli/src/app/(public)/initiatives/ToolsBreakdown';
 import { trpc } from '@etabli/src/client/trpcClient';
-import { lightTooltipSlotProps } from '@etabli/src/components/OrganizationChip';
 import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
 import { PaginationSize } from '@etabli/src/models/actions/common';
 import { ListInitiativesSchemaType } from '@etabli/src/models/actions/initiative';
@@ -239,7 +238,6 @@ export function OrganizationsMapPanel(props: OrganizationsMapPanelProps) {
                 {focusPath.length > 1 && (
                   <Tooltip
                     arrow
-                    componentsProps={lightTooltipSlotProps}
                     enterTouchDelay={0}
                     title={
                       <OrganizationTree

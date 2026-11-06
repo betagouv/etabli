@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "DomainReputation" ALTER COLUMN "backlinks" SET DATA TYPE BIGINT,
+ALTER COLUMN "referringPages" SET DATA TYPE BIGINT,
+ALTER COLUMN "brokenBacklinks" SET DATA TYPE BIGINT,
+ALTER COLUMN "brokenPages" SET DATA TYPE BIGINT;

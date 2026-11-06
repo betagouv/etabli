@@ -76,6 +76,7 @@ export const domainsReputation: DomainReputationSchemaType[] = [
     linksPlatformTypes: { unknown: 41207, blogs: 1500, cms: 1495, organization: 1174, news: 228 },
     linksCountries: { FR: 37222, '': 4943, IO: 450, IT: 373 },
     linksTopLevelDomains: { 'gouv.fr': 21323, fr: 15231, online: 1815, com: 1500 },
+    httpSecurityGrade: 'B',
   },
   {
     domain: 'docs.great-project.local',
@@ -96,6 +97,7 @@ export const domainsReputation: DomainReputationSchemaType[] = [
     linksPlatformTypes: null,
     linksCountries: null,
     linksTopLevelDomains: null,
+    httpSecurityGrade: null,
   },
 ];
 
@@ -112,6 +114,8 @@ export const initiatives: InitiativeSchemaType[] = [
     tools: ['Next.js', 'JavaScript', 'PostgreSQL'],
     organizations: [organizations[0], organizations[1]],
     reputationRank: 62,
+    repositoryStars: 1234,
+    relativeReputation: 80,
     createdAt: new Date('December 17, 2022 03:24:00 UTC'),
     updatedAt: new Date('December 19, 2022 04:33:00 UTC'),
     deletedAt: null,
@@ -128,6 +132,8 @@ export const initiatives: InitiativeSchemaType[] = [
     tools: ['Ruby', 'Brevo', 'Sentry'],
     organizations: [organizations[0]],
     reputationRank: null,
+    repositoryStars: null,
+    relativeReputation: null,
     createdAt: new Date('December 17, 2022 03:24:00 UTC'),
     updatedAt: new Date('December 19, 2022 04:33:00 UTC'),
     deletedAt: null,
@@ -144,6 +150,8 @@ export const initiatives: InitiativeSchemaType[] = [
     tools: ['Python', 'Django', 'React', 'Matomo'],
     organizations: [],
     reputationRank: null,
+    repositoryStars: null,
+    relativeReputation: null,
     createdAt: new Date('December 17, 2022 03:24:00 UTC'),
     updatedAt: new Date('December 19, 2022 04:33:00 UTC'),
     deletedAt: null,

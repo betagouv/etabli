@@ -10,6 +10,7 @@ import {
   updateWebsiteDataOnDomains,
   updateWildcardCertificateOnDomains,
 } from '@etabli/src/features/domain';
+import { flagDomainsForHttpSecurityUpdate, updateDomainsHttpSecurity } from '@etabli/src/features/domain-http-security';
 import { printDomainsUsingTechnology, updateDomainsInventory } from '@etabli/src/features/domain-inventory';
 import {
   defaultMaximumCost,
@@ -133,6 +134,26 @@ domain
   .description('recompute the reputation of initiatives from the stored one of their domains (it costs nothing)')
   .action(async () => {
     console.log(`${await updateInitiativesReputation()} initiatives updated`);
+  });
+
+domain
+  .command('http-security')
+  .description('retrieve the grade of the HTTP security headers of flagged domains from Mozilla HTTP Observatory (internal use)')
+  .option('-l, --limit <number>', 'maximum number of domains to process')
+  .option('--concurrency <number>', 'number of simultaneous scans')
+  .action(async (options) => {
+    await updateDomainsHttpSecurity({
+      maximumDomains: options.limit ? parseInt(options.limit, 10) : undefined,
+      concurrency: options.concurrency ? parseInt(options.concurrency, 10) : undefined,
+    });
+  });
+
+domain
+  .command('http-security-flag')
+  .description('flag domains so the next `domain http-security` scans them again (all of them if none is specified)')
+  .argument('[domains...]', 'domains to flag')
+  .action(async (domains: string[]) => {
+    console.log(`${await flagDomainsForHttpSecurityUpdate(domains.length > 0 ? domains : undefined)} domains flagged`);
   });
 
 domain

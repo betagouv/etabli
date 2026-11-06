@@ -20,6 +20,7 @@ import { InitiativeReputationDashboard } from '@etabli/src/components/Initiative
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
 import { getOrganizationInitiativesLink, organizationsBindingDisclaimer } from '@etabli/src/components/OrganizationChip';
 import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
+import { InitiativeRankingChips } from '@etabli/src/components/ReputationChip';
 import { ToolChip } from '@etabli/src/components/ToolChip';
 import { initiativeNotFoundError } from '@etabli/src/models/entities/errors';
 import { centeredAlertContainerGridProps, centeredContainerGridProps, ulComponentResetStyles } from '@etabli/src/utils/grid';
@@ -72,6 +73,7 @@ export function InitiativePage({ params: { initiativeId } }: InitiativePageProps
           >
             {initiative.name}
           </Typography>
+          <InitiativeRankingChips initiative={initiative} sx={{ mt: 1 }} />
         </Grid>
         <Grid
           item
@@ -230,7 +232,7 @@ export function InitiativePage({ params: { initiativeId } }: InitiativePageProps
         <InitiativeReputationDashboard initiativeId={initiative.id} />
         <Grid item xs={12}>
           <Typography component="div" variant="caption" sx={{ fontStyle: 'italic', mt: 2 }}>
-            Fiche mise à jour le {t('date.longWithTime', { date: initiative.updatedAt })}
+            Description générée le {t('date.longWithTime', { date: initiative.updatedAt })}
           </Typography>
         </Grid>
       </Grid>

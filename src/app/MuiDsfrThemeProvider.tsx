@@ -15,6 +15,25 @@ export const { MuiDsfrThemeProvider } = createMuiDsfrThemeProvider({
         ...datePickerFrFR.components,
         ...dataGridFrFR.components,
         ...coreFrFR.components,
+        // A light tooltip is more readable than the default dark one, and it stays the same everywhere
+        MuiTooltip: {
+          defaultProps: { arrow: true },
+          styleOverrides: {
+            // Most pages are as white as the tooltip, so the frame and the shadow are what detach it from the content below
+            tooltip: {
+              backgroundColor: 'var(--background-overlap-grey)',
+              color: 'var(--text-default-grey)',
+              border: '1px solid var(--grey-625-425)',
+              boxShadow: nonAugmentedMuiTheme.shadows[8],
+              maxWidth: 420,
+              padding: '10px 14px !important', // The DSFR overrides the tooltip padding
+            },
+            arrow: {
+              color: 'var(--background-overlap-grey)',
+              '&::before': { border: '1px solid var(--grey-625-425)' },
+            },
+          },
+        },
         MuiDialog: {
           styleOverrides: {
             paper: {

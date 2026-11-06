@@ -651,16 +651,25 @@ export async function updateWildcardCertificateOnDomains() {
 
     let toSkip: boolean = false;
     let isCertificateReceived = false;
+    let authorizationError: string | null = null;
+    let tlsProtocol: string | null = null;
     const certificate = await new Promise<PeerCertificate | null>((resolve, reject) => {
       const request = https.request(
         {
           host: rawDomain.name,
           port: 443, // Should always be this one
           method: 'GET',
+          rejectUnauthorized: false, // An invalid certificate is an information to keep, not a reason to give up
           signal: AbortSignal.timeout(2000), // Tiny timeout otherwise it slows down the whole processing (may be more than a minute of timeout)
         },
         (response) => {
-          const peerCertificate = response.socket instanceof TLSSocket ? response.socket.getPeerCertificate() : null;
+          const socket = response.socket;
+          const peerCertificate = socket instanceof TLSSocket ? socket.getPeerCertificate() : null;
+
+          if (socket instanceof TLSSocket) {
+            authorizationError = socket.authorized ? null : String(socket.authorizationError);
+            tlsProtocol = socket.getProtocol();
+          }
 
           // The certificate is all we need. Without closing the response, the timeout would still fire on it and be taken for a network failure
           isCertificateReceived = true;
@@ -716,6 +725,9 @@ export async function updateWildcardCertificateOnDomains() {
         updateWildcardCertificate: !certificate,
         lastCertificateCheckAt: certificate ? new Date() : undefined,
         certificateContent: certificateContent ? JSON.stringify(certificateContent) : null,
+        certificateAuthorizationError: authorizationError,
+        certificateExpiresAt: certificate?.valid_to ? new Date(certificate.valid_to) : null,
+        tlsProtocol: tlsProtocol,
         lastUpdateAttemptWithReachabilityError: null,
         lastUpdateAttemptReachabilityError: null,
       },
@@ -728,6 +740,16 @@ export async function updateWildcardCertificateOnDomains() {
     await sleep(50);
   }
 }
+
+// The website is still the expected one despite its misconfiguration. It's not the case for a name not matching
+// the certificate (`ERR_TLS_CERT_ALTNAME_INVALID`), which is often a domain pointing to something else like a hosting provider
+export const readableCertificateErrors = [
+  'CERT_HAS_EXPIRED',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+];
 
 // Websites rarely change, but a domain can be bought by someone else or start refusing being indexed
 const recheckDelayInDays = 20;
@@ -775,6 +797,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
       name: true,
       indexableFromRobotsTxt: true,
       websiteTitle: true,
+      certificateAuthorizationError: true,
     },
     // The oldest ones come first so what cannot be processed during a run is the first of the next one
     orderBy: {
@@ -839,10 +862,13 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
 
         let websiteData: getWebsiteDataResponse;
         try {
+          const ignoreCertificateErrors =
+            !!rawDomain.certificateAuthorizationError && readableCertificateErrors.includes(rawDomain.certificateAuthorizationError);
+
           // The `robots.txt` could not be read by the standard process, and it must allow us before going further
-          if (stealth && rawDomain.indexableFromRobotsTxt === null) {
+          if ((stealth || ignoreCertificateErrors) && rawDomain.indexableFromRobotsTxt === null) {
             const robotsUrl = `${url.toString()}robots.txt`;
-            const robotsData = await getWebsiteData(browser, robotsUrl, 5000, { asRegularBrowser: true });
+            const robotsData = await getWebsiteData(browser, robotsUrl, 5000, { asRegularBrowser: true, ignoreCertificateErrors });
             const robotsContent = new JSDOM(robotsData.html).window.document.body.textContent ?? '';
 
             if (!detectWebsiteProtection(robotsData) && (robotsData.status === 404 || (robotsData.status >= 200 && robotsData.status < 300))) {
@@ -877,7 +903,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
             }
           }
 
-          websiteData = await getWebsiteData(browser, url.toString(), 5000, { asRegularBrowser: stealth });
+          websiteData = await getWebsiteData(browser, url.toString(), 5000, { asRegularBrowser: stealth, ignoreCertificateErrors });
         } catch (error) {
           if (error instanceof BusinessDomainError) {
             // This is not only related to the network, so pass them to the upper catcher

@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { estimateRequestCost, fetchBulkSummary, getMainDomain, splitDomainsIntoRequests } from '@etabli/src/features/domain-reputation';
+import { getRelativeReputation } from '@etabli/src/utils/reputation';
 
 describe('estimateRequestCost()', () => {
   it('should match the amounts observed on real responses', async () => {
@@ -134,5 +135,23 @@ describe('fetchBulkSummary()', () => {
 
     await expect(fetchBulkSummary(['beta.gouv.fr'])).rejects.toThrow('DATAFORSEO_LOGIN');
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('getRelativeReputation()', () => {
+  it('should be relative to the reference rank', async () => {
+    expect(getRelativeReputation(33, 66)).toBe(50);
+    expect(getRelativeReputation(66, 66)).toBe(100);
+    expect(getRelativeReputation(1, 77)).toBe(2);
+  });
+
+  it('should be capped for the initiatives above the reference rank', async () => {
+    expect(getRelativeReputation(77, 67)).toBe(100);
+  });
+
+  it('should have no value when unknown', async () => {
+    expect(getRelativeReputation(null, 66)).toBeNull();
+    expect(getRelativeReputation(0, null)).toBeNull();
+    expect(getRelativeReputation(0, 0)).toBeNull();
   });
 });

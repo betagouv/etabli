@@ -21,12 +21,13 @@ export async function getWebsiteData(
   browser: Browser,
   url: string,
   timeoutForDomContentLoaded?: number,
-  options?: { asRegularBrowser?: boolean }
+  options?: { asRegularBrowser?: boolean; ignoreCertificateErrors?: boolean }
 ): Promise<getWebsiteDataResponse> {
   console.log(`getting the page content of ${url}`);
 
-  const page: Page = await browser.newPage(
-    options?.asRegularBrowser
+  const page: Page = await browser.newPage({
+    ignoreHTTPSErrors: !!options?.ignoreCertificateErrors,
+    ...(options?.asRegularBrowser
       ? {
           // Firewalls verify the origin of what pretends to be Googlebot, and compare the user agent with other browser signals. So it
           // follows the version of the running browser (no list to maintain) since the default value says "HeadlessChrome"
@@ -44,8 +45,8 @@ export async function getWebsiteData(
           // Use an user agent that will be ignored by tracking analytics to not pollute (https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers#googlebot-desktop)
           userAgent:
             'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/W.X.Y.Z Safari/537.36',
-        }
-  );
+        }),
+  });
   try {
     const response = await new Promise<Response | null>((resolve, reject) => {
       let errorWithDetailsIntoListener: Error | null = null;

@@ -2,7 +2,6 @@ import { eachOfLimit } from 'async';
 import { parse } from 'csv-parse';
 import { subDays } from 'date-fns/subDays';
 import fsSync from 'fs';
-import Wappalyzer from 'wappalyzer';
 
 import { CsvDomainSchema, isTechnicalDomain, localCsvPath } from '@etabli/src/features/domain';
 import { buildOrganizationMatcher } from '@etabli/src/features/organization';
@@ -22,6 +21,18 @@ export interface DetectedTechnology {
   cpe: string | null;
   confidence: number;
 }
+
+// Same as the Wappalyzer default ones, without its fixed profile directory: once a browser crashed and left a process behind, all
+// the next launches were refused for the whole run. This way each browser gets its own temporary profile
+const wappalyzerChromiumArguments = [
+  '--headless=old',
+  '--no-sandbox',
+  '--no-zygote',
+  '--disable-gpu',
+  '--ignore-certificate-errors',
+  '--allow-running-insecure-content',
+  '--disable-web-security',
+];
 
 // Wappalyzer does not know some tools that matter, especially the ones hosted by administrations for their internal needs
 const customSignatures: { technology: string; pattern: RegExp; version?: RegExp; cpe?: string }[] = [
@@ -109,6 +120,9 @@ export async function updateDomainsInventory(options?: { maximumDomains?: number
     `${domains.length} domains to analyze, including ${dueDomains.filter((dueDomain) => dueDomain.isRequired).length} needed by initiatives`
   );
 
+  process.env.CHROMIUM_ARGS = process.env.CHROMIUM_ARGS ?? wappalyzerChromiumArguments.join(' '); // It's read when loading the module, so it has to be imported after this
+
+  const { default: Wappalyzer } = await import('wappalyzer');
   const wappalyzer = new Wappalyzer({
     debug: false,
     delay: 0,
@@ -180,9 +194,11 @@ export async function updateDomainsInventory(options?: { maximumDomains?: number
         // The main analysis has already told if the domain is reachable
       }
 
-      // The browser could not start (Wappalyzer uses a fixed profile directory), it says nothing about the domain so it will be taken next time
+      // The browser could not start, it says nothing about the domain so it will be taken next time. It still counts as
+      // a failure because otherwise a run would go through all the remaining domains without analyzing any of them
       if (checkError?.includes('Failed to launch the browser process')) {
         console.warn(`the analysis of ${domain} is postponed since the browser could not start`);
+        circuitBreaker.record(true);
 
         return;
       }

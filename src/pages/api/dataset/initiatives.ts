@@ -10,6 +10,7 @@ import { Readable, Transform, pipeline } from 'stream';
 import { z } from 'zod';
 
 import { retrieveInitiativesOrganizations } from '@etabli/src/features/organization-read';
+import { getReputationReferenceRank } from '@etabli/src/features/reputation-read';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { getServerTranslation } from '@etabli/src/i18n';
 import { DatasetInitiativeSchemaType, FunctionalUseCaseSchemaType } from '@etabli/src/models/entities/initiative';
@@ -131,6 +132,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
               // Despite the optimization of using streams for the files computation it was sometimes still crashing in production
               // due to restricted resources, so chunking the database fetch
               const chunkSize = 5_000;
+              const reputationReferenceRank = await getReputationReferenceRank(tx);
               let retrievedItemsCount = 0;
 
               while (true) {
@@ -144,6 +146,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
                     functionalUseCases: true,
                     createdAt: true,
                     updatedAt: true,
+                    reputationRank: true,
                     deletedAt: true,
                     ToolsOnInitiatives: {
                       select: {
@@ -184,6 +187,7 @@ export async function handler(req: NextApiRequest, res: NextApiResponse) {
                       businessUseCases: dbInitiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),
                       tools: dbInitiative.ToolsOnInitiatives.map((toolOnI) => toolOnI.tool.name),
                       organizations: organizationsByInitiativeId.get(dbInitiative.id) || [],
+                      reputationReferenceRank: reputationReferenceRank,
                     })
                   );
                 }

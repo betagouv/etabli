@@ -3,7 +3,7 @@
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import Box from '@mui/material/Box';
-import Tooltip, { TooltipProps } from '@mui/material/Tooltip';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { SxProps, Theme } from '@mui/material/styles';
 import NextLink from 'next/link';
@@ -24,26 +24,6 @@ export const organizationsBindingDisclaimer =
 export function getUnclassifiedInitiativesLink(): string {
   return `${linkRegistry.get('initiatives', undefined)}?nc=true`;
 }
-
-// A light tooltip is more readable than the default dark one for structured content
-export const lightTooltipSx = {
-  bgcolor: 'var(--background-default-grey)',
-  color: 'var(--text-default-grey)',
-  border: '1px solid var(--border-default-grey)',
-  boxShadow: 3,
-  maxWidth: 420,
-  p: '10px 14px !important', // The DSFR overrides the tooltip padding
-};
-
-export const lightTooltipSlotProps: TooltipProps['componentsProps'] = {
-  tooltip: { sx: lightTooltipSx },
-  arrow: {
-    sx: {
-      color: 'var(--background-default-grey)',
-      '&::before': { border: '1px solid var(--border-default-grey)' },
-    },
-  },
-};
 
 // Displayed as a plain line (icon and text) aligned on the other rows of a card, instead of a pill which looked indented
 const lineSx = {
@@ -84,9 +64,7 @@ export function OrganizationChip(props: OrganizationChipProps) {
 
   return (
     <Tooltip
-      arrow
       describeChild // The tooltip describes the chip instead of replacing its accessible name
-      componentsProps={lightTooltipSlotProps}
       title={
         <>
           <Typography variant="caption" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
@@ -129,9 +107,7 @@ export interface UnclassifiedOrganizationChipProps {
 export function UnclassifiedOrganizationChip(props: UnclassifiedOrganizationChipProps) {
   return (
     <Tooltip
-      arrow
       describeChild // The tooltip describes the chip instead of replacing its accessible name
-      componentsProps={lightTooltipSlotProps}
       title={
         <Typography variant="caption" component="div">
           {getUnclassifiedExplanation(props.websitesCount, props.repositoriesCount)}

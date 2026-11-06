@@ -138,7 +138,7 @@ function OrganizationTreeItems(props: OrganizationTreeOptions & { nodes: Organiz
                         ml: 1,
                         p: '4px',
                         my: '-4px',
-                        verticalAlign: 'text-bottom',
+                        verticalAlign: 'middle',
                         backgroundImage: 'none !important', // DSFR paints a link underline as a background
                         '&::after': { display: 'none !important' }, // DSFR appends an external link icon
                       }}

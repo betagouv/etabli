@@ -90,12 +90,25 @@ export type NodeLabel =
 
 const MAXIMUM_WEBSITES_LINKING_A_REPOSITORY = 3;
 
+// Some sources list these platforms as the website of a public organization, but they are not public services and their
+// reputation would put them above all the others. Only exact names, since a commune hosted on a subdomain stays valid
+export const excludedPlatformDomains = [
+  'www.facebook.com',
+  'fr-fr.facebook.com',
+  'wordpress.com',
+  'www.afternic.com',
+  'www.wmaker.net',
+  'www.lescommunes.com',
+  'www.espace-citoyens.net',
+];
+
 export async function inferInitiativesFromDatabase() {
   // TODO: should it be locked globally? But it should be a be long to compute... at risk since a lot of records to fetch/process/update
 
   console.log(`starting the process of inferring initiative maps`);
 
   const rawDomainCriterias: Prisma.RawDomainWhereInput = {
+    name: { notIn: excludedPlatformDomains },
     indexableFromRobotsTxt: true, // Websites marked to not be indexed should not end into Etabli, moreover it helps not indexing tools like Grafana...
     websiteContentIndexable: true, // Same as above
     websiteHasContent: true, // When if the page returns no visible text content, we skip it

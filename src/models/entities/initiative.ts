@@ -45,6 +45,7 @@ export const DomainReputationSchema = z
     linksPlatformTypes: LinksDistributionSchema,
     linksCountries: LinksDistributionSchema,
     linksTopLevelDomains: LinksDistributionSchema,
+    httpSecurityGrade: z.string().min(1).nullable(),
   })
   .strict();
 export type DomainReputationSchemaType = z.infer<typeof DomainReputationSchema>;
@@ -60,7 +61,9 @@ export const InitiativeSchema = z
     functionalUseCases: z.array(FunctionalUseCaseSchema),
     tools: z.array(z.string()),
     organizations: z.array(InitiativeOrganizationSchema),
-    reputationRank: z.number().int().nonnegative().nullable(), // Best score of its websites, from 0 to 100
+    reputationRank: z.number().int().nonnegative().nullable(), // From 0 to 100, mainly about its websites
+    repositoryStars: z.number().int().nonnegative().nullable(), // Best one of its repositories
+    relativeReputation: z.number().int().nonnegative().nullable(), // Percentage of the best score among all initiatives
     createdAt: z.date(),
     updatedAt: z.date(),
     deletedAt: z.date().nullable(),
@@ -89,6 +92,7 @@ export const DatasetInitiativeSchema = InitiativeSchema.pick({
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
+  relativeReputation: true,
 })
   .extend({
     organizations: z.array(z.string()), // Full paths of bound organizations to stay readable in spreadsheets

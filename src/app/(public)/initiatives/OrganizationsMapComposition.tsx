@@ -4,7 +4,6 @@ import Box from '@mui/material/Box';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
-import { lightTooltipSx } from '@etabli/src/components/OrganizationChip';
 import { InitiativesCompositionSchemaType } from '@etabli/src/models/entities/organization';
 import { compositionColorsSx, compositionKinds } from '@etabli/src/utils/organizations-map';
 
@@ -34,7 +33,7 @@ export function CompositionBar(props: { composition: InitiativesCompositionSchem
       title={<CompositionDetails composition={props.composition} />}
       enterTouchDelay={0}
       // Tooltips are rendered outside of the map, so the colors must be provided again
-      componentsProps={{ tooltip: { sx: { ...lightTooltipSx, ...compositionColorsSx, minWidth: 280 } } }}
+      componentsProps={{ tooltip: { sx: { ...compositionColorsSx, minWidth: 280 } } }}
     >
       <Box
         tabIndex={0}

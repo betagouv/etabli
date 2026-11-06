@@ -134,10 +134,13 @@ model RawDomain {
   lastRobotsTxtCheckAt         DateTime?
   robotsTxtContent             String?
 
-  wildcardCertificate       Boolean?
-  updateWildcardCertificate Boolean   @default(true)
-  lastCertificateCheckAt    DateTime?
-  certificateContent        String?
+  wildcardCertificate           Boolean?
+  updateWildcardCertificate     Boolean   @default(true)
+  lastCertificateCheckAt        DateTime?
+  certificateContent            String?
+  certificateAuthorizationError String? // Why the certificate is not trusted, internal insight that must not be exposed
+  certificateExpiresAt          DateTime?
+  tlsProtocol                   String?
 
   websiteRawContent        String?   @db.Text
   websiteTitle             String?   @db.Text
@@ -192,15 +195,15 @@ model DomainReputation {
   domain                   String    @id
   update                   Boolean   @default(true)
   rank                     Int? // From 0 to 100
-  backlinks                Int?
-  referringPages           Int?
+  backlinks                BigInt? // Can exceed a 32-bit integer, like the 3 others
+  referringPages           BigInt?
   referringDomains         Int?
   referringDomainsNofollow Int?
   referringMainDomains     Int?
   referringIps             Int?
   backlinksSpamScore       Int?
-  brokenBacklinks          Int?
-  brokenPages              Int?
+  brokenBacklinks          BigInt?
+  brokenPages              BigInt?
   firstSeenAt              DateTime?
   // Number of links per category, the last 2 are limited to the 10 main ones by the provider
   linksSemanticLocations   Json?
@@ -210,6 +213,28 @@ model DomainReputation {
   linksTopLevelDomains     Json?
   summary                  Json? // The whole statistics since all of them are paid, it does not contain any linking website and must not be exposed
   lastCheckAt              DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([update])
+}
+
+// HTTP security headers grade from Mozilla HTTP Observatory, for internal use only (it must never be exposed to visitors: UI, exports...)
+model DomainHttpSecurity {
+  domain           String    @id
+  update           Boolean   @default(true)
+  grade            String? // From A+ to F
+  score            Int?
+  testsPassed      Int?
+  testsFailed      Int?
+  testsQuantity    Int?
+  statusCode       Int?
+  algorithmVersion Int?
+  tests            Json? // Result of each test by name
+  scannedAt        DateTime?
+  lastCheckAt      DateTime?
+  lastCheckError   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -412,7 +437,8 @@ model Initiative {
   websites           String[]
   repositories       String[]
   functionalUseCases FunctionalUseCase[]
-  reputationRank     Int? // Best rank of its domains, only stored to sort the directory on it
+  reputationRank     Int? // Best rank of its websites, or computed from repositories when having no website. Only stored to sort the directory on it
+  repositoryStars    Int? // Best one of its repositories
   searchableText     Unsupported("tsvector")? // based on `name` + `description` taking into account french and english (see migration)
 
   createdAt DateTime  @default(now())

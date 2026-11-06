@@ -11,12 +11,13 @@ import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 
 import { trpc } from '@etabli/src/client/trpcClient';
-import { lightTooltipSlotProps } from '@etabli/src/components/OrganizationChip';
 import { DomainReputationSchemaType } from '@etabli/src/models/entities/initiative';
 
 const unavailableValue = 'Valeur non disponible';
+const notSignificantValue = 'Non significatif';
 const numberFormatter = new Intl.NumberFormat('fr-FR');
 const dateFormatter = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
+const fullDateFormatter = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' });
 const countryNames = new Intl.DisplayNames(['fr'], { type: 'region' });
 
 const maximumDisplayedCategories = 6;
@@ -54,6 +55,15 @@ const platformTypeLabels: Record<string, string> = {
   wikis: 'Wiki',
 };
 
+// The provider gives 0 to websites with too few links to be scored, which does not mean they are worthless
+function getScoreLabel(rank: number | null): string {
+  if (rank === null) {
+    return unavailableValue;
+  }
+
+  return rank === 0 ? notSignificantValue : `${rank} %`;
+}
+
 function formatNumber(value: number | null): string {
   return value !== null ? numberFormatter.format(value) : unavailableValue;
 }
@@ -81,7 +91,7 @@ const panelSx = {
 
 function InfoBubble(props: { label: string; description: string }) {
   return (
-    <Tooltip arrow componentsProps={lightTooltipSlotProps} title={props.description}>
+    <Tooltip title={props.description}>
       <IconButton size="small" aria-label={`À propos de « ${props.label} » : ${props.description}`} sx={{ p: 0.25, flexShrink: 0 }}>
         <InfoOutlinedIcon sx={{ fontSize: 16 }} />
       </IconButton>
@@ -90,7 +100,7 @@ function InfoBubble(props: { label: string; description: string }) {
 }
 
 function Metric(props: { label: string; value: string; description: string }) {
-  const isAvailable = props.value !== unavailableValue;
+  const isAvailable = props.value !== unavailableValue && props.value !== notSignificantValue;
 
   return (
     <Box sx={{ ...panelSx, p: '20px !important' }}>
@@ -127,7 +137,7 @@ function Distribution(props: { title: string; values: Record<string, number> | n
   return (
     <Box sx={{ ...panelSx, p: '20px !important' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-        <Typography component="h4" sx={{ fontSize: '1rem', fontWeight: 700, m: 0 }}>
+        <Typography component="h3" sx={{ fontSize: '1rem', fontWeight: 700, m: 0 }}>
           {props.title}
         </Typography>
         <InfoBubble label={props.title} description={props.description} />
@@ -143,13 +153,8 @@ function Distribution(props: { title: string; values: Record<string, number> | n
             const label = props.getLabel(key);
 
             return (
-              <Tooltip
-                key={key}
-                arrow
-                placement="top"
-                componentsProps={lightTooltipSlotProps}
-                title={`${label} : ${numberFormatter.format(value)} lien${value > 1 ? 's' : ''}`}
-              >
+              // The row is tall enough for an anchored tooltip to be far from the pointer and to hide the row above
+              <Tooltip key={key} followCursor arrow={false} title={`${label} : ${numberFormatter.format(value)} lien${value > 1 ? 's' : ''}`}>
                 <Box component="li" sx={{ py: 1 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
                     <Typography component="span" variant="body2" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -195,69 +200,76 @@ function DomainReputation({ reputation }: { reputation: DomainReputationSchemaTy
       >
         <Metric
           label="Score de réputation"
-          value={reputation.rank !== null ? `${reputation.rank}/100` : unavailableValue}
-          description="Calculé à partir des liens reçus par le site et de leur qualité. Il ne mesure pas la qualité du service."
+          value={getScoreLabel(reputation.rank)}
+          description={`Calculé sur l'ensemble d'internet à partir des liens externes vers ce site et de leur qualité. Il ne mesure pas la qualité du service.${
+            reputation.rank === 0 ? ' Il y a ici trop peu de liens pour obtenir un score.' : ''
+          }`}
         />
         <Metric
-          label="Sites faisant un lien"
+          label="Sécurité web"
+          value={reputation.httpSecurityGrade ?? unavailableValue}
+          description="Note de A+ à F donnée par Mozilla HTTP Observatory aux protections que le site déclare au navigateur (en-têtes de sécurité, cookies). Elle ne couvre pas tous les aspects de la sécurité du site."
+        />
+        <Metric
+          label="Sites externes"
           value={formatNumber(reputation.referringDomains)}
-          description="Nombre de sites différents ayant au moins un lien vers celui-ci, sous-domaines comptés séparément."
+          description="Nombre d'autres sites ayant au moins un lien vers ce site. Les sous-domaines sont comptés séparément."
         />
         <Metric
-          label="Domaines principaux"
+          label="Domaines externes"
           value={formatNumber(reputation.referringMainDomains)}
-          description="Nombre d'organisations ou d'acteurs différents faisant un lien : blog.exemple.fr et www.exemple.fr ne comptent que pour un seul exemple.fr."
+          description="Nombre d'acteurs externes différents faisant un lien vers ce site : blog.exemple.fr et www.exemple.fr ne comptent que pour un seul exemple.fr."
         />
         <Metric
           label="Adresses IP distinctes"
           value={formatNumber(reputation.referringIps)}
-          description="Nombre de serveurs d'où viennent les liens. Un chiffre bien plus bas que le nombre de sites indique des sources moins indépendantes, ou un hébergeur commun."
+          description="Nombre de serveurs d'où viennent les liens externes. Un chiffre bien plus bas que le nombre de sites externes indique des sources moins indépendantes, ou un hébergeur commun."
         />
         <Metric
-          label="Liens reçus"
+          label="Liens externes"
           value={formatNumber(reputation.backlinks)}
-          description="Nombre total de liens vers le site. Un seul site peut en représenter beaucoup, par exemple via un pied de page."
+          description="Nombre total de liens posés sur d'autres sites vers celui-ci. Un seul site peut en représenter beaucoup, par exemple via un pied de page."
         />
         <Metric
-          label="Pages faisant un lien"
+          label="Pages externes"
           value={formatNumber(reputation.referringPages)}
-          description="Nombre de pages différentes contenant au moins un lien vers le site."
+          description="Nombre de pages d'autres sites contenant au moins un lien vers ce site."
         />
         <Metric
           label="Sites en nofollow"
           value={formatNumber(reputation.referringDomainsNofollow)}
-          description="Nombre de sites dont les liens portent l'attribut « nofollow » : ils demandent aux moteurs de recherche de ne pas en tenir compte pour le référencement."
+          description="Nombre de sites externes dont les liens vers ce site portent l'attribut « nofollow » : ils demandent aux moteurs de recherche de ne pas en tenir compte pour le référencement."
         />
         <Metric
           label="Liens douteux"
-          value={reputation.backlinksSpamScore !== null ? `${reputation.backlinksSpamScore}/100` : unavailableValue}
-          description="Probabilité que les liens reçus soient artificiels. Plus le score est bas, mieux c'est."
+          value={reputation.backlinksSpamScore !== null ? `${reputation.backlinksSpamScore} %` : unavailableValue}
+          description="Probabilité que les liens externes soient artificiels. Plus le score est bas, mieux c'est."
         />
         <Metric
           label="Liens cassés"
           value={formatNumber(reputation.brokenBacklinks)}
-          description="Liens d'autres sites pointant vers une page de ce site qui n'existe plus."
+          description="Liens posés sur d'autres sites vers une page de ce site qui n'existe plus."
         />
         <Metric
           label="Pages cassées"
           value={formatNumber(reputation.brokenPages)}
-          description="Pages de ce site en erreur alors que d'autres sites font un lien vers elles."
+          description="Pages de ce site en erreur alors que d'autres sites font encore un lien vers elles."
         />
         <Metric
           label="Connu depuis"
           value={reputation.firstSeenAt ? dateFormatter.format(reputation.firstSeenAt) : unavailableValue}
-          description="Date à laquelle le service tiers a vu un lien vers ce site pour la première fois."
+          description="Date à laquelle le service tiers a vu pour la première fois un lien externe vers ce site."
         />
       </Box>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2, mt: 2 }}>
         <Distribution
-          title="Où sont placés les liens"
-          description="Partie de la page où se trouvent les liens : un lien dans le contenu pèse plus qu'un lien répété en pied de page."
+          title="Où sont placés les liens externes"
+          description="Partie des pages externes où se trouvent les liens : un lien dans le contenu pèse plus qu'un lien répété en pied de page."
           values={reputation.linksSemanticLocations}
           getLabel={(key) => semanticLocationLabels[key] ?? key}
         />
         <Distribution
-          title="Nature des liens"
+          title="Nature des liens externes"
           description="Forme des liens : texte cliquable, image, redirection…"
           values={reputation.linksTypes}
           getLabel={(key) => linkTypeLabels[key] ?? key}
@@ -301,15 +313,19 @@ export function InitiativeReputationDashboard(props: InitiativeReputationDashboa
   // Domains are sorted by reputation, so the best one is displayed by default
   const reputation = data.domains.find(({ domain }) => domain === selectedDomain) ?? data.domains[0];
 
-  const lastCheckAt = data.domains.reduce((latest, { lastCheckAt }) => (lastCheckAt > latest ? lastCheckAt : latest), data.domains[0].lastCheckAt);
-
   return (
     <Grid item xs={12} sx={{ mt: 3 }}>
-      <Typography component="h2" variant="h4" sx={{ mb: 1 }}>
-        Réputation sur internet
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <Typography component="h2" variant="h4" sx={{ m: 0 }}>
+          Réputation sur internet
+        </Typography>
+        <InfoBubble
+          label="Réputation sur internet"
+          description={`Données du service tiers récupérées le ${fullDateFormatter.format(reputation.lastCheckAt)}.`}
+        />
+      </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        D&apos;après les liens que les autres sites font vers celui-ci, estimés par un service tiers ({dateFormatter.format(lastCheckAt)}).
+        D&apos;après les liens que les autres sites font vers celui-ci, estimés par un service tiers.
       </Typography>
       {data.domains.length > 1 && (
         <TextField

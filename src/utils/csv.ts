@@ -42,6 +42,10 @@ export function getOptions(rawFormat: boolean): Options {
       },
       { key: typedNameof('createdAt'), header: rawFormat ? typedNameof('createdAt') : t('document.template.Initiative.columns.createdAt') },
       { key: typedNameof('updatedAt'), header: rawFormat ? typedNameof('updatedAt') : t('document.template.Initiative.columns.updatedAt') },
+      {
+        key: typedNameof('relativeReputation'),
+        header: rawFormat ? typedNameof('relativeReputation') : t('document.template.Initiative.columns.relativeReputation'),
+      },
       { key: typedNameof('deletedAt'), header: rawFormat ? typedNameof('deletedAt') : t('document.template.Initiative.columns.deletedAt') },
     ],
     cast: {

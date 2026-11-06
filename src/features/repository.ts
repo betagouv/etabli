@@ -1,5 +1,6 @@
 import { differenceInDays } from 'date-fns/differenceInDays';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
+import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import { subDays } from 'date-fns/subDays';
 import fs from 'fs/promises';
 import linkifyit from 'linkify-it';
@@ -14,6 +15,7 @@ import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { formatArrayProgress } from '@etabli/src/utils/format';
+import { sleep } from '@etabli/src/utils/sleep';
 import { emptyStringtoNullPreprocessor } from '@etabli/src/utils/validation';
 
 const __root_dirname = process.cwd();
@@ -21,8 +23,18 @@ const linkify = linkifyit();
 
 // We did not used the CSV format even if less heavy to avoid extra parsing for numbers, null, string on multiple lines... (ref: https://code.gouv.fr/data/repositories/csv/all.csv)
 
+// This file is frozen since 2024-11-08 but stays needed: `data.code.gouv.fr` does not know some forges and its GitLab ones are not refreshed
 export const latestRemoteJsonUrl = 'https://code.gouv.fr/data/repositories/json/all.json';
 export const localJsonPath = path.resolve(__root_dirname, './data/repositories.json');
+
+// Instance of ecosyste.ms maintained for code.gouv.fr, it has no export so everything comes from its paginated API
+export const ecosystemApiUrl = 'https://data.code.gouv.fr/api/v1';
+export const localEcosystemJsonPath = path.resolve(__root_dirname, './data/repositories-ecosystem.json');
+const ecosystemPageSize = 100;
+
+// Last export before code.gouv.fr stopped its inventory, it only brings a few repositories the 2 others lists do not have
+export const latestRemoteLastInventoryJsonUrl = 'https://code.gouv.fr/data/codegouvfr-repositories.json';
+export const localLastInventoryJsonPath = path.resolve(__root_dirname, './data/repositories-last-inventory.json');
 
 export const JsonRepositoryPlatformSchema = z.enum(['GitHub', 'GitLab']);
 export type JsonRepositoryPlatformSchemaType = z.infer<typeof JsonRepositoryPlatformSchema>;
@@ -63,26 +75,246 @@ export const JsonRepositorySchema = z
   .strict();
 export type JsonRepositorySchemaType = z.infer<typeof JsonRepositorySchema>;
 
+export const EcosystemHostSchema = z.object({
+  name: z.string().min(1),
+  kind: z.string().min(1),
+  repositories_count: z.number().nonnegative(),
+});
+export type EcosystemHostSchemaType = z.infer<typeof EcosystemHostSchema>;
+
+export const EcosystemRepositorySchema = z.object({
+  id: z.number().int().positive(),
+  html_url: z.string().url(),
+  owner: z.string().min(1),
+  kind: z.string().min(1), // Coming from the host
+  description: z.string().nullable(),
+  default_branch: z.string().nullable(),
+  fork: z.boolean().nullable(),
+  archived: z.boolean().nullable(),
+  created_at: z.string().pipe(z.coerce.date()),
+  updated_at: z.string().pipe(z.coerce.date()),
+  pushed_at: z.string().pipe(z.coerce.date()).nullable(),
+  homepage: z.string().nullable(),
+  stargazers_count: z.number().nullable(),
+  forks_count: z.number().nullable(),
+  license: z.string().nullable(),
+  open_issues_count: z.number().nullable(),
+  language: z.string().nullable(),
+  topics: z.array(z.string()),
+});
+export type EcosystemRepositorySchemaType = z.infer<typeof EcosystemRepositorySchema>;
+
+export const LastInventoryRepositorySchema = z.object({
+  id: z.string().url(), // It's the repository URL
+  owner: z.string().url(),
+  platform: z.string().min(1),
+  description: z.string().nullable(),
+  fork: z.boolean().nullable(),
+  archived: z.boolean().nullable(),
+  updated_at: z.string().pipe(z.coerce.date()),
+  forks_count: z.number().nullable(),
+  license: z.string().nullable(),
+  language: z.string().nullable(),
+});
+export type LastInventoryRepositorySchemaType = z.infer<typeof LastInventoryRepositorySchema>;
+
+async function fetchEcosystemJson(url: string): Promise<unknown> {
+  const maximumAttempts = 3;
+
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(secondsToMilliseconds(60)) });
+
+      if (!response.ok) {
+        throw new Error(`failed to fetch ${url}: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (attempt === maximumAttempts) {
+        throw error;
+      }
+
+      await sleep(secondsToMilliseconds(5 * attempt));
+    }
+  }
+}
+
+// The file is written once everything is retrieved, because a partial list would remove the missing repositories from the database
+export async function saveEcosystemRepositoryListFile() {
+  const hosts = z.array(EcosystemHostSchema).parse(await fetchEcosystemJson(`${ecosystemApiUrl}/hosts`));
+  const repositories: EcosystemRepositorySchemaType[] = [];
+
+  for (const host of hosts) {
+    watchGracefulExitInLoop();
+
+    let hostRepositoriesCount = 0;
+
+    for (let page = 1; ; page++) {
+      const records = z
+        .array(z.record(z.string(), z.unknown()))
+        .parse(
+          await fetchEcosystemJson(
+            `${ecosystemApiUrl}/hosts/${encodeURIComponent(host.name)}/repositories?per_page=${ecosystemPageSize}&page=${page}&sort=id&order=asc`
+          )
+        );
+
+      repositories.push(...records.map((record) => EcosystemRepositorySchema.parse({ ...record, kind: host.kind })));
+      hostRepositoriesCount += records.length;
+
+      if (records.length < ecosystemPageSize) {
+        break;
+      }
+
+      await sleep(150); // To be gentle with the API
+    }
+
+    if (hostRepositoriesCount !== host.repositories_count) {
+      throw new Error(`${host.name} should have ${host.repositories_count} repositories but ${hostRepositoriesCount} have been retrieved`);
+    }
+  }
+
+  await fs.mkdir(path.dirname(localEcosystemJsonPath), { recursive: true });
+  await fs.writeFile(localEcosystemJsonPath, JSON.stringify(repositories));
+}
+
 export async function saveRepositoryListFile(cache = true) {
   if (!cache || (await isFileOutdated(localJsonPath))) {
     await downloadFile(latestRemoteJsonUrl, localJsonPath);
   }
+
+  if (!cache || (await isFileOutdated(localEcosystemJsonPath))) {
+    await saveEcosystemRepositoryListFile();
+  }
+
+  if (!cache || (await isFileOutdated(localLastInventoryJsonPath))) {
+    await downloadFile(latestRemoteLastInventoryJsonUrl, localLastInventoryJsonPath);
+  }
+}
+
+function getRepositoryKey(repositoryUrl: string): string {
+  return repositoryUrl.replace(/(\/|\.git)$/, '').toLowerCase();
+}
+
+function ecosystemRepositoryToJson(
+  repository: EcosystemRepositorySchemaType & { default_branch: string },
+  known?: JsonRepositorySchemaType
+): JsonRepositorySchemaType {
+  return JsonRepositorySchema.parse({
+    id: repository.id,
+    name: new URL(repository.html_url).pathname.split('/').pop(),
+    organization_name: repository.owner,
+    platform: repository.kind === 'github' ? 'GitHub' : 'GitLab',
+    repository_url: known?.repository_url ?? repository.html_url, // Its case can differ and the URL identifies a repository in the database
+    description: repository.description,
+    default_branch: repository.default_branch,
+    is_fork: repository.fork || repository.kind === 'github' ? repository.fork : null, // Other forges fall back on what the description says
+    is_archived: repository.archived ?? known?.is_archived ?? false,
+    creation_date: repository.created_at.toISOString(),
+    last_update: repository.updated_at.toISOString(),
+    last_modification: (repository.pushed_at ?? repository.updated_at).toISOString(),
+    homepage: repository.homepage,
+    stars_count: repository.stargazers_count ?? 0,
+    forks_count: repository.forks_count ?? 0,
+    license: repository.license || null, // Some exports use empty strings
+    open_issues_count: repository.open_issues_count ?? 0,
+    language: repository.language || null,
+    topics: repository.topics.join(','),
+    software_heritage_exists: known?.software_heritage_exists ?? null,
+    software_heritage_url: known?.software_heritage_url ?? null,
+  });
+}
+
+function lastInventoryRepositoryToEcosystem(repository: LastInventoryRepositorySchemaType, index: number): EcosystemRepositorySchemaType {
+  return {
+    id: index + 1,
+    html_url: repository.id,
+    owner: new URL(repository.owner).pathname.split('/').pop() as string,
+    kind: repository.platform === 'github.com' ? 'github' : 'gitlab',
+    description: repository.description,
+    default_branch: 'main', // This export does not provide it, but it's not used since the clone relies on the repository default one
+    fork: repository.fork,
+    archived: repository.archived,
+    created_at: repository.updated_at, // Not provided either
+    updated_at: repository.updated_at,
+    pushed_at: null,
+    homepage: null,
+    stargazers_count: null,
+    forks_count: repository.forks_count,
+    license: repository.license,
+    open_issues_count: null,
+    language: repository.language,
+    topics: [],
+  };
+}
+
+// None of the 2 main lists is enough: the frozen one misses recent repositories, and the other one misses some forges while being older on most of the
+// others (only GitHub is really refreshed). So all repositories are kept, using for each one the most recent information
+export function mergeRepositoryLists(
+  jsonRepositories: JsonRepositorySchemaType[],
+  ecosystemRepositories: EcosystemRepositorySchemaType[],
+  lastInventoryRepositories: LastInventoryRepositorySchemaType[] = []
+): JsonRepositorySchemaType[] {
+  const knownRepositories = new Map(jsonRepositories.map((repository) => [getRepositoryKey(repository.repository_url), repository]));
+  const emptyRepositoriesKeys = new Set<string>();
+
+  for (const repository of ecosystemRepositories) {
+    const key = getRepositoryKey(repository.html_url);
+    const known = knownRepositories.get(key);
+
+    if (repository.default_branch === null) {
+      emptyRepositoriesKeys.add(key); // There is nothing to analyze
+    } else if (!known || repository.updated_at > known.last_update) {
+      knownRepositories.set(key, ecosystemRepositoryToJson({ ...repository, default_branch: repository.default_branch }, known));
+    }
+  }
+
+  // It has less information so it's only about adding the unknown ones
+  lastInventoryRepositories.forEach((repository, index) => {
+    const key = getRepositoryKey(repository.id);
+
+    if (!knownRepositories.has(key) && !emptyRepositoriesKeys.has(key)) {
+      const ecosystemRepository = lastInventoryRepositoryToEcosystem(repository, index);
+
+      knownRepositories.set(key, ecosystemRepositoryToJson({ ...ecosystemRepository, default_branch: 'main' }));
+    }
+  });
+
+  return Array.from(knownRepositories.values());
+}
+
+// Counters and the last activity date move all the time, recomputing an initiative sheet (with the LLM) is only worth it for what it talks about
+export function isMeaningfulRepositoryChange(before: LiteRawRepositorySchemaType, after: LiteRawRepositorySchemaType): boolean {
+  return (
+    before.name !== after.name ||
+    before.description !== after.description ||
+    before.homepage !== after.homepage ||
+    before.isArchived !== after.isArchived ||
+    before.defaultBranch !== after.defaultBranch ||
+    before.lastModification.getTime() !== after.lastModification.getTime()
+  );
 }
 
 export async function formatRepositoriesIntoDatabase() {
   const content = await fs.readFile(localJsonPath, 'utf-8');
   const records: unknown[] = JSON.parse(content);
-  const duplicatesMarkers: string[] = [];
+  const ecosystemContent = await fs.readFile(localEcosystemJsonPath, 'utf-8');
+  const ecosystemRepositories = z.array(EcosystemRepositorySchema).parse(JSON.parse(ecosystemContent));
+  const lastInventoryContent = await fs.readFile(localLastInventoryJsonPath, 'utf-8');
+  const lastInventoryRepositories = z.array(LastInventoryRepositorySchema).parse(JSON.parse(lastInventoryContent));
+  const duplicatesMarkers = new Set<string>();
 
-  const jsonRepositories = records
+  const frozenJsonRepositories = records
     .filter((record) => {
       // An empty repository has no default branch, there is nothing to analyze
       return (record as { default_branch: unknown }).default_branch !== null;
     })
     .map((record) => {
       return JsonRepositorySchema.parse(record);
-    })
-    .filter((jsonRepository: JsonRepositorySchemaType) => {
+    });
+
+  const jsonRepositories = mergeRepositoryLists(frozenJsonRepositories, ecosystemRepositories, lastInventoryRepositories).filter(
+    (jsonRepository: JsonRepositorySchemaType) => {
       // In development environment we reduce the dataset to analyze
       if (process.env.APP_MODE === 'dev' && !jsonRepository.repository_url.includes('https://github.com/betagouv/')) {
         return false;
@@ -97,15 +329,16 @@ export async function formatRepositoriesIntoDatabase() {
       }
 
       // Keep and compare its "unique" signature to skip duplicates
-      if (duplicatesMarkers.find((repositoryUrl) => repositoryUrl === jsonRepository.repository_url)) {
+      if (duplicatesMarkers.has(jsonRepository.repository_url)) {
         return false;
       } else {
-        duplicatesMarkers.push(jsonRepository.repository_url);
+        duplicatesMarkers.add(jsonRepository.repository_url);
       }
 
       // Note: we keep archived projects because they can still bring value years after :)
       return true;
-    });
+    }
+  );
 
   await prisma.$transaction(
     async (tx) => {
@@ -346,7 +579,12 @@ export async function formatRepositoriesIntoDatabase() {
           },
         });
 
-        if (updatedRawRepository.RawRepositoriesOnInitiativeMaps) {
+        const storedLiteRawRepository = storedLiteRawRepositories.get(updatedLiteRawRepository.repositoryUrl);
+
+        if (
+          updatedRawRepository.RawRepositoriesOnInitiativeMaps &&
+          (!storedLiteRawRepository || isMeaningfulRepositoryChange(storedLiteRawRepository, updatedLiteRawRepository))
+        ) {
           await tx.initiativeMap.update({
             where: {
               id: updatedRawRepository.RawRepositoriesOnInitiativeMaps.initiativeMapId,

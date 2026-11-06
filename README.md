@@ -11,7 +11,7 @@ All the states of the application are described visually on a Storybook. It rend
 We rely on 3 datasets to compute initiative sheets into Établi:
 
 - [dinum/noms-de-domaine-organismes-secteur-public](https://gitlab.adullact.net/dinum/noms-de-domaine-organismes-secteur-public/) to retrieve public french domains
-- [code.gouv.fr](https://code.gouv.fr/public/) to retrieve public french repositories
+- [code.gouv.fr](https://code.gouv.fr/public/) and [data.code.gouv.fr](https://data.code.gouv.fr/) to retrieve public french repositories
 - [captn3m0/stackshare-dataset](https://github.com/captn3m0/stackshare-dataset) based on the [StackShare](https://stackshare.io/) data to build a fixed list of tools to bind initiatives to
 
 _This is important to understand to detect new websites or new repositories they must be listed in the first two. Also, note we have no control over their acceptance process._

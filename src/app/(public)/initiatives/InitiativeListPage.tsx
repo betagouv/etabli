@@ -52,7 +52,7 @@ import {
   maximumFilteredOrganizations,
   unclassifiedInitiativesNodeId,
 } from '@etabli/src/models/actions/initiative';
-import { FunctionalUseCaseSchema } from '@etabli/src/models/entities/initiative';
+import { FunctionalUseCaseSchema, GradeLetterSchema, LegalLinkPresenceSchema } from '@etabli/src/models/entities/initiative';
 import { ListDisplay, useLocalStorageListDisplay } from '@etabli/src/utils/display';
 import { centeredAlertContainerGridProps, wideContainerGridProps } from '@etabli/src/utils/grid';
 import { narrowOrganizationsToNode } from '@etabli/src/utils/organization';
@@ -79,6 +79,10 @@ const directoryParsers = {
   zoom: parseAsString, // Where the map is looking at, it never changes the criteria
   hasWeb: parseAsBoolean.withDefault(false),
   hasRepo: parseAsBoolean.withDefault(false),
+  httpSec: parseAsArrayOf(parseAsStringLiteral(GradeLetterSchema.options)).withDefault([]),
+  tls: parseAsArrayOf(parseAsStringLiteral(GradeLetterSchema.options)).withDefault([]),
+  ml: parseAsStringLiteral(LegalLinkPresenceSchema.options),
+  pc: parseAsStringLiteral(LegalLinkPresenceSchema.options),
   sort: parseAsStringLiteral(InitiativesOrderSchema.options).withDefault('name'),
   page: parseAsInteger.withDefault(1),
 };
@@ -122,8 +126,12 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
       unclassified: params.nc,
       hasWebsite: params.hasWeb,
       hasRepository: params.hasRepo,
+      httpSecurityGrades: params.httpSec,
+      tlsGrades: params.tls,
+      legalNotice: params.ml,
+      privacyPolicy: params.pc,
     }),
-    [params.fnc, params.tools, organizationIds, params.nc, params.hasWeb, params.hasRepo]
+    [params.fnc, params.tools, organizationIds, params.nc, params.hasWeb, params.hasRepo, params.httpSec, params.tls, params.ml, params.pc]
   );
 
   const isMapView = params.view === 'carte';
@@ -148,6 +156,10 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     unclassified: params.nc || undefined,
     hasWebsite: params.hasWeb || undefined,
     hasRepository: params.hasRepo || undefined,
+    httpSecurityGrades: params.httpSec.length > 0 ? params.httpSec : undefined,
+    tlsGrades: params.tls.length > 0 ? params.tls : undefined,
+    legalNotice: params.ml ?? undefined,
+    privacyPolicy: params.pc ?? undefined,
   };
 
   const listInitiatives = trpc.listInitiatives.useQuery(
@@ -267,13 +279,17 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
       nc: next.unclassified ? true : null,
       hasWeb: next.hasWebsite ? true : null,
       hasRepo: next.hasRepository ? true : null,
+      httpSec: next.httpSecurityGrades.length > 0 ? next.httpSecurityGrades : null,
+      tls: next.tlsGrades.length > 0 ? next.tlsGrades : null,
+      ml: next.legalNotice,
+      pc: next.privacyPolicy,
       page: 1,
     });
     setFiltersModalOpen(false);
   };
 
   const resetFilters = () => {
-    setParams({ fnc: null, tools: null, orgs: null, nc: null, hasWeb: null, hasRepo: null, page: 1 });
+    setParams({ fnc: null, tools: null, orgs: null, nc: null, hasWeb: null, hasRepo: null, httpSec: null, tls: null, ml: null, pc: null, page: 1 });
   };
 
   // Leaving the map for the list narrows it to where the map is looking at (virtual nodes other than the unclassified one are not a filter)
@@ -497,6 +513,46 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                   {params.hasRepo && (
                     <li>
                       <Chip label="Avec dépôt de code" onDelete={() => setParams({ hasRepo: null, page: 1 })} color="primary" variant="outlined" />
+                    </li>
+                  )}
+                  {params.httpSec.map((grade) => (
+                    <li key={`httpSec-${grade}`}>
+                      <Chip
+                        label={`Sécurité web : ${grade}`}
+                        onDelete={() => setParams({ httpSec: params.httpSec.filter((item) => item !== grade), page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  ))}
+                  {params.tls.map((grade) => (
+                    <li key={`tls-${grade}`}>
+                      <Chip
+                        label={`Note TLS : ${grade}`}
+                        onDelete={() => setParams({ tls: params.tls.filter((item) => item !== grade), page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  ))}
+                  {params.ml && (
+                    <li>
+                      <Chip
+                        label={`Mentions légales : lien ${params.ml === 'with' ? 'trouvé' : 'non trouvé'}`}
+                        onDelete={() => setParams({ ml: null, page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
+                    </li>
+                  )}
+                  {params.pc && (
+                    <li>
+                      <Chip
+                        label={`Confidentialité : lien ${params.pc === 'with' ? 'trouvé' : 'non trouvé'}`}
+                        onDelete={() => setParams({ pc: null, page: 1 })}
+                        color="primary"
+                        variant="outlined"
+                      />
                     </li>
                   )}
                 </Stack>

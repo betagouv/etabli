@@ -32,7 +32,7 @@ export function initiativePrismaToModel(
 }
 
 export function datasetInitiativePrismaToModel(
-  initiative: Omit<Initiative, 'originId' | 'repositoryStars'> & {
+  initiative: Omit<Initiative, 'originId' | 'repositoryStars' | 'httpSecurityGrade' | 'tlsGrade' | 'hasLegalNotice' | 'hasPrivacyPolicy'> & {
     businessUseCases: string[];
     tools: string[];
     organizations: InitiativeOrganizationSchemaType[];

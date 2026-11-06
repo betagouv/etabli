@@ -33,6 +33,7 @@ import { BlockingCircuitBreaker, shuffle } from '@etabli/src/utils/circuit-break
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { formatArrayProgress } from '@etabli/src/utils/format';
 import { containsHtml } from '@etabli/src/utils/html';
+import { detectLegalLinksFromDocument } from '@etabli/src/utils/legal-links';
 import { chomiumMaxConcurrency, handlePrismaErrorDueToContent, handleReachabilityError, maximumDomainsPerRun } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
 import { startVirtualDisplay } from '@etabli/src/utils/virtual-display';
@@ -972,6 +973,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
 
             const headContent = dom.window.document.head.innerHTML;
             const hasStyle = dom.window.document.querySelectorAll('link[rel="stylesheet"], style').length > 0;
+            const legalLinks = detectLegalLinksFromDocument(dom.window.document);
 
             // Since looking at text content would include content from `script` and `noscript` tags, we do proper analysis aside
             const deepcopyBody = dom.window.document.body.cloneNode(true) as HTMLElement;
@@ -1104,6 +1106,8 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
                   (websiteData.title && anotherPageTitle ? guessWebsiteNameFromPageTitles(websiteData.title, anotherPageTitle) : null),
                 websiteHasContent: hasContent,
                 websiteHasStyle: hasStyle,
+                websiteHasLegalNotice: legalLinks.hasLegalNotice,
+                websiteHasPrivacyPolicy: legalLinks.hasPrivacyPolicy,
                 websiteContentIndexable: isIndexableAccordingToWebsiteData,
                 websitePseudoFingerprint: headContent || null,
                 probableRepositoryUrl: probableRepositoryUrl?.toString() || null,
@@ -1149,6 +1153,8 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
                 websiteInferredName: rawDomain.name,
                 websiteHasContent: false,
                 websiteHasStyle: false,
+                websiteHasLegalNotice: false,
+                websiteHasPrivacyPolicy: false,
                 websiteContentIndexable: true, // Since no specific tag, we consider it as indexable even if we won't due to missing HTML content
                 websitePseudoFingerprint: null,
                 ...toProcessedData(),
@@ -1175,6 +1181,8 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
               websiteInferredName: null,
               websiteHasContent: null,
               websiteHasStyle: null,
+              websiteHasLegalNotice: null,
+              websiteHasPrivacyPolicy: null,
               websiteContentIndexable: null,
               websitePseudoFingerprint: null,
               ...toProcessedData(),

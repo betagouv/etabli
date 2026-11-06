@@ -144,6 +144,8 @@ model RawDomain {
 
   websiteRawContent        String?   @db.Text
   websiteTitle             String?   @db.Text
+  websiteHasLegalNotice    Boolean? // A link has been found on the home page, it does not tell anything about its content
+  websiteHasPrivacyPolicy  Boolean?
   websiteAnotherPageTitle  String?   @db.Text
   websiteInferredName      String?   @db.Text
   websiteHasContent        Boolean?
@@ -220,7 +222,7 @@ model DomainReputation {
   @@index([update])
 }
 
-// HTTP security headers grade from Mozilla HTTP Observatory, for internal use only (it must never be exposed to visitors: UI, exports...)
+// HTTP security headers grade from Mozilla HTTP Observatory, only the grade is public and never `tests` since it lists weaknesses
 model DomainHttpSecurity {
   domain           String    @id
   update           Boolean   @default(true)
@@ -235,6 +237,21 @@ model DomainHttpSecurity {
   scannedAt        DateTime?
   lastCheckAt      DateTime?
   lastCheckError   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([update])
+}
+
+// TLS grade from SSL Labs
+model DomainTlsSecurity {
+  domain         String    @id
+  update         Boolean   @default(true)
+  grade          String? // Worst one of the servers behind the domain
+  endpoints      Json? // Grade of each server
+  lastCheckAt    DateTime?
+  lastCheckError String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -439,6 +456,10 @@ model Initiative {
   functionalUseCases FunctionalUseCase[]
   reputationRank     Int? // Best rank of its websites, or computed from repositories when having no website. Only stored to sort the directory on it
   repositoryStars    Int? // Best one of its repositories
+  httpSecurityGrade  String? // Worst one of its websites
+  tlsGrade           String? // Worst one of its websites
+  hasLegalNotice     Boolean? // `false` as soon as one of its websites has none
+  hasPrivacyPolicy   Boolean? // `false` as soon as one of its websites has none
   searchableText     Unsupported("tsvector")? // based on `name` + `description` taking into account french and english (see migration)
 
   createdAt DateTime  @default(now())

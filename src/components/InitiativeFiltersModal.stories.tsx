@@ -117,6 +117,10 @@ WithPreselectedStory.args = {
     unclassified: false,
     hasWebsite: true,
     hasRepository: false,
+    httpSecurityGrades: ['F'],
+    tlsGrades: [],
+    legalNotice: 'without',
+    privacyPolicy: null,
   },
 };
 WithPreselectedStory.parameters = { ...defaultMswParameters };

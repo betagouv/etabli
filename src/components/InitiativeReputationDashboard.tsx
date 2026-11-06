@@ -64,6 +64,14 @@ function getScoreLabel(rank: number | null): string {
   return rank === 0 ? notSignificantValue : `${rank} %`;
 }
 
+function getLegalLinkLabel(value: boolean | null): string {
+  if (value === null) {
+    return unavailableValue;
+  }
+
+  return value ? 'Lien trouvé' : 'Lien non trouvé';
+}
+
 function formatNumber(value: number | null): string {
   return value !== null ? numberFormatter.format(value) : unavailableValue;
 }
@@ -209,6 +217,21 @@ function DomainReputation({ reputation }: { reputation: DomainReputationSchemaTy
           label="Sécurité web"
           value={reputation.httpSecurityGrade ?? unavailableValue}
           description="Note de A+ à F donnée par Mozilla HTTP Observatory aux protections que le site déclare au navigateur (en-têtes de sécurité, cookies). Elle ne couvre pas tous les aspects de la sécurité du site."
+        />
+        <Metric
+          label="Note TLS"
+          value={reputation.tlsGrade ?? unavailableValue}
+          description="Note de A+ à F donnée par SSL Labs à la configuration du chiffrement des connexions. T indique un certificat non reconnu, M un certificat établi pour un autre site."
+        />
+        <Metric
+          label="Mentions légales"
+          value={getLegalLinkLabel(reputation.hasLegalNotice)}
+          description="Présence d'un lien vers les mentions légales sur la page d'accueil. Le contenu de la page n'est pas vérifié."
+        />
+        <Metric
+          label="Confidentialité"
+          value={getLegalLinkLabel(reputation.hasPrivacyPolicy)}
+          description="Présence d'un lien vers la politique de confidentialité sur la page d'accueil. Elle peut aussi se trouver sur une autre page, et son contenu n'est pas vérifié."
         />
         <Metric
           label="Sites externes"

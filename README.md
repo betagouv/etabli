@@ -198,6 +198,7 @@ For each build and runtime (since they are shared), you should have set some env
 - `LLM_MANAGER_MAXIMUM_API_REQUESTS_PER_SECOND`: [TO_DEFINE] _(by default the MistralAI platform has a limit of `5` request per second, but they may increase this limit on-demand. If so, you can increase the rate limit here to parallelize underlying requests)_
 - `DATAFORSEO_LOGIN`: [OPTIONAL] _(API login to retrieve the reputation of domains with the manual `domain reputation` command, each call is charged)_
 - `DATAFORSEO_PASSWORD`: [OPTIONAL] _(API password that goes with `DATAFORSEO_LOGIN`)_
+- `SSLLABS_EMAIL`: [OPTIONAL] _(organization email registered once on SSL Labs, personal providers are refused, needed by the manual `domain tls-security` command)_
 - `MAXIMUM_DOMAINS_PER_RUN`: [OPTIONAL] _(limit of domains processed by each step of the data update so a run fits in the night, the oldest ones first and without limit by default. `6000` allows going over 60k domains with 4 runs per week)_
 - `MAXIMUM_INITIATIVES_PER_RUN`: [OPTIONAL] _(limit of initiatives computed by a run, which also limits what is sent to the LLM. Without limit by default)_
 - `CHROMIUM_MAXIMUM_CONCURRENCY`: [TO_DEFINE] _(by default it will be `1` but it takes a long time when analyzing thousands of websites through the headless Chromium. After some testing we think on Clever Cloud having `4` is fine for the `S` plan (and `8` for `XL` plan for a quick test to speed things up), and locally it will depend on your hardware. Consider to lower the value when having more than 10% of analyses timed out)_

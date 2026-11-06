@@ -206,17 +206,25 @@ export async function updateDomainsInventory(options?: { maximumDomains?: number
       circuitBreaker.record(!!checkError);
 
       // Each analysis replaces the previous one, but an unreachable domain keeps what was known about it
-      await prisma.$transaction([
-        ...(checkError ? [] : [prisma.domainTechnology.deleteMany({ where: { domain: domain } })]),
-        prisma.domainTechnology.createMany({
-          data: [...technologies.values()].map((technology) => ({ ...technology, domain: domain })),
-          skipDuplicates: true,
-        }),
-        prisma.domainInventory.update({
-          where: { domain: domain },
-          data: { lastCheckAt: new Date(), lastCheckError: checkError },
-        }),
-      ]);
+      // The database can be busy with other long steps, and waiting is better than losing an analysis or crashing the whole run
+      await prisma.$transaction(
+        async (tx) => {
+          if (!checkError) {
+            await tx.domainTechnology.deleteMany({ where: { domain: domain } });
+          }
+
+          await tx.domainTechnology.createMany({
+            data: [...technologies.values()].map((technology) => ({ ...technology, domain: domain })),
+            skipDuplicates: true,
+          });
+
+          await tx.domainInventory.update({
+            where: { domain: domain },
+            data: { lastCheckAt: new Date(), lastCheckError: checkError },
+          });
+        },
+        { maxWait: 60_000, timeout: 60_000 }
+      );
     });
   } finally {
     await wappalyzer.destroy();

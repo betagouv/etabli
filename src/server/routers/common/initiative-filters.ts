@@ -1,6 +1,7 @@
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { ListInitiativesSchemaType } from '@etabli/src/models/actions/initiative';
 import { prisma } from '@etabli/src/prisma/client';
+import { expandGradeLetters } from '@etabli/src/utils/security-grade';
 
 type InitiativeFilterBy = ListInitiativesSchemaType['filterBy'];
 
@@ -19,6 +20,18 @@ export function buildInitiativeFilters(filterBy: InitiativeFilterBy): Prisma.Ini
   }
   if (filterBy.hasRepository === true) {
     extraFilters.push({ NOT: { repositories: { isEmpty: true } } });
+  }
+  if (filterBy.httpSecurityGrades && filterBy.httpSecurityGrades.length > 0) {
+    extraFilters.push({ httpSecurityGrade: { in: expandGradeLetters(filterBy.httpSecurityGrades) } });
+  }
+  if (filterBy.tlsGrades && filterBy.tlsGrades.length > 0) {
+    extraFilters.push({ tlsGrade: { in: expandGradeLetters(filterBy.tlsGrades) } });
+  }
+  if (filterBy.legalNotice) {
+    extraFilters.push({ hasLegalNotice: filterBy.legalNotice === 'with' });
+  }
+  if (filterBy.privacyPolicy) {
+    extraFilters.push({ hasPrivacyPolicy: filterBy.privacyPolicy === 'with' });
   }
   const organizationFilters: Prisma.InitiativeWhereInput[] = [];
   if (filterBy.organizationIds && filterBy.organizationIds.length > 0) {

@@ -1,5 +1,6 @@
 import z from 'zod';
 
+import { updateInitiativesIndicators } from '@etabli/src/features/initiative-indicators';
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
@@ -139,6 +140,7 @@ export async function updateDomainsHttpSecurity(options?: { maximumDomains?: num
   };
 
   await Promise.all(Array.from({ length: options?.concurrency ?? defaultConcurrency }, processQueue));
+  await updateInitiativesIndicators();
 
   console.log(
     `${processedDomains} domains scanned in ${Math.round((Date.now() - startedAt) / 1000)}s (${unscannableDomains} without a grade)${

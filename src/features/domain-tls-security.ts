@@ -1,8 +1,8 @@
 import { setTimeout as sleep } from 'timers/promises';
 import z from 'zod';
 
-import { Prisma } from '@etabli/src/generated/prisma/client';
 import { updateInitiativesIndicators } from '@etabli/src/features/initiative-indicators';
+import { Prisma } from '@etabli/src/generated/prisma/client';
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { getWorstGrade } from '@etabli/src/utils/security-grade';
@@ -51,7 +51,7 @@ export async function fetchSslLabsResult(domain: string, email: string, options?
       const endpoints = (result.endpoints ?? []).map((endpoint) => ({ ipAddress: endpoint.ipAddress ?? null, grade: endpoint.grade ?? null }));
       const grade = getWorstGrade(endpoints.flatMap((endpoint) => endpoint.grade ?? [])); // Visitors can reach any of them
 
-      return { type: 'graded', grade: grade, endpoints: endpoints, error: grade ? null : (result.endpoints?.[0]?.statusMessage ?? 'no grade') };
+      return { type: 'graded', grade: grade, endpoints: endpoints, error: grade ? null : result.endpoints?.[0]?.statusMessage ?? 'no grade' };
     }
 
     // Polling less often once started is what they ask for
@@ -140,6 +140,8 @@ export async function updateDomainsTlsSecurity(options?: { maximumDomains?: numb
   await updateInitiativesIndicators();
 
   console.log(
-    `${processedDomains} domains assessed in ${Math.round((Date.now() - startedAt) / 1000)}s${stopReason ? `, stopped because the service answered with ${stopReason}` : ''}`
+    `${processedDomains} domains assessed in ${Math.round((Date.now() - startedAt) / 1000)}s${
+      stopReason ? `, stopped because the service answered with ${stopReason}` : ''
+    }`
   );
 }

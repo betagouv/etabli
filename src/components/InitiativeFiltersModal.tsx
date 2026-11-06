@@ -9,6 +9,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import { useMemo, useState } from 'react';
@@ -16,7 +17,14 @@ import { useTranslation } from 'react-i18next';
 
 import { trpc } from '@etabli/src/client/trpcClient';
 import { OrganizationPicker } from '@etabli/src/components/OrganizationPicker';
-import { FunctionalUseCaseSchema, FunctionalUseCaseSchemaType } from '@etabli/src/models/entities/initiative';
+import {
+  FunctionalUseCaseSchema,
+  FunctionalUseCaseSchemaType,
+  GradeLetterSchema,
+  GradeLetterSchemaType,
+  LegalLinkPresenceSchema,
+  LegalLinkPresenceSchemaType,
+} from '@etabli/src/models/entities/initiative';
 
 export interface InitiativeFiltersValue {
   functionalUseCases: FunctionalUseCaseSchemaType[];
@@ -25,6 +33,10 @@ export interface InitiativeFiltersValue {
   unclassified: boolean; // Initiatives bound to no organization
   hasWebsite: boolean;
   hasRepository: boolean;
+  httpSecurityGrades: GradeLetterSchemaType[];
+  tlsGrades: GradeLetterSchemaType[];
+  legalNotice: LegalLinkPresenceSchemaType | null;
+  privacyPolicy: LegalLinkPresenceSchemaType | null;
 }
 
 export const emptyInitiativeFilters: InitiativeFiltersValue = {
@@ -34,6 +46,10 @@ export const emptyInitiativeFilters: InitiativeFiltersValue = {
   unclassified: false,
   hasWebsite: false,
   hasRepository: false,
+  httpSecurityGrades: [],
+  tlsGrades: [],
+  legalNotice: null,
+  privacyPolicy: null,
 };
 
 export function countActiveFilters(value: InitiativeFiltersValue): number {
@@ -43,8 +59,16 @@ export function countActiveFilters(value: InitiativeFiltersValue): number {
     value.organizationIds.length +
     (value.unclassified ? 1 : 0) +
     (value.hasWebsite ? 1 : 0) +
-    (value.hasRepository ? 1 : 0)
+    (value.hasRepository ? 1 : 0) +
+    value.httpSecurityGrades.length +
+    value.tlsGrades.length +
+    (value.legalNotice ? 1 : 0) +
+    (value.privacyPolicy ? 1 : 0)
   );
+}
+
+function parseLegalLinkPresence(value: string): LegalLinkPresenceSchemaType | null {
+  return LegalLinkPresenceSchema.safeParse(value).data ?? null;
 }
 
 export interface InitiativeFiltersModalProps {
@@ -144,6 +168,56 @@ export function InitiativeFiltersModal(props: InitiativeFiltersModalProps) {
             control={<Checkbox checked={draft.hasRepository} onChange={(e) => setDraft((d) => ({ ...d, hasRepository: e.target.checked }))} />}
             label="Possède au moins un dépôt de code"
           />
+          <Autocomplete
+            multiple
+            options={GradeLetterSchema.options}
+            value={draft.httpSecurityGrades}
+            onChange={(_, next) => setDraft((d) => ({ ...d, httpSecurityGrades: next }))}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Sécurité web"
+                helperText="Note du site le moins bien noté de l'initiative"
+                placeholder={draft.httpSecurityGrades.length === 0 ? 'Toutes' : undefined}
+              />
+            )}
+          />
+          <Autocomplete
+            multiple
+            options={GradeLetterSchema.options}
+            value={draft.tlsGrades}
+            onChange={(_, next) => setDraft((d) => ({ ...d, tlsGrades: next }))}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Note TLS"
+                helperText="Note du site le moins bien noté de l'initiative, F inclut les problèmes de certificat"
+                placeholder={draft.tlsGrades.length === 0 ? 'Toutes' : undefined}
+              />
+            )}
+          />
+          <TextField
+            select
+            label="Mentions légales"
+            helperText="Non trouvé dès qu'un des sites de l'initiative n'a pas de lien sur sa page d'accueil"
+            value={draft.legalNotice ?? ''}
+            onChange={(e) => setDraft((d) => ({ ...d, legalNotice: parseLegalLinkPresence(e.target.value) }))}
+          >
+            <MenuItem value="">Peu importe</MenuItem>
+            <MenuItem value="with">Lien trouvé</MenuItem>
+            <MenuItem value="without">Lien non trouvé</MenuItem>
+          </TextField>
+          <TextField
+            select
+            label="Politique de confidentialité"
+            helperText="Non trouvé dès qu'un des sites de l'initiative n'a pas de lien sur sa page d'accueil"
+            value={draft.privacyPolicy ?? ''}
+            onChange={(e) => setDraft((d) => ({ ...d, privacyPolicy: parseLegalLinkPresence(e.target.value) }))}
+          >
+            <MenuItem value="">Peu importe</MenuItem>
+            <MenuItem value="with">Lien trouvé</MenuItem>
+            <MenuItem value="without">Lien non trouvé</MenuItem>
+          </TextField>
         </Stack>
       </DialogContent>
       <DialogActions>

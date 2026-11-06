@@ -77,6 +77,9 @@ export const domainsReputation: DomainReputationSchemaType[] = [
     linksCountries: { FR: 37222, '': 4943, IO: 450, IT: 373 },
     linksTopLevelDomains: { 'gouv.fr': 21323, fr: 15231, online: 1815, com: 1500 },
     httpSecurityGrade: 'B',
+    tlsGrade: 'A+',
+    hasLegalNotice: true,
+    hasPrivacyPolicy: false,
   },
   {
     domain: 'docs.great-project.local',
@@ -98,6 +101,9 @@ export const domainsReputation: DomainReputationSchemaType[] = [
     linksCountries: null,
     linksTopLevelDomains: null,
     httpSecurityGrade: null,
+    tlsGrade: null,
+    hasLegalNotice: null,
+    hasPrivacyPolicy: null,
   },
 ];
 

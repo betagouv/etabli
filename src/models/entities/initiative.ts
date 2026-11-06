@@ -25,6 +25,12 @@ export type FunctionalUseCaseSchemaType = z.infer<typeof FunctionalUseCaseSchema
 const LinksDistributionSchema = z.record(z.string(), z.number().nonnegative()).nullable();
 
 // Reputation of a website according to the links it receives, a null value means the provider did not give it
+export const GradeLetterSchema = z.enum(['A', 'B', 'C', 'D', 'E', 'F']);
+export type GradeLetterSchemaType = z.infer<typeof GradeLetterSchema>;
+
+export const LegalLinkPresenceSchema = z.enum(['with', 'without']);
+export type LegalLinkPresenceSchemaType = z.infer<typeof LegalLinkPresenceSchema>;
+
 export const DomainReputationSchema = z
   .object({
     domain: z.string().min(1),
@@ -46,6 +52,9 @@ export const DomainReputationSchema = z
     linksCountries: LinksDistributionSchema,
     linksTopLevelDomains: LinksDistributionSchema,
     httpSecurityGrade: z.string().min(1).nullable(),
+    tlsGrade: z.string().min(1).nullable(),
+    hasLegalNotice: z.boolean().nullable(),
+    hasPrivacyPolicy: z.boolean().nullable(),
   })
   .strict();
 export type DomainReputationSchemaType = z.infer<typeof DomainReputationSchema>;

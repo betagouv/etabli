@@ -20,7 +20,10 @@ describe('detectLegalLinks()', () => {
   });
 
   it('should find both on a single combined page', () => {
-    expect(detectLegalLinks([{ text: 'Mentions légales et confidentialité', href: '/ml' }])).toEqual({ hasLegalNotice: true, hasPrivacyPolicy: true });
+    expect(detectLegalLinks([{ text: 'Mentions légales et confidentialité', href: '/ml' }])).toEqual({
+      hasLegalNotice: true,
+      hasPrivacyPolicy: true,
+    });
   });
 
   it('should not mix url parts nor match close words', () => {

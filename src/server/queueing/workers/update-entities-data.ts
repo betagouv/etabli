@@ -4,6 +4,7 @@ import { enhanceDomainsIntoDatabase, formatDomainsIntoDatabase, saveDomainCsvFil
 import { updateDomainsInventory } from '@etabli/src/features/domain-inventory';
 import { updateInitiativesReputation } from '@etabli/src/features/domain-reputation';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase } from '@etabli/src/features/initiative';
+import { updateInitiativesIndicators } from '@etabli/src/features/initiative-indicators';
 import { ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem } from '@etabli/src/features/llm';
 import { bindOrganizationsToInitiatives, formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
 import { enhanceRepositoriesIntoDatabase, formatRepositoriesIntoDatabase, saveRepositoryListFile } from '@etabli/src/features/repository';
@@ -43,6 +44,7 @@ export async function updateEntitiesData(job: Job<void>) {
 
   // Only what is already stored, retrieving the reputation of domains is charged so it stays a manual action
   await updateInitiativesReputation();
+  await updateInitiativesIndicators();
 
   await ingestInitiativeListToLlmSystem();
 }

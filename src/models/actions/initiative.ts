@@ -1,7 +1,7 @@
 import z from 'zod';
 
 import { GetterInputSchema } from '@etabli/src/models/actions/common';
-import { FunctionalUseCaseSchema, InitiativeSchema } from '@etabli/src/models/entities/initiative';
+import { FunctionalUseCaseSchema, GradeLetterSchema, InitiativeSchema, LegalLinkPresenceSchema } from '@etabli/src/models/entities/initiative';
 import { ToolCategorySchema } from '@etabli/src/models/entities/tool';
 
 export const GetInitiativeSchema = z
@@ -29,6 +29,10 @@ export const ListInitiativesSchema = GetterInputSchema.extend({
     hasRepository: z.boolean().optional(),
     organizationIds: z.array(z.string().uuid()).max(maximumFilteredOrganizations).optional(), // An initiative matches if bound to one of these organizations or to any of their descendants
     unclassified: z.boolean().optional(), // Initiatives bound to no organization (alternative to `organizationIds`)
+    httpSecurityGrades: z.array(GradeLetterSchema).optional(),
+    tlsGrades: z.array(GradeLetterSchema).optional(),
+    legalNotice: LegalLinkPresenceSchema.optional(),
+    privacyPolicy: LegalLinkPresenceSchema.optional(),
   }),
 }).strict();
 export type ListInitiativesSchemaType = z.infer<typeof ListInitiativesSchema>;

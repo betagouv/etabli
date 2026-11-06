@@ -18,7 +18,9 @@ import {
   updateDomainsReputation,
   updateInitiativesReputation,
 } from '@etabli/src/features/domain-reputation';
+import { flagDomainsForTlsSecurityUpdate, updateDomainsTlsSecurity } from '@etabli/src/features/domain-tls-security';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
+import { updateDomainsLegalLinks, updateInitiativesIndicators } from '@etabli/src/features/initiative-indicators';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/src/features/llm';
 import { bindOrganizationsToInitiatives, formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
 import {
@@ -154,6 +156,40 @@ domain
   .argument('[domains...]', 'domains to flag')
   .action(async (domains: string[]) => {
     console.log(`${await flagDomainsForHttpSecurityUpdate(domains.length > 0 ? domains : undefined)} domains flagged`);
+  });
+
+domain
+  .command('tls-security')
+  .description('retrieve the TLS grade of flagged domains from SSL Labs (it takes at least a minute per domain)')
+  .option('-l, --limit <number>', 'maximum number of domains to process')
+  .option('--concurrency <number>', 'number of simultaneous assessments')
+  .action(async (options) => {
+    await updateDomainsTlsSecurity({
+      maximumDomains: options.limit ? parseInt(options.limit, 10) : undefined,
+      concurrency: options.concurrency ? parseInt(options.concurrency, 10) : undefined,
+    });
+  });
+
+domain
+  .command('tls-security-flag')
+  .description('flag domains so the next `domain tls-security` assesses them again (all of them if none is specified)')
+  .argument('[domains...]', 'domains to flag')
+  .action(async (domains: string[]) => {
+    console.log(`${await flagDomainsForTlsSecurityUpdate(domains.length > 0 ? domains : undefined)} domains flagged`);
+  });
+
+domain
+  .command('legal-links')
+  .description('detect the legal notice and privacy policy links on home pages already stored (no request is sent to websites)')
+  .action(async () => {
+    console.log(`${await updateDomainsLegalLinks()} domains processed`);
+  });
+
+domain
+  .command('indicators-apply')
+  .description('recompute the security and legal indicators of initiatives from the stored ones of their domains')
+  .action(async () => {
+    console.log(`${await updateInitiativesIndicators()} initiatives updated`);
   });
 
 domain

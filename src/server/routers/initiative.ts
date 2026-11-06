@@ -112,12 +112,18 @@ export const initiativeRouter = router({
       },
     });
 
-    // Only the grade is public, the detail of failing tests would be a list of weaknesses to exploit
-    const httpSecurities = await prisma.domainHttpSecurity.findMany({
-      where: { domain: { in: domains } },
-      select: { domain: true, grade: true },
-    });
+    // Only the grades are public, the detail of failing tests would be a list of weaknesses to exploit
+    const [httpSecurities, tlsSecurities, rawDomains] = await Promise.all([
+      prisma.domainHttpSecurity.findMany({ where: { domain: { in: domains } }, select: { domain: true, grade: true } }),
+      prisma.domainTlsSecurity.findMany({ where: { domain: { in: domains } }, select: { domain: true, grade: true } }),
+      prisma.rawDomain.findMany({
+        where: { name: { in: domains } },
+        select: { name: true, websiteHasLegalNotice: true, websiteHasPrivacyPolicy: true },
+      }),
+    ]);
     const httpSecurityGrades = new Map(httpSecurities.map(({ domain, grade }) => [domain, grade]));
+    const tlsGrades = new Map(tlsSecurities.map(({ domain, grade }) => [domain, grade]));
+    const legalLinks = new Map(rawDomains.map((rawDomain) => [rawDomain.name, rawDomain]));
 
     // The best one first since it's the one giving the initiative its score
     reputations.sort((a, b) => (b.rank ?? -1) - (a.rank ?? -1) || domains.indexOf(a.domain) - domains.indexOf(b.domain));

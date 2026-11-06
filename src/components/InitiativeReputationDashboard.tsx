@@ -1,5 +1,7 @@
 'use client';
 
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
@@ -16,8 +18,10 @@ import { getForeignDependencyLevelLabel } from '@etabli/src/utils/foreign-depend
 
 const unavailableValue = 'Valeur non disponible';
 const notSignificantValue = 'Non significatif';
+const linkFoundValue = 'Lien trouvé';
+const linkNotFoundValue = 'Lien non trouvé';
 const numberFormatter = new Intl.NumberFormat('fr-FR');
-const dateFormatter = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
+const dateFormatter = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric' }); // The long months do not fit on a line
 const fullDateFormatter = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' });
 const countryNames = new Intl.DisplayNames(['fr'], { type: 'region' });
 
@@ -70,7 +74,11 @@ function getLegalLinkLabel(value: boolean | null): string {
     return unavailableValue;
   }
 
-  return value ? 'Lien trouvé' : 'Lien non trouvé';
+  return value ? linkFoundValue : linkNotFoundValue;
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function formatNumber(value: number | null): string {
@@ -98,18 +106,48 @@ const panelSx = {
   minWidth: 0,
 };
 
-function InfoBubble(props: { label: string; description: string }) {
+const metricsGridSx = {
+  display: 'grid',
+  gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' },
+  gap: 2,
+  m: 0,
+  p: 0,
+};
+
+function InfoBubble(props: { label: string; description: string; details?: string[] }) {
+  const hasDetails = !!props.details && props.details.length > 0;
+
   return (
-    <Tooltip title={props.description}>
-      <IconButton size="small" aria-label={`À propos de « ${props.label} » : ${props.description}`} sx={{ p: 0.25, flexShrink: 0 }}>
+    <Tooltip
+      title={
+        hasDetails ? (
+          <>
+            {props.description}
+            <Box component="ul" sx={{ m: 0, mt: 1, pl: 2 }}>
+              {props.details?.map((detail) => <li key={detail}>{detail}</li>)}
+            </Box>
+          </>
+        ) : (
+          props.description
+        )
+      }
+    >
+      <IconButton
+        size="small"
+        aria-label={`À propos de « ${props.label} » : ${props.description}${hasDetails ? ` ${props.details?.join(' ; ')}.` : ''}`}
+        sx={{ p: 0.25, flexShrink: 0 }}
+      >
         <InfoOutlinedIcon sx={{ fontSize: 16 }} />
       </IconButton>
     </Tooltip>
   );
 }
 
-function Metric(props: { label: string; value: string; description: string }) {
-  const isAvailable = props.value !== unavailableValue && props.value !== notSignificantValue;
+function Metric(props: { label: string; value: string; description: string; details?: string[]; compact?: boolean }) {
+  const isUnavailable = props.value === unavailableValue;
+  const isEmpty = isUnavailable || props.value === notSignificantValue;
+  const isLink = props.value === linkFoundValue || props.value === linkNotFoundValue;
+  const LinkIcon = props.value === linkFoundValue ? CheckIcon : CloseIcon;
 
   return (
     <Box sx={{ ...panelSx, p: '20px !important' }}>
@@ -117,7 +155,11 @@ function Metric(props: { label: string; value: string; description: string }) {
         <Typography component="span" variant="body2" color="text.secondary" sx={{ lineHeight: 1.3 }}>
           {props.label}
         </Typography>
-        <InfoBubble label={props.label} description={props.description} />
+        <InfoBubble
+          label={props.label}
+          description={isUnavailable ? `${props.description} Valeur non disponible pour ce site.` : props.description}
+          details={props.details}
+        />
       </Box>
       <Typography
         component="dd"
@@ -125,13 +167,22 @@ function Metric(props: { label: string; value: string; description: string }) {
           m: '0 !important', // The DSFR indents definitions
           pl: '0 !important',
           pt: 1,
-          fontWeight: isAvailable ? 700 : 400,
-          fontSize: isAvailable ? { xs: '1.5rem', md: '2rem' } : '0.875rem',
+          fontWeight: 700,
+          fontSize: props.compact ? '1.5rem' : { xs: '1.5rem', md: '2rem' },
           lineHeight: 1.2,
-          color: isAvailable ? undefined : 'var(--text-mention-grey)',
+          display: 'flex',
+          alignItems: 'center',
+          minHeight: '1.2em',
         }}
       >
-        {props.value}
+        {isEmpty || isLink ? (
+          <>
+            {isLink ? <LinkIcon aria-hidden="true" sx={{ fontSize: 'inherit' }} /> : <span aria-hidden="true">–</span>}
+            <span className="fr-sr-only">{props.value}</span>
+          </>
+        ) : (
+          props.value
+        )}
       </Typography>
     </Box>
   );
@@ -196,50 +247,14 @@ function Distribution(props: { title: string; values: Record<string, number> | n
 
 function DomainReputation({ reputation }: { reputation: DomainReputationSchemaType }) {
   return (
-    <Box component="section" aria-label={`Réputation de ${reputation.domain}`}>
-      <Box
-        component="dl"
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))' },
-          gap: 2,
-          m: 0,
-          p: 0,
-        }}
-      >
+    <Box component="section" aria-label={`Notoriété de ${reputation.domain}`}>
+      <Box component="dl" sx={metricsGridSx}>
         <Metric
-          label="Score de réputation"
+          label="Score de notoriété"
           value={getScoreLabel(reputation.rank)}
           description={`Calculé sur l'ensemble d'internet à partir des liens externes vers ce site et de leur qualité. Il ne mesure pas la qualité du service.${
             reputation.rank === 0 ? ' Il y a ici trop peu de liens pour obtenir un score.' : ''
           }`}
-        />
-        <Metric
-          label="Sécurité web"
-          value={reputation.httpSecurityGrade ?? unavailableValue}
-          description="Note de A+ à F donnée par Mozilla HTTP Observatory aux protections que le site déclare au navigateur (en-têtes de sécurité, cookies). Elle ne couvre pas tous les aspects de la sécurité du site."
-        />
-        <Metric
-          label="Note TLS"
-          value={reputation.tlsGrade ?? unavailableValue}
-          description="Note de A+ à F donnée par SSL Labs à la configuration du chiffrement des connexions. T indique un certificat non reconnu, M un certificat établi pour un autre site."
-        />
-        <Metric
-          label="Dépendance hors UE"
-          value={getForeignDependencyLevelLabel(reputation.foreignDependencyLevel) ?? unavailableValue}
-          description={`Ce qui se voit de l'extérieur du site, selon la nationalité des prestataires : hébergement, CDN, messagerie, scripts tiers. Les services appelés par ses serveurs ne sont pas visibles.${
-            reputation.foreignDependencies.length > 0 ? ` Détecté ici : ${reputation.foreignDependencies.join(' ; ')}.` : ''
-          }`}
-        />
-        <Metric
-          label="Mentions légales"
-          value={getLegalLinkLabel(reputation.hasLegalNotice)}
-          description="Présence d'un lien vers les mentions légales sur la page d'accueil. Le contenu de la page n'est pas vérifié."
-        />
-        <Metric
-          label="Confidentialité"
-          value={getLegalLinkLabel(reputation.hasPrivacyPolicy)}
-          description="Présence d'un lien vers la politique de confidentialité sur la page d'accueil. Elle peut aussi se trouver sur une autre page, et son contenu n'est pas vérifié."
         />
         <Metric
           label="Sites externes"
@@ -288,7 +303,7 @@ function DomainReputation({ reputation }: { reputation: DomainReputationSchemaTy
         />
         <Metric
           label="Connu depuis"
-          value={reputation.firstSeenAt ? dateFormatter.format(reputation.firstSeenAt) : unavailableValue}
+          value={reputation.firstSeenAt ? capitalize(dateFormatter.format(reputation.firstSeenAt)) : unavailableValue}
           description="Date à laquelle le service tiers a vu pour la première fois un lien externe vers ce site."
         />
       </Box>
@@ -324,6 +339,61 @@ function DomainReputation({ reputation }: { reputation: DomainReputationSchemaTy
           getLabel={(key) => (key === '' ? undeterminedLabel : `.${key}`)}
         />
       </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 4, mb: 1 }}>
+        <Typography component="h2" variant="h4" sx={{ m: 0 }}>
+          Sécurité et conformité
+        </Typography>
+      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Ce qui se voit de l&apos;extérieur du site, d&apos;après des analyses automatiques.
+      </Typography>
+      <Box
+        component="dl"
+        sx={{
+          ...metricsGridSx,
+          gridTemplateColumns: {
+            xs: 'repeat(2, minmax(0, 1fr))',
+            md: 'repeat(3, minmax(0, 1fr))',
+            lg: 'minmax(0, 1.15fr) minmax(0, 0.85fr) minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, 1.15fr)',
+          },
+        }}
+      >
+        <Metric
+          compact
+          label="Sécurité web"
+          value={reputation.httpSecurityGrade ?? unavailableValue}
+          description="Note de A+ à F donnée par Mozilla HTTP Observatory aux protections que le site déclare au navigateur (en-têtes de sécurité, cookies). Elle ne couvre pas tous les aspects de la sécurité du site."
+        />
+
+        <Metric
+          compact
+          label="Note TLS"
+          value={reputation.tlsGrade ?? unavailableValue}
+          description="Note de A+ à F donnée par SSL Labs à la configuration du chiffrement des connexions. T indique un certificat non reconnu, M un certificat établi pour un autre site."
+        />
+
+        <Metric
+          compact
+          label="Dépendance hors UE"
+          value={getForeignDependencyLevelLabel(reputation.foreignDependencyLevel) ?? unavailableValue}
+          description="Ce qui se voit de l'extérieur du site, selon la nationalité des prestataires : hébergement, CDN, messagerie, services et bibliothèques tiers. Les services appelés par ses serveurs ne sont pas visibles."
+          details={reputation.foreignDependencies}
+        />
+
+        <Metric
+          compact
+          label="Mentions légales"
+          value={getLegalLinkLabel(reputation.hasLegalNotice)}
+          description="Présence d'un lien vers les mentions légales sur la page d'accueil. Le contenu de la page n'est pas vérifié."
+        />
+
+        <Metric
+          compact
+          label="Confidentialité"
+          value={getLegalLinkLabel(reputation.hasPrivacyPolicy)}
+          description="Présence d'un lien vers la politique de confidentialité sur la page d'accueil. Elle peut aussi se trouver sur une autre page, et son contenu n'est pas vérifié."
+        />
+      </Box>
     </Box>
   );
 }
@@ -348,10 +418,10 @@ export function InitiativeReputationDashboard(props: InitiativeReputationDashboa
     <Grid item xs={12} sx={{ mt: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
         <Typography component="h2" variant="h4" sx={{ m: 0 }}>
-          Réputation sur internet
+          Notoriété sur internet
         </Typography>
         <InfoBubble
-          label="Réputation sur internet"
+          label="Notoriété sur internet"
           description={`Données du service tiers récupérées le ${fullDateFormatter.format(reputation.lastCheckAt)}.`}
         />
       </Box>

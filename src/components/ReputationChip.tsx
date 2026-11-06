@@ -15,7 +15,7 @@ const numberFormatter = new Intl.NumberFormat('fr-FR');
 const chipSx = { '& .MuiChip-icon': { fontSize: 16, ml: '8px', mr: '-2px' } };
 
 export interface InitiativeRankingChipsProps {
-  initiative: Pick<InitiativeSchemaType, 'relativeReputation' | 'repositoryStars' | 'websites'>;
+  initiative: Pick<InitiativeSchemaType, 'relativeReputation' | 'repositoryStars' | 'websites' | 'repositories'>;
   sx?: SxProps<Theme>;
 }
 
@@ -24,6 +24,9 @@ export function InitiativeRankingChips({ initiative, sx }: InitiativeRankingChip
     return null;
   }
 
+  const hasSeveralWebsites = initiative.websites.length > 1;
+  const hasSeveralRepositories = initiative.repositories.length > 1;
+
   return (
     <Box sx={[{ display: 'flex', flexWrap: 'wrap', gap: 1 }, ...(Array.isArray(sx) ? sx : [sx])]}>
       {!!initiative.relativeReputation && (
@@ -31,8 +34,14 @@ export function InitiativeRankingChips({ initiative, sx }: InitiativeRankingChip
           describeChild
           title={
             initiative.websites.length > 0
-              ? "Comparée aux initiatives les plus citées d'Établi, d'après les liens externes vers ses sites. Elle ne mesure pas la qualité du service."
-              : "Comparée aux initiatives les plus citées d'Établi, d'après les étoiles de ses dépôts de code (divisées par 2 s'ils sont archivés). Elle ne mesure pas la qualité du service."
+              ? `Comparée aux initiatives les plus citées d'Établi, d'après les liens externes vers ${
+                  hasSeveralWebsites ? 'ses sites' : 'son site'
+                }. Elle ne mesure pas la qualité du service.`
+              : `Comparée aux initiatives les plus citées d'Établi, d'après les étoiles de ${
+                  hasSeveralRepositories
+                    ? "ses dépôts de code (divisées par 2 s'ils sont archivés)"
+                    : "son dépôt de code (divisées par 2 s'il est archivé)"
+                }. Elle ne mesure pas la qualité du service.`
           }
         >
           <Chip
@@ -40,12 +49,17 @@ export function InitiativeRankingChips({ initiative, sx }: InitiativeRankingChip
             variant="outlined"
             sx={chipSx}
             icon={<TrendingUpIcon aria-hidden="true" />}
-            label={`Réputation ${initiative.relativeReputation} %`}
+            label={`Notoriété ${initiative.relativeReputation} %`}
           />
         </Tooltip>
       )}
       {!!initiative.repositoryStars && (
-        <Tooltip describeChild title="Étoiles de son dépôt de code le plus suivi, elles indiquent l'intérêt de la communauté de développeurs.">
+        <Tooltip
+          describeChild
+          title={`Étoiles de ${
+            hasSeveralRepositories ? 'son dépôt de code le plus suivi' : 'son dépôt de code'
+          }, elles indiquent l'intérêt de la communauté de développeurs.`}
+        >
           <Chip
             size="small"
             variant="outlined"

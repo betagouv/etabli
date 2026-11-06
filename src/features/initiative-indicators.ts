@@ -2,6 +2,7 @@ import { JSDOM, VirtualConsole } from 'jsdom';
 
 import { prisma } from '@etabli/src/prisma';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
+import { foreignRepositoryHosts } from '@etabli/src/utils/foreign-dependencies';
 import { detectLegalLinksFromDocument } from '@etabli/src/utils/legal-links';
 import { securityGrades } from '@etabli/src/utils/security-grade';
 
@@ -48,12 +49,21 @@ export async function updateInitiativesIndicators(): Promise<number> {
           INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
           WHERE dm."initiativeMapId" = i2."originId"
         ) AS "hasPrivacyPolicy",
-        (
-          SELECT MAX(ds."level")
-          FROM "RawDomainsOnInitiativeMaps" dm
-          INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
-          INNER JOIN "DomainSovereignty" ds ON ds."domain" = d."name"
-          WHERE dm."initiativeMapId" = i2."originId"
+        GREATEST(
+          (
+            SELECT MAX(ds."level")
+            FROM "RawDomainsOnInitiativeMaps" dm
+            INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
+            INNER JOIN "DomainSovereignty" ds ON ds."domain" = d."name"
+            WHERE dm."initiativeMapId" = i2."originId"
+          ),
+          CASE
+            WHEN cardinality(i2."repositories") = 0 THEN NULL
+            WHEN EXISTS (
+              SELECT 1 FROM unnest(i2."repositories") r WHERE split_part(r, '/', 3) = ANY(${foreignRepositoryHosts}::TEXT[])
+            ) THEN 1
+            ELSE 0
+          END
         ) AS "foreignDependencyLevel"
       FROM "Initiative" i2
     ) computed

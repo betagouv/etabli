@@ -4,7 +4,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { JSDOM } from 'jsdom';
 
-import { SovereigntySignals, classifyForeignDependencies, findExternalHosts } from '@etabli/src/utils/foreign-dependencies';
+import { SovereigntySignals, classifyForeignDependencies, cleanNetworkName, findExternalHosts } from '@etabli/src/utils/foreign-dependencies';
 
 const noSignals: SovereigntySignals = { network: null, cnames: [], mailHosts: [], thirdPartyHosts: [] };
 
@@ -54,13 +54,38 @@ describe('classifyForeignDependencies()', () => {
         mailHosts: ['ville-fr.mail.protection.outlook.com'],
         thirdPartyHosts: ['fonts.googleapis.com', 'www.googletagmanager.com', 'cdn.mairie.fr'],
       })
-    ).toEqual({ level: 2, dependencies: ['Messagerie : Microsoft', 'Scripts et contenus tiers : Google'] });
+    ).toEqual({ level: 2, dependencies: ['Messagerie : Microsoft', 'Services tiers : Google'] });
 
-    expect(classifyForeignDependencies({ ...noSignals, network: network, thirdPartyHosts: ['connect.facebook.net'] }).level).toBe(1);
+    expect(classifyForeignDependencies({ ...noSignals, network: network, thirdPartyHosts: ['cdn.jsdelivr.net'] }).level).toBe(1);
+  });
+
+  it('should consider fonts and captchas as services seeing visitors', () => {
+    expect(classifyForeignDependencies({ ...noSignals, thirdPartyHosts: ['fonts.googleapis.com'] }).level).toBe(2);
+    expect(classifyForeignDependencies({ ...noSignals, thirdPartyHosts: ['www.recaptcha.net'] }).level).toBe(2);
+  });
+
+  it('should not consider french overseas networks as foreign', () => {
+    expect(classifyForeignDependencies({ ...noSignals, network: { asn: 1, name: 'FR-DOM-GUYANE - Renater', country: 'EU' } }).level).toBe(0);
+    expect(classifyForeignDependencies({ ...noSignals, network: { asn: 1, name: 'SOME', country: 'RE' } }).level).toBe(0);
+  });
+
+  it('should grade a close country below the others', () => {
+    const network = { asn: 1, name: 'Infomaniak-AS Infomaniak Network SA', country: 'CH' };
+
+    expect(classifyForeignDependencies({ ...noSignals, network: network })).toEqual({ level: 2, dependencies: ['Hébergement : Infomaniak Network'] });
   });
 
   it('should not match a host only ending with the same letters', () => {
     expect(classifyForeignDependencies({ ...noSignals, thirdPartyHosts: ['notgoogle.com'] }).level).toBe(0);
+  });
+});
+
+describe('cleanNetworkName()', () => {
+  it('should keep a readable name', () => {
+    expect(cleanNetworkName('radware Radware Ltd')).toBe('Radware');
+    expect(cleanNetworkName('CLOUDFLARENET - Cloudflare, Inc.')).toBe('Cloudflare');
+    expect(cleanNetworkName('AS12876 Scaleway SAS')).toBe('Scaleway');
+    expect(cleanNetworkName(null)).toBeNull();
   });
 });
 

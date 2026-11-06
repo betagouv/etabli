@@ -4,6 +4,7 @@
 import { layoutOrganizationsMap } from '@etabli/src/utils/organizations-map';
 
 const noInitiatives = { websitesOnly: 0, repositoriesOnly: 0, both: 0 };
+const noDistribution = { reputation: [0, 0, 0, 0, 0, 0], foreign: [0, 0, 0, 0, 0, 0] };
 
 function toItem(id: string, parentId: string | null, websites: number, isHierarchyRoot = false) {
   const own = { ...noInitiatives, websitesOnly: websites };
@@ -21,6 +22,7 @@ function toItem(id: string, parentId: string | null, websites: number, isHierarc
     ownWeights: own,
     relativeReputation: null,
     averageForeignDependencyLevel: null,
+    distribution: noDistribution,
   };
 }
 
@@ -34,6 +36,9 @@ describe('layoutOrganizationsMap()', () => {
       composition: noInitiatives,
       standalone: noInitiatives,
       unclassified: noInitiatives,
+      distribution: noDistribution,
+      standaloneDistribution: noDistribution,
+      unclassifiedDistribution: noDistribution,
     });
 
     const [first, second] = root.children ?? [];

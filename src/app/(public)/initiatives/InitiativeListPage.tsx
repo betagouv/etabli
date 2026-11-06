@@ -415,7 +415,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                     sx={{ flex: '0 0 150px' }}
                   >
                     <MenuItem value="name">{hasSearchQuery ? 'Pertinence' : 'Nom'}</MenuItem>
-                    <MenuItem value="reputation">Réputation</MenuItem>
+                    <MenuItem value="reputation">Notoriété</MenuItem>
                   </TextField>
                 )}
                 <Button

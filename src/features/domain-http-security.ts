@@ -8,6 +8,7 @@ import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 // The service is free and has no key, a host is scanned at most once per minute and a recent result is returned otherwise (ref: https://github.com/mdn/mdn-http-observatory)
 export const observatoryAnalyzeUrl = 'https://observatory-api.mdn.mozilla.net/api/v2/analyze';
 
+const maximumConsecutiveFailures = 20;
 export const defaultConcurrency = 2; // It's a public service, there is no need to go faster since nothing depends on the result
 
 const ObservatoryResponseSchema = z.object({
@@ -94,13 +95,28 @@ export async function updateDomainsHttpSecurity(options?: { maximumDomains?: num
   let processedDomains = 0;
   let unscannableDomains = 0;
   let stopReason: string | null = null;
+  let consecutiveFailures = 0;
 
   const processQueue = async () => {
     while (queue.length > 0 && !stopReason) {
       watchGracefulExitInLoop();
 
       const domain = queue.shift() as string;
-      const result = await fetchObservatoryResult(domain).catch((error: Error) => ({ type: 'unscannable' as const, error: error.message }));
+
+      let result: ObservatoryResult;
+      try {
+        result = await fetchObservatoryResult(domain);
+        consecutiveFailures = 0;
+      } catch (error) {
+        // It says nothing about the domain, so it stays flagged. If it lasts the network is down, and going on would be useless
+        consecutiveFailures++;
+
+        if (consecutiveFailures >= maximumConsecutiveFailures) {
+          stopReason = 'too many network failures';
+        }
+
+        continue;
+      }
 
       if (result.type === 'unavailable') {
         stopReason = result.error;

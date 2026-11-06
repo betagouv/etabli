@@ -1,6 +1,7 @@
 'use client';
 
 import Autocomplete from '@mui/material/Autocomplete';
+import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -12,6 +13,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -75,6 +77,8 @@ function parseLegalLinkPresence(value: string): LegalLinkPresenceSchemaType | nu
   return LegalLinkPresenceSchema.safeParse(value).data ?? null;
 }
 
+const halfColumnsSx = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 2 };
+
 export interface InitiativeFiltersModalProps {
   open: boolean;
   value: InitiativeFiltersValue;
@@ -117,127 +121,121 @@ export function InitiativeFiltersModal(props: InitiativeFiltersModalProps) {
   const selectedTools = useMemo(() => toolOptions.filter((o) => draft.toolIds.includes(o.id)), [toolOptions, draft.toolIds]);
 
   return (
-    <Dialog open={props.open} onClose={props.onClose} fullWidth maxWidth="sm">
+    <Dialog open={props.open} onClose={props.onClose} fullWidth maxWidth="md">
       <DialogTitle>Filtrer les initiatives</DialogTitle>
       <DialogContent dividers>
-        <Stack spacing={3} sx={{ pt: 1 }}>
-          <OrganizationPicker
-            value={{ organizationIds: draft.organizationIds, unclassified: draft.unclassified }}
-            onChange={(next) => setDraft((d) => ({ ...d, organizationIds: next.organizationIds, unclassified: next.unclassified }))}
-            enabled={props.open}
-          />
-          <Autocomplete
-            multiple
-            disableCloseOnSelect
-            options={functionalUseCaseOptions}
-            value={selectedFunctionalUseCases}
-            getOptionLabel={(o) => o.label}
-            isOptionEqualToValue={(a, b) => a.value === b.value}
-            onChange={(_, next) => setDraft((d) => ({ ...d, functionalUseCases: next.map((o) => o.value) }))}
-            renderInput={(params) => (
-              <TextField {...params} label="Cas fonctionnels" placeholder={selectedFunctionalUseCases.length === 0 ? 'Tous' : undefined} />
-            )}
-          />
-          <Autocomplete
-            multiple
-            disableCloseOnSelect
-            options={toolOptions}
-            value={selectedTools}
-            loading={toolsQuery.isLoading}
-            getOptionLabel={(o) => o.name}
-            isOptionEqualToValue={(a, b) => a.id === b.id}
-            onChange={(_, next) => setDraft((d) => ({ ...d, toolIds: next.map((o) => o.id) }))}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Outils utilisés"
-                placeholder={selectedTools.length === 0 ? 'Tous' : undefined}
-                InputProps={{
-                  ...params.InputProps,
-                  endAdornment: (
-                    <>
-                      {toolsQuery.isLoading ? <CircularProgress size={16} /> : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
-                }}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 3, pt: 1 }}>
+          <Box sx={{ minWidth: 0 }}>
+            <OrganizationPicker
+              value={{ organizationIds: draft.organizationIds, unclassified: draft.unclassified }}
+              onChange={(next) => setDraft((d) => ({ ...d, organizationIds: next.organizationIds, unclassified: next.unclassified }))}
+              enabled={props.open}
+            />
+          </Box>
+          <Stack spacing={2} sx={{ minWidth: 0 }}>
+            <Autocomplete
+              multiple
+              disableCloseOnSelect
+              options={functionalUseCaseOptions}
+              value={selectedFunctionalUseCases}
+              getOptionLabel={(o) => o.label}
+              isOptionEqualToValue={(a, b) => a.value === b.value}
+              onChange={(_, next) => setDraft((d) => ({ ...d, functionalUseCases: next.map((o) => o.value) }))}
+              renderInput={(params) => (
+                <TextField {...params} label="Cas fonctionnels" placeholder={selectedFunctionalUseCases.length === 0 ? 'Tous' : undefined} />
+              )}
+            />
+            <Autocomplete
+              multiple
+              disableCloseOnSelect
+              options={toolOptions}
+              value={selectedTools}
+              loading={toolsQuery.isLoading}
+              getOptionLabel={(o) => o.name}
+              isOptionEqualToValue={(a, b) => a.id === b.id}
+              onChange={(_, next) => setDraft((d) => ({ ...d, toolIds: next.map((o) => o.id) }))}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Outils utilisés"
+                  placeholder={selectedTools.length === 0 ? 'Tous' : undefined}
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {toolsQuery.isLoading ? <CircularProgress size={16} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
+            />
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              <FormControlLabel
+                control={<Checkbox checked={draft.hasWebsite} onChange={(e) => setDraft((d) => ({ ...d, hasWebsite: e.target.checked }))} />}
+                label="Possède au moins un site internet"
               />
-            )}
-          />
-          <FormControlLabel
-            control={<Checkbox checked={draft.hasWebsite} onChange={(e) => setDraft((d) => ({ ...d, hasWebsite: e.target.checked }))} />}
-            label="Possède au moins un site internet"
-          />
-          <FormControlLabel
-            control={<Checkbox checked={draft.hasRepository} onChange={(e) => setDraft((d) => ({ ...d, hasRepository: e.target.checked }))} />}
-            label="Possède au moins un dépôt de code"
-          />
-          <Autocomplete
-            multiple
-            options={GradeLetterSchema.options}
-            value={draft.httpSecurityGrades}
-            onChange={(_, next) => setDraft((d) => ({ ...d, httpSecurityGrades: next }))}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Sécurité web"
-                helperText="Note du site le moins bien noté de l'initiative"
-                placeholder={draft.httpSecurityGrades.length === 0 ? 'Toutes' : undefined}
+              <FormControlLabel
+                control={<Checkbox checked={draft.hasRepository} onChange={(e) => setDraft((d) => ({ ...d, hasRepository: e.target.checked }))} />}
+                label="Possède au moins un dépôt de code"
               />
-            )}
-          />
-          <Autocomplete
-            multiple
-            options={GradeLetterSchema.options}
-            value={draft.tlsGrades}
-            onChange={(_, next) => setDraft((d) => ({ ...d, tlsGrades: next }))}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Note TLS"
-                helperText="Note du site le moins bien noté de l'initiative, F inclut les problèmes de certificat"
-                placeholder={draft.tlsGrades.length === 0 ? 'Toutes' : undefined}
+            </Box>
+            <Box sx={halfColumnsSx}>
+              <Autocomplete
+                multiple
+                options={GradeLetterSchema.options}
+                value={draft.httpSecurityGrades}
+                onChange={(_, next) => setDraft((d) => ({ ...d, httpSecurityGrades: next }))}
+                renderInput={(params) => (
+                  <TextField {...params} label="Sécurité web" placeholder={draft.httpSecurityGrades.length === 0 ? 'Toutes' : undefined} />
+                )}
               />
-            )}
-          />
-          <Autocomplete
-            multiple
-            options={foreignDependencyLevels.map((level) => level.value as number)}
-            value={draft.foreignDependencyLevels}
-            getOptionLabel={(value) => getForeignDependencyLevelLabel(value) ?? ''}
-            onChange={(_, next) => setDraft((d) => ({ ...d, foreignDependencyLevels: next }))}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Dépendance hors UE"
-                helperText="Selon ce qui se voit de l'extérieur, pour le site le plus dépendant de l'initiative"
-                placeholder={draft.foreignDependencyLevels.length === 0 ? 'Toutes' : undefined}
+              <Autocomplete
+                multiple
+                options={GradeLetterSchema.options}
+                value={draft.tlsGrades}
+                onChange={(_, next) => setDraft((d) => ({ ...d, tlsGrades: next }))}
+                renderInput={(params) => <TextField {...params} label="Note TLS" placeholder={draft.tlsGrades.length === 0 ? 'Toutes' : undefined} />}
               />
-            )}
-          />
-          <TextField
-            select
-            label="Mentions légales"
-            helperText="Non trouvé dès qu'un des sites de l'initiative n'a pas de lien sur sa page d'accueil"
-            value={draft.legalNotice ?? ''}
-            onChange={(e) => setDraft((d) => ({ ...d, legalNotice: parseLegalLinkPresence(e.target.value) }))}
-          >
-            <MenuItem value="">Peu importe</MenuItem>
-            <MenuItem value="with">Lien trouvé</MenuItem>
-            <MenuItem value="without">Lien non trouvé</MenuItem>
-          </TextField>
-          <TextField
-            select
-            label="Politique de confidentialité"
-            helperText="Non trouvé dès qu'un des sites de l'initiative n'a pas de lien sur sa page d'accueil"
-            value={draft.privacyPolicy ?? ''}
-            onChange={(e) => setDraft((d) => ({ ...d, privacyPolicy: parseLegalLinkPresence(e.target.value) }))}
-          >
-            <MenuItem value="">Peu importe</MenuItem>
-            <MenuItem value="with">Lien trouvé</MenuItem>
-            <MenuItem value="without">Lien non trouvé</MenuItem>
-          </TextField>
-        </Stack>
+            </Box>
+            <Autocomplete
+              multiple
+              options={foreignDependencyLevels.map((level) => level.value as number)}
+              value={draft.foreignDependencyLevels}
+              getOptionLabel={(value) => getForeignDependencyLevelLabel(value) ?? ''}
+              onChange={(_, next) => setDraft((d) => ({ ...d, foreignDependencyLevels: next }))}
+              renderInput={(params) => (
+                <TextField {...params} label="Dépendance hors UE" placeholder={draft.foreignDependencyLevels.length === 0 ? 'Toutes' : undefined} />
+              )}
+            />
+            <Box sx={halfColumnsSx}>
+              <TextField
+                select
+                label="Mentions légales"
+                value={draft.legalNotice ?? ''}
+                onChange={(e) => setDraft((d) => ({ ...d, legalNotice: parseLegalLinkPresence(e.target.value) }))}
+              >
+                <MenuItem value="">Peu importe</MenuItem>
+                <MenuItem value="with">Trouvé</MenuItem>
+                <MenuItem value="without">Non trouvé</MenuItem>
+              </TextField>
+              <TextField
+                select
+                label="Confidentialité"
+                value={draft.privacyPolicy ?? ''}
+                onChange={(e) => setDraft((d) => ({ ...d, privacyPolicy: parseLegalLinkPresence(e.target.value) }))}
+              >
+                <MenuItem value="">Peu importe</MenuItem>
+                <MenuItem value="with">Trouvé</MenuItem>
+                <MenuItem value="without">Non trouvé</MenuItem>
+              </TextField>
+            </Box>
+            <Typography variant="caption" color="text.secondary">
+              Si une initiative a plusieurs sites, c&apos;est le moins bon qui compte.
+            </Typography>
+          </Stack>
+        </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={() => setDraft(emptyInitiativeFilters)}>Réinitialiser</Button>

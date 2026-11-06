@@ -18,7 +18,7 @@ import {
   updateDomainsReputation,
   updateInitiativesReputation,
 } from '@etabli/src/features/domain-reputation';
-import { updateDomainsSovereignty } from '@etabli/src/features/domain-sovereignty';
+import { reclassifyDomainsSovereignty, updateDomainsSovereignty } from '@etabli/src/features/domain-sovereignty';
 import { flagDomainsForTlsSecurityUpdate, updateDomainsTlsSecurity } from '@etabli/src/features/domain-tls-security';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
 import { updateDomainsLegalLinks, updateInitiativesIndicators } from '@etabli/src/features/initiative-indicators';
@@ -185,6 +185,13 @@ domain
   .option('-l, --limit <number>', 'maximum number of domains to process')
   .action(async (options) => {
     await updateDomainsSovereignty({ maximumDomains: options.limit ? parseInt(options.limit, 10) : undefined });
+  });
+
+domain
+  .command('sovereignty-apply')
+  .description('recompute foreign dependencies from what is stored, after changing the classification (no DNS query)')
+  .action(async () => {
+    console.log(`${await reclassifyDomainsSovereignty()} domains processed`);
   });
 
 domain

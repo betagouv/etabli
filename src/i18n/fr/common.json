@@ -58,7 +58,7 @@
           "id": "ID",
           "name": "Nom",
           "organizations": "Organisations",
-          "relativeReputation": "Réputation relative (%)",
+          "relativeReputation": "Notoriété relative (%)",
           "repositories": "Dépôts de code",
           "tools": "Outils utilisés",
           "updatedAt": "Date de mise à jour",

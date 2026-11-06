@@ -14,14 +14,14 @@ import Typography from '@mui/material/Typography';
 import NextLink from 'next/link';
 import { MouseEvent, useEffect, useRef } from 'react';
 
-import { CompositionBar } from '@etabli/src/app/(public)/initiatives/OrganizationsMapComposition';
+import { MapNodeBreakdown } from '@etabli/src/app/(public)/initiatives/OrganizationsMapComposition';
 import { ToolsBreakdown } from '@etabli/src/app/(public)/initiatives/ToolsBreakdown';
 import { trpc } from '@etabli/src/client/trpcClient';
 import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
 import { PaginationSize } from '@etabli/src/models/actions/common';
 import { ListInitiativesSchemaType } from '@etabli/src/models/actions/initiative';
 import { narrowOrganizationsToNode } from '@etabli/src/utils/organization';
-import { MapNode, MapNodeType, formatInitiatives } from '@etabli/src/utils/organizations-map';
+import { MapColorMode, MapNode, MapNodeType, formatInitiatives } from '@etabli/src/utils/organizations-map';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 
 const mapReadingHelp =
@@ -77,6 +77,7 @@ function BestResults(props: { filterBy: ListInitiativesSchemaType['filterBy'] })
 }
 
 export interface OrganizationsMapPanelProps {
+  colorMode?: MapColorMode;
   filterBy: ListInitiativesSchemaType['filterBy'];
   root: MapNode;
   focus: MapNode;
@@ -263,7 +264,7 @@ export function OrganizationsMapPanel(props: OrganizationsMapPanelProps) {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               {formatInitiatives(focus.data.initiativesCount)}
             </Typography>
-            <CompositionBar composition={focus.data.composition} withDetails />
+            <MapNodeBreakdown node={focus.data} colorMode={props.colorMode ?? 'composition'} withDetails />
             {focusKind !== 'group' && (
               <Button
                 component={NextLink}
@@ -313,7 +314,7 @@ export function OrganizationsMapPanel(props: OrganizationsMapPanelProps) {
                         {node.data.initiativesCount.toLocaleString('fr-FR')}
                       </Typography>
                     </Box>
-                    <CompositionBar composition={node.data.composition} withDetails />
+                    <MapNodeBreakdown node={node.data} colorMode={props.colorMode ?? 'composition'} withDetails />
                   </Box>
                 ))}
               </Box>

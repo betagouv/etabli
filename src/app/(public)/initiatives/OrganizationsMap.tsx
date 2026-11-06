@@ -19,10 +19,12 @@ import { centeredAlertContainerGridProps } from '@etabli/src/utils/grid';
 import {
   MapColorMode,
   MapNode,
+  MapScaleMode,
   compositionColorsSx,
   computeAnnotations,
   computeCircles,
   countInitiatives,
+  getMapScaleVariable,
   layoutOrganizationsMap,
   mapColorModeOptions,
   mapScaleSteps,
@@ -94,14 +96,14 @@ function OrganizationsMapColorControl(props: { mode: MapColorMode; onChange: (mo
         <Box sx={{ mt: 1, p: 1, borderRadius: '4px', backgroundColor: 'var(--background-default-grey)' }}>
           <Box sx={{ display: 'flex', gap: '2px', height: 10 }} aria-hidden="true">
             {mapScaleSteps.map((step) => (
-              <Box key={step} sx={{ flex: 1, bgcolor: `var(--organizations-map-scale-${step})` }} />
+              <Box key={step} sx={{ flex: 1, bgcolor: `var(${getMapScaleVariable(props.mode as MapScaleMode, step)})` }} />
             ))}
           </Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
             <Typography variant="caption">{option.legendStart}</Typography>
             <Typography variant="caption">{option.legendEnd}</Typography>
           </Box>
-          <Typography variant="caption" component="p" color="text.secondary" sx={{ mt: 0.5, mb: 0, lineHeight: 1.3 }}>
+          <Typography component="p" color="text.secondary" sx={{ mt: 1, mb: 0, fontSize: '0.6875rem', lineHeight: 1.35 }}>
             {option.description}. Les bulles grises n&apos;ont pas de valeur.
           </Typography>
         </Box>
@@ -222,6 +224,7 @@ export function OrganizationsMap(props: OrganizationsMapProps) {
           sx={{ position: 'relative', height: { xs: 'auto', md: '100%' }, width: { xs: '100%', md: 'auto' }, aspectRatio: '1 / 1', maxWidth: '100%' }}
         >
           <OrganizationsMapSurface
+            colorMode={props.colorMode}
             focus={focus}
             scale={scale}
             circles={circles}
@@ -234,6 +237,7 @@ export function OrganizationsMap(props: OrganizationsMapProps) {
       </Box>
       <OrganizationsMapColorControl mode={props.colorMode} onChange={props.onColorModeChange} />
       <OrganizationsMapPanel
+        colorMode={props.colorMode}
         filterBy={props.filterBy}
         root={root}
         focus={focus}

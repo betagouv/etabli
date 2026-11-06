@@ -5,9 +5,9 @@ import Typography from '@mui/material/Typography';
 import { MouseEvent, memo, useState } from 'react';
 
 import { OrganizationsMapCanvas } from '@etabli/src/app/(public)/initiatives/OrganizationsMapCanvas';
-import { CompositionBar, CompositionDetails } from '@etabli/src/app/(public)/initiatives/OrganizationsMapComposition';
+import { MapNodeBreakdown } from '@etabli/src/app/(public)/initiatives/OrganizationsMapComposition';
 import { getShortOrganizationName } from '@etabli/src/utils/organization';
-import { MapAnnotations, MapCircle, MapNode, formatInitiatives, toScreen, viewSize } from '@etabli/src/utils/organizations-map';
+import { MapAnnotations, MapCircle, MapColorMode, MapNode, formatInitiatives, toScreen, viewSize } from '@etabli/src/utils/organizations-map';
 
 // Kept apart since there can be many of them whereas they do not change when moving the mouse
 const OrganizationsMapAnnotations = memo(function OrganizationsMapAnnotations(props: { focus: MapNode; scale: number; annotations: MapAnnotations }) {
@@ -65,6 +65,7 @@ const OrganizationsMapAnnotations = memo(function OrganizationsMapAnnotations(pr
 });
 
 export interface OrganizationsMapSurfaceProps {
+  colorMode?: MapColorMode;
   focus: MapNode;
   scale: number;
   circles: MapCircle[];
@@ -173,10 +174,7 @@ export function OrganizationsMapSurface(props: OrganizationsMapSurfaceProps) {
               <Typography variant="body2" sx={{ fontWeight: 700 }}>
                 {formatInitiatives(hovered.node.data.initiativesCount)} directement rattachée{hovered.node.data.initiativesCount > 1 ? 's' : ''}
               </Typography>
-              <CompositionBar composition={hovered.node.data.composition} />
-              <Box sx={{ mt: 1 }}>
-                <CompositionDetails composition={hovered.node.data.composition} />
-              </Box>
+              <MapNodeBreakdown node={hovered.node.data} colorMode={props.colorMode ?? 'composition'} alwaysDetailed />
               {props.opensList(hovered.node) && (
                 <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
                   Cliquez pour voir la liste
@@ -191,10 +189,7 @@ export function OrganizationsMapSurface(props: OrganizationsMapSurfaceProps) {
               <Typography variant="caption" color="text.secondary" component="div">
                 {formatInitiatives(hovered.node.data.initiativesCount)}
               </Typography>
-              <CompositionBar composition={hovered.node.data.composition} />
-              <Box sx={{ mt: 1 }}>
-                <CompositionDetails composition={hovered.node.data.composition} />
-              </Box>
+              <MapNodeBreakdown node={hovered.node.data} colorMode={props.colorMode ?? 'composition'} alwaysDetailed />
             </>
           )}
         </Box>

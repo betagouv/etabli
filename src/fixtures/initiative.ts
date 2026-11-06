@@ -81,7 +81,7 @@ export const domainsReputation: DomainReputationSchemaType[] = [
     hasLegalNotice: true,
     hasPrivacyPolicy: false,
     foreignDependencyLevel: 1,
-    foreignDependencies: ['Scripts et contenus tiers : Google'],
+    foreignDependencies: ['Services tiers : Google'],
   },
   {
     domain: 'docs.great-project.local',
@@ -170,6 +170,7 @@ export const initiatives: InitiativeSchemaType[] = [
 
 // A tiny directory for the organizations map
 const noInitiatives = { websitesOnly: 0, repositoriesOnly: 0, both: 0 };
+const noDistribution = { reputation: [3, 12, 20, 8, 1, 4], foreign: [10, 15, 0, 6, 4, 13] };
 const asItem = (
   organization: { id: string; name: string; acronym: string | null },
   parentId: string | null,
@@ -190,6 +191,7 @@ const asItem = (
   ownWeights: own,
   relativeReputation: 48,
   averageForeignDependencyLevel: 1.5,
+  distribution: noDistribution,
 });
 
 export const organizationsMap: OrganizationsMapSchemaType = OrganizationsMapSchema.parse({
@@ -217,4 +219,7 @@ export const organizationsMap: OrganizationsMapSchemaType = OrganizationsMapSche
   composition: { websitesOnly: 241, repositoriesOnly: 538, both: 61 },
   standalone: { websitesOnly: 3, repositoriesOnly: 0, both: 0 },
   unclassified: { websitesOnly: 120, repositoriesOnly: 40, both: 2 },
+  distribution: noDistribution,
+  standaloneDistribution: noDistribution,
+  unclassifiedDistribution: noDistribution,
 });

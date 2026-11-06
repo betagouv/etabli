@@ -134,6 +134,12 @@ export const initiativeRouter = router({
       domains: z.array(DomainReputationSchema).parse(
         reputations.map((reputation) => ({
           ...reputation,
+          httpSecurityGrade: httpSecurityGrades.get(reputation.domain) ?? null,
+          tlsGrade: tlsGrades.get(reputation.domain) ?? null,
+          hasLegalNotice: legalLinks.get(reputation.domain)?.websiteHasLegalNotice ?? null,
+          hasPrivacyPolicy: legalLinks.get(reputation.domain)?.websiteHasPrivacyPolicy ?? null,
+          foreignDependencyLevel: sovereigntiesByDomain.get(reputation.domain)?.level ?? null,
+          foreignDependencies: sovereigntiesByDomain.get(reputation.domain)?.dependencies ?? [],
           backlinks: reputation.backlinks === null ? null : Number(reputation.backlinks),
           referringPages: reputation.referringPages === null ? null : Number(reputation.referringPages),
           brokenBacklinks: reputation.brokenBacklinks === null ? null : Number(reputation.brokenBacklinks),

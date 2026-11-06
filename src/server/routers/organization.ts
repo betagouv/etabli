@@ -14,6 +14,7 @@ import {
 } from '@etabli/src/models/actions/initiative';
 import {
   InitiativesCompositionSchemaType,
+  InitiativesDistributionSchemaType,
   OrganizationNodeSchema,
   OrganizationNodeSchemaType,
   OrganizationOptionSchema,
@@ -111,11 +112,31 @@ async function getOrganizationsMapSignature(): Promise<string> {
   return rows[0]?.signature ?? '';
 }
 
+interface DistributionRow {
+  reputationDistribution: number[];
+  foreignDistribution: number[];
+}
+
 async function computeOrganizationsMap(
   filterBy: GetOrganizationsMapSchemaType['filterBy'],
   filteredIds: string[] | null
 ): Promise<OrganizationsMapSchemaType> {
   const filterCondition = filteredIds ? Prisma.sql`i."id" = ANY(${filteredIds}::uuid[])` : Prisma.sql`TRUE`;
+  const reputationReferenceRank = await getReputationReferenceRank();
+  const stepColumn = (name: string) => Prisma.sql`
+    ARRAY[
+      COUNT(DISTINCT s."id") FILTER (WHERE s.${Prisma.raw(`"${name}"`)} = 1),
+      COUNT(DISTINCT s."id") FILTER (WHERE s.${Prisma.raw(`"${name}"`)} = 2),
+      COUNT(DISTINCT s."id") FILTER (WHERE s.${Prisma.raw(`"${name}"`)} = 3),
+      COUNT(DISTINCT s."id") FILTER (WHERE s.${Prisma.raw(`"${name}"`)} = 4),
+      COUNT(DISTINCT s."id") FILTER (WHERE s.${Prisma.raw(`"${name}"`)} = 5),
+      COUNT(DISTINCT s."id") FILTER (WHERE s.${Prisma.raw(`"${name}"`)} IS NULL)
+    ]::int[]
+  `;
+  const distributionColumns = Prisma.sql`
+    ${stepColumn('reputationStep')} AS "reputationDistribution",
+    ${stepColumn('foreignStep')} AS "foreignDistribution"
+  `;
   const compositionColumns = Prisma.sql`
     COUNT(DISTINCT s."id") FILTER (WHERE s."hasWebsite" AND NOT s."hasRepository")::int AS "websitesOnly",
     COUNT(DISTINCT s."id") FILTER (WHERE NOT s."hasWebsite" AND s."hasRepository")::int AS "repositoriesOnly",
@@ -127,7 +148,12 @@ async function computeOrganizationsMap(
       cardinality(i."websites") > 0 AS "hasWebsite",
       cardinality(i."repositories") > 0 AS "hasRepository",
       i."reputationRank",
-      i."foreignDependencyLevel"
+      i."foreignDependencyLevel",
+      CASE
+        WHEN i."reputationRank" > 0 AND ${reputationReferenceRank}::DOUBLE PRECISION > 0
+          THEN LEAST(GREATEST(CEIL(CEIL(i."reputationRank" / ${reputationReferenceRank}::DOUBLE PRECISION * 100) / 20), 1), 5)
+      END AS "reputationStep",
+      CASE i."foreignDependencyLevel" WHEN 0 THEN 1 WHEN 1 THEN 2 WHEN 2 THEN 4 WHEN 3 THEN 5 END AS "foreignStep"
     FROM "Initiative" i
     WHERE i."deletedAt" IS NULL AND ${filterCondition}
   `;
@@ -166,12 +192,14 @@ async function computeOrganizationsMap(
     `,
     // Distinct initiatives of each organization and its descendants
     prisma.$queryRaw<
-      (InitiativesCompositionSchemaType & { id: string; medianReputationRank: number | null; averageForeignDependencyLevel: number | null })[]
+      (InitiativesCompositionSchemaType &
+        DistributionRow & { id: string; medianReputationRank: number | null; averageForeignDependencyLevel: number | null })[]
     >`
       WITH s AS (${scopedInitiatives})
       SELECT
         target."id",
         ${compositionColumns},
+        ${distributionColumns},
         percentile_cont(0.5) WITHIN GROUP (ORDER BY s."reputationRank") FILTER (WHERE s."reputationRank" > 0) AS "medianReputationRank",
         AVG(s."foreignDependencyLevel")::float AS "averageForeignDependencyLevel"
       FROM s
@@ -180,20 +208,20 @@ async function computeOrganizationsMap(
       CROSS JOIN LATERAL unnest(array_append(bound."ancestorIds", bound."id")) AS target("id")
       GROUP BY target."id"
     `,
-    prisma.$queryRaw<(InitiativesCompositionSchemaType & { unclassified: boolean })[]>`
+    prisma.$queryRaw<(InitiativesCompositionSchemaType & DistributionRow & { unclassified: boolean })[]>`
       WITH s AS (
         SELECT
           scoped.*,
           NOT EXISTS (SELECT 1 FROM "OrganizationsOnInitiatives" oi WHERE oi."initiativeId" = scoped."id") AS "unclassified"
         FROM (${scopedInitiatives}) scoped
       )
-      SELECT s."unclassified", ${compositionColumns}
+      SELECT s."unclassified", ${compositionColumns}, ${distributionColumns}
       FROM s
       GROUP BY s."unclassified"
     `,
-    prisma.$queryRaw<InitiativesCompositionSchemaType[]>`
+    prisma.$queryRaw<(InitiativesCompositionSchemaType & DistributionRow)[]>`
       WITH s AS (${scopedInitiatives})
-      SELECT ${compositionColumns}
+      SELECT ${compositionColumns}, ${distributionColumns}
       FROM s
       JOIN ${bindings} oi ON oi."initiativeId" = s."id"
       JOIN "Organization" o ON o."id" = oi."organizationId"
@@ -224,7 +252,13 @@ async function computeOrganizationsMap(
   const classified = toComposition(overallRows.find((row) => !row.unclassified));
   const unclassified = toComposition(overallRows.find((row) => row.unclassified));
 
-  const reputationReferenceRank = await getReputationReferenceRank();
+  const toDistribution = (row?: DistributionRow): InitiativesDistributionSchemaType => ({
+    reputation: row?.reputationDistribution ?? [0, 0, 0, 0, 0, 0],
+    foreign: row?.foreignDistribution ?? [0, 0, 0, 0, 0, 0],
+  });
+  const classifiedDistribution = toDistribution(overallRows.find((row) => !row.unclassified));
+  const unclassifiedDistribution = toDistribution(overallRows.find((row) => row.unclassified));
+  const sum = (a: number[], b: number[]) => a.map((value, index) => value + b[index]);
 
   const value = OrganizationsMapSchema.parse({
     // Organizations without any matching initiative are not part of the map
@@ -254,6 +288,7 @@ async function computeOrganizationsMap(
           },
           relativeReputation: getRelativeReputation(subtree.medianReputationRank, reputationReferenceRank),
           averageForeignDependencyLevel: subtree.averageForeignDependencyLevel,
+          distribution: toDistribution(subtree),
         },
       ];
     }),
@@ -264,6 +299,12 @@ async function computeOrganizationsMap(
     },
     standalone: toComposition(standaloneRows[0]),
     unclassified: unclassified,
+    distribution: {
+      reputation: sum(classifiedDistribution.reputation, unclassifiedDistribution.reputation),
+      foreign: sum(classifiedDistribution.foreign, unclassifiedDistribution.foreign),
+    },
+    standaloneDistribution: toDistribution(standaloneRows[0]),
+    unclassifiedDistribution: unclassifiedDistribution,
   });
 
   // An empty result means the organizations are being synchronized, it must not be kept

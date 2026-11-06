@@ -93,6 +93,15 @@ export const InitiativesCompositionWeightsSchema = z
   .strict();
 export type InitiativesCompositionWeightsSchemaType = z.infer<typeof InitiativesCompositionWeightsSchema>;
 
+// Number of initiatives for each step of a scale, the last value being those without any value
+export const InitiativesDistributionSchema = z
+  .object({
+    reputation: z.array(z.number().int().nonnegative()).length(6),
+    foreign: z.array(z.number().int().nonnegative()).length(6),
+  })
+  .strict();
+export type InitiativesDistributionSchemaType = z.infer<typeof InitiativesDistributionSchema>;
+
 export const OrganizationsMapItemSchema = z
   .object({
     id: z.string().uuid(),
@@ -107,6 +116,7 @@ export const OrganizationsMapItemSchema = z
     ownWeights: InitiativesCompositionWeightsSchema,
     relativeReputation: z.number().nonnegative().nullable(), // Median of the whole subtree
     averageForeignDependencyLevel: z.number().nonnegative().nullable(), // Average of the whole subtree
+    distribution: InitiativesDistributionSchema, // Distinct initiatives of the whole subtree
   })
   .strict();
 export type OrganizationsMapItemSchemaType = z.infer<typeof OrganizationsMapItemSchema>;
@@ -117,6 +127,9 @@ export const OrganizationsMapSchema = z
     composition: InitiativesCompositionSchema, // Distinct initiatives of the whole map
     standalone: InitiativesCompositionSchema, // Distinct initiatives bound to organizations outside of the directory hierarchy
     unclassified: InitiativesCompositionSchema,
+    distribution: InitiativesDistributionSchema,
+    standaloneDistribution: InitiativesDistributionSchema,
+    unclassifiedDistribution: InitiativesDistributionSchema,
   })
   .strict();
 export type OrganizationsMapSchemaType = z.infer<typeof OrganizationsMapSchema>;

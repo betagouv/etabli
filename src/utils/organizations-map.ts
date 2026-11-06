@@ -4,6 +4,7 @@ import { allInitiativesNodeId, standaloneOrganizationsNodeId, unclassifiedInitia
 import {
   InitiativesCompositionSchemaType,
   InitiativesCompositionWeightsSchemaType,
+  InitiativesDistributionSchemaType,
   OrganizationsMapItemSchemaType,
   OrganizationsMapSchemaType,
 } from '@etabli/src/models/entities/organization';
@@ -23,19 +24,29 @@ export const compositionColorsSx = {
   '--organizations-map-websites': '#2a78d6',
   '--organizations-map-repositories': '#eb6834',
   '--organizations-map-both': '#1baf7a',
-  '--organizations-map-scale-1': '#dbe8f8',
-  '--organizations-map-scale-2': '#a9c9ef',
-  '--organizations-map-scale-3': '#6ea3e3',
-  '--organizations-map-scale-4': '#2f73cc',
-  '--organizations-map-scale-5': '#123f80',
-  '--organizations-map-scale-none': '#e5e5e5',
+  '--organizations-map-reputation-1': '#dbe8f8',
+  '--organizations-map-reputation-2': '#a9c9ef',
+  '--organizations-map-reputation-3': '#6ea3e3',
+  '--organizations-map-reputation-4': '#2f73cc',
+  '--organizations-map-reputation-5': '#123f80',
+  '--organizations-map-foreign-1': '#fbe6d8',
+  '--organizations-map-foreign-2': '#f6c4a4',
+  '--organizations-map-foreign-3': '#ee9663',
+  '--organizations-map-foreign-4': '#d4632a',
+  '--organizations-map-foreign-5': '#8f3a10',
+  '--organizations-map-none': '#e5e5e5',
   '[data-fr-theme="dark"] &': {
-    '--organizations-map-scale-1': '#1d3557',
-    '--organizations-map-scale-2': '#2a5288',
-    '--organizations-map-scale-3': '#3f79c4',
-    '--organizations-map-scale-4': '#7dabe6',
-    '--organizations-map-scale-5': '#c7ddf6',
-    '--organizations-map-scale-none': '#3a3a3a',
+    '--organizations-map-reputation-1': '#203247',
+    '--organizations-map-reputation-2': '#24486f',
+    '--organizations-map-reputation-3': '#2a66a8',
+    '--organizations-map-reputation-4': '#3487e0',
+    '--organizations-map-reputation-5': '#5aa9ff',
+    '--organizations-map-foreign-1': '#3a2418',
+    '--organizations-map-foreign-2': '#6a3415',
+    '--organizations-map-foreign-3': '#a14a17',
+    '--organizations-map-foreign-4': '#dd6a22',
+    '--organizations-map-foreign-5': '#ff8a3d',
+    '--organizations-map-none': '#3a3a3a',
     '--organizations-map-websites': '#3987e5',
     '--organizations-map-repositories': '#d95926',
     '--organizations-map-both': '#199e70',
@@ -52,10 +63,10 @@ export const mapColorModeOptions: { mode: MapColorMode; label: string; legendSta
   { mode: 'composition', label: 'Sites et dépôts' },
   {
     mode: 'reputation',
-    label: 'Réputation',
+    label: 'Notoriété',
     legendStart: 'Faible',
     legendEnd: 'Forte',
-    description: 'Réputation médiane des initiatives de chaque organisation',
+    description: 'Notoriété médiane des initiatives de chaque organisation',
   },
   {
     mode: 'foreign',
@@ -65,6 +76,29 @@ export const mapColorModeOptions: { mode: MapColorMode; label: string; legendSta
     description: "Dépendance moyenne des initiatives de chaque organisation, selon ce qui se voit de l'extérieur de leurs sites",
   },
 ];
+
+export type MapScaleMode = Exclude<MapColorMode, 'composition'>;
+
+export function getMapScaleVariable(mode: MapScaleMode, step: number | null): string {
+  return step === null ? '--organizations-map-none' : `--organizations-map-${mode}-${step}`;
+}
+
+// A level of dependency is one of 4 values spread over the scale, so the third step is never used by initiatives
+export const mapScaleLabels: Record<MapScaleMode, Map<number, string>> = {
+  reputation: new Map([
+    [5, '80 à 100 %'],
+    [4, '60 à 80 %'],
+    [3, '40 à 60 %'],
+    [2, '20 à 40 %'],
+    [1, '0 à 20 %'],
+  ]),
+  foreign: new Map([
+    [5, 'Forte'],
+    [4, 'Moyenne'],
+    [2, 'Faible'],
+    [1, 'Aucune détectée'],
+  ]),
+};
 
 // Null when the organization has no value, it stays neutral instead of looking like a low one
 export function getMapScaleStep(organization: OrganizationsMapItemSchemaType | undefined, mode: MapColorMode): number | null {
@@ -85,6 +119,7 @@ export interface MapNodeData {
   type: MapNodeType;
   name: string;
   organization?: OrganizationsMapItemSchemaType;
+  distribution: InitiativesDistributionSchemaType; // Those of the organization around for composition leaves
   initiativesCount: number; // Distinct initiatives (or those directly bound for composition leaves)
   composition: InitiativesCompositionSchemaType; // Distinct initiatives of the whole subtree
   weight: number; // For composition leaves: what drives the surface (an initiative bound to N organizations gives 1/N to each)
@@ -117,7 +152,8 @@ export function countInitiatives(composition: InitiativesCompositionSchemaType):
 function ownInitiativesLeaf(
   parentId: string,
   counts: InitiativesCompositionSchemaType,
-  weights: InitiativesCompositionWeightsSchemaType
+  weights: InitiativesCompositionWeightsSchemaType,
+  distribution: InitiativesDistributionSchemaType
 ): MapNodeData[] {
   const initiativesCount = countInitiatives(counts);
   if (initiativesCount === 0) {
@@ -129,6 +165,7 @@ function ownInitiativesLeaf(
       id: `${parentId}:own`,
       type: 'composition',
       name: 'Initiatives directement rattachées',
+      distribution: distribution,
       initiativesCount: initiativesCount,
       composition: counts,
       weight: weights.websitesOnly + weights.repositoriesOnly + weights.both,
@@ -145,10 +182,11 @@ function buildTree(map: OrganizationsMapSchemaType): MapNodeData {
       type: 'organization',
       name: organization.name,
       organization: organization,
+      distribution: organization.distribution,
       initiativesCount: countInitiatives(organization.composition),
       composition: organization.composition,
       weight: 0,
-      children: ownInitiativesLeaf(organization.id, organization.own, organization.ownWeights),
+      children: ownInitiativesLeaf(organization.id, organization.own, organization.ownWeights, organization.distribution),
     });
   }
 
@@ -171,6 +209,7 @@ function buildTree(map: OrganizationsMapSchemaType): MapNodeData {
     id: standaloneOrganizationsNodeId,
     type: 'group',
     name: 'Organisations hors hiérarchie',
+    distribution: map.standaloneDistribution,
     initiativesCount: countInitiatives(map.standalone),
     composition: map.standalone,
     weight: 0,
@@ -181,16 +220,18 @@ function buildTree(map: OrganizationsMapSchemaType): MapNodeData {
     id: unclassifiedInitiativesNodeId,
     type: 'unclassified',
     name: 'Initiatives non classées',
+    distribution: map.unclassifiedDistribution,
     initiativesCount: countInitiatives(map.unclassified),
     composition: map.unclassified,
     weight: 0,
-    children: ownInitiativesLeaf(unclassifiedInitiativesNodeId, map.unclassified, map.unclassified),
+    children: ownInitiativesLeaf(unclassifiedInitiativesNodeId, map.unclassified, map.unclassified, map.unclassifiedDistribution),
   };
 
   return {
     id: allInitiativesNodeId,
     type: 'root',
     name: 'Toutes les initiatives',
+    distribution: map.distribution,
     initiativesCount: countInitiatives(map.composition),
     composition: map.composition,
     weight: 0,
@@ -285,7 +326,7 @@ export function computeCircles(focus: MapNode, scale: number, colorMode: MapColo
       // A colored leaf belongs to the organization around it
       const step = getMapScaleStep((isComposition ? node.parent : node)?.data.organization, colorMode);
 
-      scaleFill = `--organizations-map-scale-${step ?? 'none'}`;
+      scaleFill = getMapScaleVariable(colorMode, step);
     } else if (isComposition || isSummarized) {
       const composition = node.data.composition;
       const total = countInitiatives(composition);

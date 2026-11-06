@@ -1,9 +1,11 @@
 import { eachOfLimit } from 'async';
 import { subDays } from 'date-fns/subDays';
+import { MxRecord } from 'dns';
 import dns from 'dns/promises';
 import fs from 'fs/promises';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import path from 'path';
+import { setTimeout as sleep } from 'timers/promises';
 import { promisify } from 'util';
 import { gunzip } from 'zlib';
 
@@ -18,7 +20,9 @@ const ipRangesRemoteUrl = 'https://iptoasn.com/data/ip2asn-v4.tsv.gz';
 const ipRangesLocalPath = path.resolve(process.cwd(), './data/ip2asn-v4.tsv.gz');
 
 const recheckDelayInDays = 30;
-const defaultConcurrency = 10;
+const defaultConcurrency = 1;
+const delayBetweenDomainsInMilliseconds = 500; // Each domain is 3 DNS queries, bursts looked to bring a VPN tunnel down
+const maximumConsecutiveFailures = 50;
 
 export interface IpRange {
   start: number;
@@ -74,13 +78,40 @@ async function loadIpRanges(): Promise<IpRange[]> {
   return parseIpRanges((await promisify(gunzip)(new Uint8Array(await fs.readFile(ipRangesLocalPath)))).toString('utf-8'));
 }
 
-// A missing record is a normal answer, a domain has no CNAME or no emails most of the time
+// A missing record is a normal answer, a domain has no CNAME or no emails most of the time. Whereas without an answer
+// nothing can be told, and storing it would make a domain look like it has no foreign dependency
 async function resolveOrEmpty<T>(resolve: () => Promise<T[]>): Promise<T[]> {
   try {
     return await resolve();
   } catch (error) {
-    return [];
+    if (['ENOTFOUND', 'ENODATA', 'ESERVFAIL', 'EREFUSED'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+      return [];
+    }
+
+    throw error;
   }
+}
+
+// To apply a change of the classification on what has been observed, without querying DNS records again
+export async function reclassifyDomainsSovereignty(): Promise<number> {
+  const rows = await prisma.domainSovereignty.findMany({ where: { lastCheckAt: { not: null } } });
+
+  for (const row of rows) {
+    watchGracefulExitInLoop();
+
+    const { level, dependencies } = classifyForeignDependencies({
+      network: row.asn !== null ? { asn: row.asn, name: row.asnName, country: row.asnCountry } : null,
+      cnames: row.cnames,
+      mailHosts: row.mailHosts,
+      thirdPartyHosts: row.thirdPartyHosts,
+    });
+
+    await prisma.domainSovereignty.update({ where: { domain: row.domain }, data: { level: level, dependencies: dependencies } });
+  }
+
+  await updateInitiativesIndicators();
+
+  return rows.length;
 }
 
 export async function registerInitiativesDomainsForSovereignty(): Promise<number> {
@@ -115,16 +146,34 @@ export async function updateDomainsSovereignty(options?: { maximumDomains?: numb
   const ipRanges = await loadIpRanges();
   const virtualConsole = new VirtualConsole();
   let processedDomains = 0;
+  let consecutiveFailures = 0;
+
+  await dns.resolve4('www.service-public.fr'); // It stops right away instead of going through all domains if DNS does not work
 
   await eachOfLimit(domains, options?.concurrency ?? defaultConcurrency, async ({ domain }) => {
     watchGracefulExitInLoop();
 
-    const [addresses, cnames, mailRecords, rawDomain] = await Promise.all([
-      resolveOrEmpty(() => dns.resolve4(domain)),
-      resolveOrEmpty(() => dns.resolveCname(domain)),
-      resolveOrEmpty(() => dns.resolveMx(domain)),
-      prisma.rawDomain.findUnique({ where: { name: domain }, select: { websiteRawContent: true } }),
-    ]);
+    let records: [string[], string[], MxRecord[]];
+    try {
+      records = await Promise.all([
+        resolveOrEmpty(() => dns.resolve4(domain)),
+        resolveOrEmpty(() => dns.resolveCname(domain)),
+        resolveOrEmpty(() => dns.resolveMx(domain)),
+      ]);
+      consecutiveFailures = 0;
+    } catch (error) {
+      // Nothing is stored so it will be taken next time, but if it lasts the network is down and going on would be useless
+      consecutiveFailures++;
+
+      if (consecutiveFailures >= maximumConsecutiveFailures) {
+        throw error;
+      }
+
+      return;
+    }
+
+    const [addresses, cnames, mailRecords] = records;
+    const rawDomain = await prisma.rawDomain.findUnique({ where: { name: domain }, select: { websiteRawContent: true } });
 
     let thirdPartyHosts: string[] = [];
 
@@ -159,6 +208,8 @@ export async function updateDomainsSovereignty(options?: { maximumDomains?: numb
         lastCheckAt: new Date(),
       },
     });
+
+    await sleep(delayBetweenDomainsInMilliseconds);
 
     processedDomains++;
 

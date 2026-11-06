@@ -356,7 +356,7 @@ export async function formatDomainsIntoDatabase() {
 export async function updateRobotsTxtOnDomains() {
   const rawDomains = await prisma.rawDomain.findMany({
     where: {
-      updateIndexableFromRobotsTxt: true,
+      OR: [{ updateIndexableFromRobotsTxt: true }, { lastRobotsTxtCheckAt: { lt: subDays(new Date(), recheckDelayInDays) } }],
       redirectDomainTargetName: null,
       AND: {
         OR: [
@@ -449,6 +449,7 @@ export async function updateRobotsTxtOnDomains() {
           data: {
             indexableFromRobotsTxt: null,
             updateIndexableFromRobotsTxt: false,
+            lastRobotsTxtCheckAt: new Date(),
             robotsTxtContent: null,
             isProtected: true,
             protection: protection,
@@ -483,6 +484,7 @@ export async function updateRobotsTxtOnDomains() {
           data: {
             indexableFromRobotsTxt: indexableAccordingToRobotsTxt,
             updateIndexableFromRobotsTxt: false,
+            lastRobotsTxtCheckAt: new Date(),
             robotsTxtContent: body,
             redirectDomainTargetName: null,
             redirectDomainTarget: {
@@ -504,6 +506,7 @@ export async function updateRobotsTxtOnDomains() {
           data: {
             indexableFromRobotsTxt: true,
             updateIndexableFromRobotsTxt: false,
+            lastRobotsTxtCheckAt: new Date(),
             robotsTxtContent: null,
             redirectDomainTargetName: null,
             redirectDomainTarget: {
@@ -527,6 +530,7 @@ export async function updateRobotsTxtOnDomains() {
           data: {
             indexableFromRobotsTxt: null,
             updateIndexableFromRobotsTxt: false,
+            lastRobotsTxtCheckAt: new Date(),
             robotsTxtContent: null,
             lastUpdateAttemptWithReachabilityError: null,
             lastUpdateAttemptReachabilityError: null,
@@ -584,7 +588,7 @@ export async function updateRobotsTxtOnDomains() {
 export async function updateWildcardCertificateOnDomains() {
   const rawDomains = await prisma.rawDomain.findMany({
     where: {
-      updateWildcardCertificate: true,
+      OR: [{ updateWildcardCertificate: true }, { lastCertificateCheckAt: { lt: subDays(new Date(), recheckDelayInDays) } }],
       redirectDomainTargetName: null,
       AND: {
         OR: [
@@ -691,6 +695,7 @@ export async function updateWildcardCertificateOnDomains() {
       data: {
         wildcardCertificate: certificate?.issuer.CN === `*.${rawDomain.name}`,
         updateWildcardCertificate: !certificate,
+        lastCertificateCheckAt: certificate ? new Date() : undefined,
         certificateContent: certificateContent ? JSON.stringify(certificateContent) : null,
         lastUpdateAttemptWithReachabilityError: null,
         lastUpdateAttemptReachabilityError: null,
@@ -705,6 +710,13 @@ export async function updateWildcardCertificateOnDomains() {
   }
 }
 
+// Websites rarely change, but a domain can be bought by someone else or start refusing being indexed
+const recheckDelayInDays = 20;
+
+// Rendering pages is what takes hours whereas the data synchronization still has its next steps to run. With 2 runs per week about 6000
+// websites come back each time, so it leaves some margin to catch up when late (it also needs `CHROMIUM_MAXIMUM_CONCURRENCY` to fit)
+const maximumWebsitesPerRun = 7000;
+
 // Some domains are expected to be unreachable or refused, but not most of them
 const standardCircuitBreakerWindow = 200;
 const standardCircuitBreakerMaximumBlockedShare = 0.5;
@@ -715,13 +727,18 @@ export async function updateProtectedWebsiteDataOnDomains() {
   await updateWebsiteDataOnDomains({ stealth: true });
 }
 
-export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }) {
+export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean; maximumDomains?: number }) {
   const stealth = !!options?.stealth;
-  const processedFlag = stealth ? { updateProtectedWebsiteData: false } : { updateWebsiteData: false };
+  const toProcessedData = () => ({
+    ...(stealth ? { updateProtectedWebsiteData: false } : { updateWebsiteData: false }),
+    lastWebsiteDataCheckAt: new Date(),
+  });
 
   const rawDomains = await prisma.rawDomain.findMany({
     where: {
-      ...(stealth ? { updateProtectedWebsiteData: true } : { updateWebsiteData: true }),
+      ...(stealth
+        ? { updateProtectedWebsiteData: true }
+        : { OR: [{ updateWebsiteData: true }, { lastWebsiteDataCheckAt: { lt: subDays(new Date(), recheckDelayInDays) } }] }),
       redirectDomainTargetName: null,
       AND: {
         OR: [
@@ -742,7 +759,16 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
       id: true,
       name: true,
       indexableFromRobotsTxt: true,
+      websiteTitle: true,
     },
+    // The oldest ones come first so what cannot be processed during a run is the first of the next one
+    orderBy: {
+      lastWebsiteDataCheckAt: {
+        sort: 'asc',
+        nulls: 'first',
+      },
+    },
+    take: options?.maximumDomains,
   });
 
   // Create a virtual JSDOM console when parsing fetched content because sometimes it fails
@@ -825,7 +851,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
                   where: {
                     id: rawDomain.id,
                   },
-                  data: processedFlag,
+                  data: toProcessedData(),
                   select: {
                     id: true, // Ref: https://github.com/prisma/prisma/issues/6252
                   },
@@ -872,6 +898,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
               protection: protection,
               updateWebsiteData: false,
               updateProtectedWebsiteData: !stealth,
+              lastWebsiteDataCheckAt: new Date(),
               lastUpdateAttemptWithReachabilityError: null,
               lastUpdateAttemptReachabilityError: null,
             },
@@ -1040,7 +1067,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
                 websitePseudoFingerprint: headContent || null,
                 probableRepositoryUrl: probableRepositoryUrl?.toString() || null,
                 probableRepositoryDomain: probableRepositoryUrl?.hostname || null,
-                ...processedFlag,
+                ...toProcessedData(),
                 redirectDomainTargetName: null,
                 redirectDomainTarget: {
                   disconnect: true,
@@ -1052,6 +1079,23 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
                 id: true, // Ref: https://github.com/prisma/prisma/issues/6252
               },
             });
+
+            // A website is checked again over time, a different title means its sheet may be outdated (the domain may even have been
+            // bought by someone else). The whole content is not compared since it changes all the time for no reason
+            if (!!rawDomain.websiteTitle && !!websiteData.title && rawDomain.websiteTitle.trim() !== websiteData.title.trim()) {
+              await prisma.initiativeMap.updateMany({
+                where: {
+                  RawDomainsOnInitiativeMaps: {
+                    some: {
+                      rawDomainId: rawDomain.id,
+                    },
+                  },
+                },
+                data: {
+                  update: true,
+                },
+              });
+            }
           } else {
             await prisma.rawDomain.update({
               where: {
@@ -1066,7 +1110,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
                 websiteHasStyle: false,
                 websiteContentIndexable: true, // Since no specific tag, we consider it as indexable even if we won't due to missing HTML content
                 websitePseudoFingerprint: null,
-                ...processedFlag,
+                ...toProcessedData(),
                 lastUpdateAttemptWithReachabilityError: null,
                 lastUpdateAttemptReachabilityError: null,
               },
@@ -1092,7 +1136,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
               websiteHasStyle: null,
               websiteContentIndexable: null,
               websitePseudoFingerprint: null,
-              ...processedFlag,
+              ...toProcessedData(),
               lastUpdateAttemptWithReachabilityError: null,
               lastUpdateAttemptReachabilityError: null,
             },
@@ -1117,7 +1161,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
               id: rawDomain.id,
             },
             data: {
-              ...processedFlag,
+              ...toProcessedData(),
               redirectDomainTargetName: error.domain,
               redirectDomainTarget: {
                 connect: !!relatedRawDomain
@@ -1349,7 +1393,7 @@ export async function enhanceDomainsIntoDatabase() {
   // logs readable to not flood the network and be consider as a bad actor
   await updateRobotsTxtOnDomains();
   await updateWildcardCertificateOnDomains();
-  await updateWebsiteDataOnDomains();
+  await updateWebsiteDataOnDomains({ maximumDomains: maximumWebsitesPerRun });
   await updateProtectedWebsiteDataOnDomains();
   await matchDomains();
 }

@@ -2,6 +2,7 @@ import { retrieveOrganizationsAncestors } from '@etabli/src/features/organizatio
 import { Prisma } from '@etabli/src/generated/prisma/client';
 import {
   GetOrganizationsMapSchema,
+  GetOrganizationsMapSchemaType,
   GetOrganizationsSchema,
   GetToolsBreakdownSchema,
   ListOrganizationChildrenSchema,
@@ -81,6 +82,9 @@ const childrenPageSize = 50;
 // (e.g. departmental education services), those are grouped with standalone organizations
 export const isHierarchyRootSql = Prisma.sql`EXISTS (SELECT 1 FROM "Organization" d WHERE d."ancestorIds" @> ARRAY[o."id"] AND d."level" >= ${SUMMARY_ORGANIZATION_LEVEL})`;
 
+// Computed once instead of for each organization, a root can have tens of thousands of descendants
+const hierarchyRootsIdsSql = Prisma.sql`SELECT DISTINCT d."ancestorIds"[1] FROM "Organization" d WHERE d."level" >= ${SUMMARY_ORGANIZATION_LEVEL}`;
+
 // Cache since computing the composition of the whole tree takes a bit of time, and it only changes when data is synchronized
 // The cache is invalidated as soon as the data changes: a change of bindings or of what initiatives are made of updates the initiative,
 // and the initiatives count refresh at the end of a binding updates organizations
@@ -88,6 +92,8 @@ let organizationsMapCache: {
   signature: string;
   value: OrganizationsMapSchemaType;
 } | null = null;
+
+let organizationsMapComputation: { signature: string; promise: Promise<OrganizationsMapSchemaType> } | null = null;
 
 async function getOrganizationsMapSignature(): Promise<string> {
   const rows = await prisma.$queryRaw<{ signature: string }[]>`
@@ -101,6 +107,150 @@ async function getOrganizationsMapSignature(): Promise<string> {
   `;
 
   return rows[0]?.signature ?? '';
+}
+
+async function computeOrganizationsMap(
+  filterBy: GetOrganizationsMapSchemaType['filterBy'],
+  filteredIds: string[] | null
+): Promise<OrganizationsMapSchemaType> {
+  const filterCondition = filteredIds ? Prisma.sql`i."id" = ANY(${filteredIds}::uuid[])` : Prisma.sql`TRUE`;
+  const compositionColumns = Prisma.sql`
+    COUNT(DISTINCT s."id") FILTER (WHERE s."hasWebsite" AND NOT s."hasRepository")::int AS "websitesOnly",
+    COUNT(DISTINCT s."id") FILTER (WHERE NOT s."hasWebsite" AND s."hasRepository")::int AS "repositoriesOnly",
+    COUNT(DISTINCT s."id") FILTER (WHERE s."hasWebsite" AND s."hasRepository")::int AS "both"
+  `;
+  const scopedInitiatives = Prisma.sql`
+    SELECT i."id", cardinality(i."websites") > 0 AS "hasWebsite", cardinality(i."repositories") > 0 AS "hasRepository"
+    FROM "Initiative" i
+    WHERE i."deletedAt" IS NULL AND ${filterCondition}
+  `;
+
+  // Filtering on organizations must not bring their co-owners on the map (an initiative can also be bound elsewhere)
+  const selectedOrganizationIds = filterBy.organizationIds ?? [];
+  const bindings =
+    selectedOrganizationIds.length > 0
+      ? Prisma.sql`(
+          SELECT oi.*
+          FROM "OrganizationsOnInitiatives" oi
+          JOIN "Organization" o ON o."id" = oi."organizationId"
+          WHERE o."id" = ANY(${selectedOrganizationIds}::uuid[]) OR o."ancestorIds" && ${selectedOrganizationIds}::uuid[]
+        )`
+      : Prisma.sql`"OrganizationsOnInitiatives"`;
+
+  const [ownRows, subtreeRows, overallRows, standaloneRows, hierarchyRoots] = await Promise.all([
+    // Initiatives directly bound to each organization, with their weight (shared between the organizations of an initiative)
+    prisma.$queryRaw<
+      (InitiativesCompositionSchemaType & { id: string; websitesOnlyWeight: number; repositoriesOnlyWeight: number; bothWeight: number })[]
+    >`
+      WITH scoped AS (${scopedInitiatives}),
+      s AS (
+        SELECT oi."organizationId", scoped.*, 1.0 / COUNT(*) OVER (PARTITION BY scoped."id") AS "weight"
+        FROM scoped
+        JOIN ${bindings} oi ON oi."initiativeId" = scoped."id"
+      )
+      SELECT
+        s."organizationId" AS "id",
+        ${compositionColumns},
+        COALESCE(SUM(s."weight") FILTER (WHERE s."hasWebsite" AND NOT s."hasRepository"), 0)::float AS "websitesOnlyWeight",
+        COALESCE(SUM(s."weight") FILTER (WHERE NOT s."hasWebsite" AND s."hasRepository"), 0)::float AS "repositoriesOnlyWeight",
+        COALESCE(SUM(s."weight") FILTER (WHERE s."hasWebsite" AND s."hasRepository"), 0)::float AS "bothWeight"
+      FROM s
+      GROUP BY s."organizationId"
+    `,
+    // Distinct initiatives of each organization and its descendants
+    prisma.$queryRaw<(InitiativesCompositionSchemaType & { id: string })[]>`
+      WITH s AS (${scopedInitiatives})
+      SELECT target."id", ${compositionColumns}
+      FROM s
+      JOIN ${bindings} oi ON oi."initiativeId" = s."id"
+      JOIN "Organization" bound ON bound."id" = oi."organizationId"
+      CROSS JOIN LATERAL unnest(array_append(bound."ancestorIds", bound."id")) AS target("id")
+      GROUP BY target."id"
+    `,
+    prisma.$queryRaw<(InitiativesCompositionSchemaType & { unclassified: boolean })[]>`
+      WITH s AS (
+        SELECT
+          scoped.*,
+          NOT EXISTS (SELECT 1 FROM "OrganizationsOnInitiatives" oi WHERE oi."initiativeId" = scoped."id") AS "unclassified"
+        FROM (${scopedInitiatives}) scoped
+      )
+      SELECT s."unclassified", ${compositionColumns}
+      FROM s
+      GROUP BY s."unclassified"
+    `,
+    prisma.$queryRaw<InitiativesCompositionSchemaType[]>`
+      WITH s AS (${scopedInitiatives})
+      SELECT ${compositionColumns}
+      FROM s
+      JOIN ${bindings} oi ON oi."initiativeId" = s."id"
+      JOIN "Organization" o ON o."id" = oi."organizationId"
+      WHERE coalesce(o."ancestorIds"[1], o."id") NOT IN (${hierarchyRootsIdsSql})
+    `,
+    // Same definition as for browsing the tree in filters
+    prisma.$queryRaw<{ id: string }[]>`
+      SELECT o."id"
+      FROM "Organization" o
+      WHERE o."level" = 1 AND o."initiativesCount" > 0 AND ${isHierarchyRootSql}
+    `,
+  ]);
+
+  const organizations = await prisma.organization.findMany({
+    where: { initiativesCount: { gt: 0 } },
+    select: { id: true, parentOrganizationId: true, name: true, acronym: true, level: true, isTerritorial: true },
+  });
+
+  const toComposition = (row?: InitiativesCompositionSchemaType): InitiativesCompositionSchemaType => ({
+    websitesOnly: row?.websitesOnly ?? 0,
+    repositoriesOnly: row?.repositoriesOnly ?? 0,
+    both: row?.both ?? 0,
+  });
+
+  const ownById = new Map(ownRows.map((row) => [row.id, row]));
+  const subtreeById = new Map(subtreeRows.map((row) => [row.id, row]));
+  const hierarchyRootsIds = new Set(hierarchyRoots.map((hierarchyRoot) => hierarchyRoot.id));
+  const classified = toComposition(overallRows.find((row) => !row.unclassified));
+  const unclassified = toComposition(overallRows.find((row) => row.unclassified));
+
+  const value = OrganizationsMapSchema.parse({
+    // Organizations without any matching initiative are not part of the map
+    organizations: organizations.flatMap((organization) => {
+      const subtree = subtreeById.get(organization.id);
+      if (!subtree) {
+        return [];
+      }
+
+      const own = ownById.get(organization.id);
+
+      return [
+        {
+          id: organization.id,
+          parentId: organization.parentOrganizationId,
+          name: organization.name,
+          acronym: organization.acronym,
+          level: organization.level,
+          isHierarchyRoot: hierarchyRootsIds.has(organization.id),
+          isTerritorial: organization.isTerritorial,
+          composition: toComposition(subtree),
+          own: toComposition(own),
+          ownWeights: {
+            websitesOnly: own?.websitesOnlyWeight ?? 0,
+            repositoriesOnly: own?.repositoriesOnlyWeight ?? 0,
+            both: own?.bothWeight ?? 0,
+          },
+        },
+      ];
+    }),
+    composition: {
+      websitesOnly: classified.websitesOnly + unclassified.websitesOnly,
+      repositoriesOnly: classified.repositoriesOnly + unclassified.repositoriesOnly,
+      both: classified.both + unclassified.both,
+    },
+    standalone: toComposition(standaloneRows[0]),
+    unclassified: unclassified,
+  });
+
+  // An empty result means the organizations are being synchronized, it must not be kept
+  return value;
 }
 
 export const organizationRouter = router({
@@ -293,10 +443,7 @@ export const organizationRouter = router({
     } else {
       const organizationCondition =
         input.nodeId === standaloneOrganizationsNodeId
-          ? Prisma.sql`NOT EXISTS (
-              SELECT 1 FROM "Organization" d
-              WHERE d."ancestorIds" @> ARRAY[coalesce(o."ancestorIds"[1], o."id")] AND d."level" >= ${SUMMARY_ORGANIZATION_LEVEL}
-            )`
+          ? Prisma.sql`coalesce(o."ancestorIds"[1], o."id") NOT IN (${hierarchyRootsIdsSql})`
           : Prisma.sql`o."id" = ${input.nodeId}::uuid OR o."ancestorIds" @> ARRAY[${input.nodeId}::uuid]`;
 
       scope = Prisma.sql`EXISTS (
@@ -364,154 +511,31 @@ export const organizationRouter = router({
 
     // Only the map without criteria is kept, it is the one displayed the most and combinations of filters are countless
     const signature = filteredIds === null ? await getOrganizationsMapSignature() : null;
-    if (signature !== null && organizationsMapCache && organizationsMapCache.signature === signature) {
+    if (signature === null) {
+      return await computeOrganizationsMap(input.filterBy, filteredIds);
+    }
+
+    if (organizationsMapCache?.signature === signature) {
       return organizationsMapCache.value;
     }
 
-    const filterCondition = filteredIds ? Prisma.sql`i."id" = ANY(${filteredIds}::uuid[])` : Prisma.sql`TRUE`;
-    const compositionColumns = Prisma.sql`
-      COUNT(DISTINCT s."id") FILTER (WHERE s."hasWebsite" AND NOT s."hasRepository")::int AS "websitesOnly",
-      COUNT(DISTINCT s."id") FILTER (WHERE NOT s."hasWebsite" AND s."hasRepository")::int AS "repositoriesOnly",
-      COUNT(DISTINCT s."id") FILTER (WHERE s."hasWebsite" AND s."hasRepository")::int AS "both"
-    `;
-    const scopedInitiatives = Prisma.sql`
-      SELECT i."id", cardinality(i."websites") > 0 AS "hasWebsite", cardinality(i."repositories") > 0 AS "hasRepository"
-      FROM "Initiative" i
-      WHERE i."deletedAt" IS NULL AND ${filterCondition}
-    `;
+    // It takes seconds to compute, so visitors arriving meanwhile wait for the same result instead of each starting a computation
+    if (organizationsMapComputation?.signature !== signature) {
+      const promise = computeOrganizationsMap(input.filterBy, filteredIds)
+        .then((value) => {
+          if (value.organizations.length > 0) {
+            organizationsMapCache = { signature: signature, value: value };
+          }
 
-    // Filtering on organizations must not bring their co-owners on the map (an initiative can also be bound elsewhere)
-    const selectedOrganizationIds = input.filterBy.organizationIds ?? [];
-    const bindings =
-      selectedOrganizationIds.length > 0
-        ? Prisma.sql`(
-            SELECT oi.*
-            FROM "OrganizationsOnInitiatives" oi
-            JOIN "Organization" o ON o."id" = oi."organizationId"
-            WHERE o."id" = ANY(${selectedOrganizationIds}::uuid[]) OR o."ancestorIds" && ${selectedOrganizationIds}::uuid[]
-          )`
-        : Prisma.sql`"OrganizationsOnInitiatives"`;
+          return value;
+        })
+        .finally(() => {
+          organizationsMapComputation = null;
+        });
 
-    const [ownRows, subtreeRows, overallRows, standaloneRows, hierarchyRoots] = await Promise.all([
-      // Initiatives directly bound to each organization, with their weight (shared between the organizations of an initiative)
-      prisma.$queryRaw<
-        (InitiativesCompositionSchemaType & { id: string; websitesOnlyWeight: number; repositoriesOnlyWeight: number; bothWeight: number })[]
-      >`
-        WITH scoped AS (${scopedInitiatives}),
-        s AS (
-          SELECT oi."organizationId", scoped.*, 1.0 / COUNT(*) OVER (PARTITION BY scoped."id") AS "weight"
-          FROM scoped
-          JOIN ${bindings} oi ON oi."initiativeId" = scoped."id"
-        )
-        SELECT
-          s."organizationId" AS "id",
-          ${compositionColumns},
-          COALESCE(SUM(s."weight") FILTER (WHERE s."hasWebsite" AND NOT s."hasRepository"), 0)::float AS "websitesOnlyWeight",
-          COALESCE(SUM(s."weight") FILTER (WHERE NOT s."hasWebsite" AND s."hasRepository"), 0)::float AS "repositoriesOnlyWeight",
-          COALESCE(SUM(s."weight") FILTER (WHERE s."hasWebsite" AND s."hasRepository"), 0)::float AS "bothWeight"
-        FROM s
-        GROUP BY s."organizationId"
-      `,
-      // Distinct initiatives of each organization and its descendants
-      prisma.$queryRaw<(InitiativesCompositionSchemaType & { id: string })[]>`
-        WITH s AS (${scopedInitiatives})
-        SELECT target."id", ${compositionColumns}
-        FROM s
-        JOIN ${bindings} oi ON oi."initiativeId" = s."id"
-        JOIN "Organization" bound ON bound."id" = oi."organizationId"
-        CROSS JOIN LATERAL unnest(array_append(bound."ancestorIds", bound."id")) AS target("id")
-        GROUP BY target."id"
-      `,
-      prisma.$queryRaw<(InitiativesCompositionSchemaType & { unclassified: boolean })[]>`
-        WITH s AS (
-          SELECT
-            scoped.*,
-            NOT EXISTS (SELECT 1 FROM "OrganizationsOnInitiatives" oi WHERE oi."initiativeId" = scoped."id") AS "unclassified"
-          FROM (${scopedInitiatives}) scoped
-        )
-        SELECT s."unclassified", ${compositionColumns}
-        FROM s
-        GROUP BY s."unclassified"
-      `,
-      prisma.$queryRaw<InitiativesCompositionSchemaType[]>`
-        WITH s AS (${scopedInitiatives})
-        SELECT ${compositionColumns}
-        FROM s
-        JOIN ${bindings} oi ON oi."initiativeId" = s."id"
-        JOIN "Organization" o ON o."id" = oi."organizationId"
-        WHERE NOT EXISTS (
-          SELECT 1 FROM "Organization" d
-          WHERE d."ancestorIds" @> ARRAY[coalesce(o."ancestorIds"[1], o."id")] AND d."level" >= ${SUMMARY_ORGANIZATION_LEVEL}
-        )
-      `,
-      // Same definition as for browsing the tree in filters
-      prisma.$queryRaw<{ id: string }[]>`
-        SELECT o."id"
-        FROM "Organization" o
-        WHERE o."level" = 1 AND o."initiativesCount" > 0 AND ${isHierarchyRootSql}
-      `,
-    ]);
-
-    const organizations = await prisma.organization.findMany({
-      where: { initiativesCount: { gt: 0 } },
-      select: { id: true, parentOrganizationId: true, name: true, acronym: true, level: true, isTerritorial: true },
-    });
-
-    const toComposition = (row?: InitiativesCompositionSchemaType): InitiativesCompositionSchemaType => ({
-      websitesOnly: row?.websitesOnly ?? 0,
-      repositoriesOnly: row?.repositoriesOnly ?? 0,
-      both: row?.both ?? 0,
-    });
-
-    const ownById = new Map(ownRows.map((row) => [row.id, row]));
-    const subtreeById = new Map(subtreeRows.map((row) => [row.id, row]));
-    const hierarchyRootsIds = new Set(hierarchyRoots.map((hierarchyRoot) => hierarchyRoot.id));
-    const classified = toComposition(overallRows.find((row) => !row.unclassified));
-    const unclassified = toComposition(overallRows.find((row) => row.unclassified));
-
-    const value = OrganizationsMapSchema.parse({
-      // Organizations without any matching initiative are not part of the map
-      organizations: organizations.flatMap((organization) => {
-        const subtree = subtreeById.get(organization.id);
-        if (!subtree) {
-          return [];
-        }
-
-        const own = ownById.get(organization.id);
-
-        return [
-          {
-            id: organization.id,
-            parentId: organization.parentOrganizationId,
-            name: organization.name,
-            acronym: organization.acronym,
-            level: organization.level,
-            isHierarchyRoot: hierarchyRootsIds.has(organization.id),
-            isTerritorial: organization.isTerritorial,
-            composition: toComposition(subtree),
-            own: toComposition(own),
-            ownWeights: {
-              websitesOnly: own?.websitesOnlyWeight ?? 0,
-              repositoriesOnly: own?.repositoriesOnlyWeight ?? 0,
-              both: own?.bothWeight ?? 0,
-            },
-          },
-        ];
-      }),
-      composition: {
-        websitesOnly: classified.websitesOnly + unclassified.websitesOnly,
-        repositoriesOnly: classified.repositoriesOnly + unclassified.repositoriesOnly,
-        both: classified.both + unclassified.both,
-      },
-      standalone: toComposition(standaloneRows[0]),
-      unclassified: unclassified,
-    });
-
-    // An empty result means the organizations are being synchronized, it must not be kept
-    if (signature !== null && value.organizations.length > 0) {
-      organizationsMapCache = { signature: signature, value: value };
+      organizationsMapComputation = { signature: signature, promise: promise };
     }
 
-    return value;
+    return await organizationsMapComputation.promise;
   }),
 });

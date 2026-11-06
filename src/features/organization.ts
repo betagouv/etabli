@@ -41,7 +41,7 @@ export const localJsonPath = path.resolve(__root_dirname, './data/dila-organizat
 
 // We only need the establishments having a website, it reduces the file a lot
 export const latestRemoteEducationJsonUrl =
-  'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-annuaire-education/exports/json?select=web,libelle_academie&where=web%20is%20not%20null';
+  'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-annuaire-education/exports/json?select=web,libelle_academie,ministere_tutelle&where=web%20is%20not%20null';
 export const localEducationJsonPath = path.resolve(__root_dirname, './data/education-establishments.json');
 
 // The "Données de la Présence Numérique des Territoires" from the ANCT (https://www.data.gouv.fr/datasets/donnees-de-la-presence-numerique-des-territoires)

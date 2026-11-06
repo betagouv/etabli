@@ -131,10 +131,12 @@ model RawDomain {
 
   indexableFromRobotsTxt       Boolean?
   updateIndexableFromRobotsTxt Boolean  @default(true)
+  lastRobotsTxtCheckAt         DateTime?
   robotsTxtContent             String?
 
   wildcardCertificate       Boolean?
   updateWildcardCertificate Boolean  @default(true)
+  lastCertificateCheckAt    DateTime?
   certificateContent        String?
 
   websiteRawContent        String?  @db.Text
@@ -148,6 +150,7 @@ model RawDomain {
   probableRepositoryUrl    String?
   probableRepositoryDomain String?
   updateWebsiteData        Boolean  @default(true)
+  lastWebsiteDataCheckAt   DateTime?
 
   isProtected                Boolean @default(false) // A firewall or an anti-bot service answered instead of the website
   protection                 String? // Which one, see `detectWebsiteProtection()`

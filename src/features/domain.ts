@@ -86,6 +86,56 @@ export async function saveDomainCsvFile(cache = true) {
   }
 }
 
+// Filter the best as we can all domains that are not for production:
+// - some technical patterns are regularly used and isolated by separator characters (".", "-")
+// - temporary websites (for review apps for example) can be tricky to catch due to random pattern `app-x2gh58d.example.com` (but since temporary they should not have returned a 200 response)
+const knownTechnicalPatterns: string[] = [
+  'api',
+  'qa',
+  'preview',
+  'dev',
+  'staging',
+  'alpha',
+  'beta',
+  'test',
+  'tst',
+  'recette',
+  'rec',
+  'demo',
+  'review',
+  'preprod',
+  'tmp',
+  'pr',
+  'chore',
+  'feat',
+  'fix',
+  'ci',
+  'deploy',
+  'mail',
+  'auth',
+  'oauth',
+  'link',
+  'status',
+  'ftp',
+  'login',
+  'wiki',
+  'cdn',
+  'forum',
+];
+
+// A domain we cannot analyze is considered as technical
+export function isTechnicalDomain(domainName: string): boolean {
+  const parsedDomain = parseDomain(domainName);
+  if (parsedDomain.type !== ParseResultType.Listed) {
+    return true;
+  }
+
+  // Only look at subdomains because some of the main parts could contain technical patterns (even if low probability)
+  const isolatedParts: string[] = parsedDomain.subDomains.join('.').split(/\.|-|_/);
+
+  return knownTechnicalPatterns.some((pattern) => isolatedParts.includes(pattern));
+}
+
 export async function formatDomainsIntoDatabase() {
   const parser = fsSync.createReadStream(localCsvPath, 'utf-8').pipe(
     parse({
@@ -116,52 +166,7 @@ export async function formatDomainsIntoDatabase() {
       continue;
     }
 
-    // Now filter the best as we can all domains that are not for production:
-    // - some technical patterns are regularly used and isolated by separator characters (".", "-")
-    // - temporary websites (for review apps for example) can be tricky to catch due to random pattern `app-x2gh58d.example.com` (but since temporary they should not have returned a 200 response)
-    const knownTechnicalPatterns: string[] = [
-      'api',
-      'qa',
-      'preview',
-      'dev',
-      'staging',
-      'alpha',
-      'beta',
-      'test',
-      'tst',
-      'recette',
-      'rec',
-      'demo',
-      'review',
-      'preprod',
-      'tmp',
-      'pr',
-      'chore',
-      'feat',
-      'fix',
-      'ci',
-      'deploy',
-      'mail',
-      'auth',
-      'oauth',
-      'link',
-      'status',
-      'ftp',
-      'login',
-      'wiki',
-      'cdn',
-      'forum',
-    ];
-
-    // Only look at subdomains because some of the main parts could contain technical patterns (even if low probability)
-    const parsedDomain = parseDomain(csvDomain.name);
-    if (parsedDomain.type !== ParseResultType.Listed) {
-      continue;
-    }
-
-    const { subDomains } = parsedDomain;
-    const isolatedParts: string[] = subDomains.join('.').split(/\.|-|_/);
-    if (knownTechnicalPatterns.some((pattern) => isolatedParts.includes(pattern))) {
+    if (isTechnicalDomain(csvDomain.name)) {
       continue;
     }
 

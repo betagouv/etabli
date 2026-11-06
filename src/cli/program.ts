@@ -10,6 +10,7 @@ import {
   updateWebsiteDataOnDomains,
   updateWildcardCertificateOnDomains,
 } from '@etabli/src/features/domain';
+import { printDomainsUsingTechnology, updateDomainsInventory } from '@etabli/src/features/domain-inventory';
 import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/src/features/llm';
 import { bindOrganizationsToInitiatives, formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
@@ -87,6 +88,22 @@ domain
     } else {
       await enhanceDomainsIntoDatabase();
     }
+  });
+
+domain
+  .command('inventory')
+  .description('detect technologies running on domains, including those not listed as initiatives (internal use)')
+  .option('-l, --limit <number>', 'maximum of domains to analyze', parseInt)
+  .action(async (options) => {
+    await updateDomainsInventory({ maximumDomains: options.limit });
+  });
+
+domain
+  .command('technology')
+  .description('list domains running a technology, to contact them in case of a vulnerability (internal use)')
+  .argument('<name>', 'name of the technology (e.g. Metabase)')
+  .action(async (name) => {
+    await printDomainsUsingTechnology(name);
   });
 
 domain

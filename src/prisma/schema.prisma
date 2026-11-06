@@ -173,6 +173,35 @@ model RawDomain {
   RawDomainsOnInitiativeMaps RawDomainsOnInitiativeMaps?
 }
 
+// Internal inventory of what runs on public domains, including those not listed as initiatives (technical domains, websites refusing
+// being indexed...). It answers "who should be contacted when this software has a vulnerability", so it must never be exposed
+// publicly (API, datasets, LLM documents...), that is why it is independent from initiatives and their tables
+model DomainInventory {
+  domain         String    @id
+  lastCheckAt    DateTime?
+  lastCheckError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  DomainTechnology DomainTechnology[]
+}
+
+model DomainTechnology {
+  domain     String
+  technology String
+  version    String?
+  cpe        String?
+  confidence Int
+
+  createdAt DateTime @default(now())
+
+  inventory DomainInventory @relation(fields: [domain], references: [domain], onDelete: Cascade)
+
+  @@id([domain, technology])
+  @@index([technology])
+}
+
 // Public organizations from the "Annuaire de l'administration" maintained by the DILA (https://lannuaire.service-public.gouv.fr)
 // They form a tree (ministries, directions, services...) but most of them are standalone (town halls, local offices...)
 model Organization {

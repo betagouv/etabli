@@ -66,7 +66,7 @@ ARG PORT
 USER root
 
 # Runtime tools of the data update (websites content and tools, code analysis) and of the startup script
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
   "chromium" \
   "curl" \
   "dumb-init" \

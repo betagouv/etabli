@@ -1,5 +1,4 @@
-import { DefaultBodyType, DelayMode, PathParams, ResponseTransformer, RestRequest, rest } from 'msw';
-import path from 'path';
+import { DefaultBodyType, DelayMode, HttpResponse, StrictRequest, delay, http } from 'msw';
 import superjson from 'superjson';
 
 import { mockBaseUrl } from '@etabli/src/server/mock/environment';
@@ -38,13 +37,13 @@ export const getTRPCMock = <
   path: [K1];
   response: O | object | Error;
   type?: 'query' | 'mutation' | 'subscription';
-  delayHook?: (req: RestRequest<DefaultBodyType, PathParams<string>>, params: RouterInputs[K1]) => number | DelayMode | null;
+  delayHook?: (request: StrictRequest<DefaultBodyType>, params: RouterInputs[K1]) => number | DelayMode | null;
 }) => {
-  const fn = endpoint.type === 'mutation' || endpoint.type === 'subscription' ? rest.post : rest.get;
+  const fn = endpoint.type === 'mutation' || endpoint.type === 'subscription' ? http.post : http.get;
 
   const route = `${mockBaseUrl}/api/trpc/${endpoint.path[0]}`;
 
-  return fn(route, (req, res, ctx) => {
+  return fn(route, async (info) => {
     const isResponseAnError = (endpoint.response as any) instanceof Error;
 
     let rpcResponse: DefaultBodyType;
@@ -57,32 +56,28 @@ export const getTRPCMock = <
       rpcResponse = jsonRpcSuccessResponse(transformedResponse);
     }
 
-    const transformers: ResponseTransformer<DefaultBodyType, any>[] = [];
-
     if (!!endpoint.delayHook) {
       let params: RouterInputs[K1];
       if (endpoint.type === 'query') {
-        params = extractParamsFromQuery(req) as RouterInputs[K1];
+        params = extractParamsFromQuery(info.request) as RouterInputs[K1];
       } else {
-        params = req.params as RouterInputs[K1];
+        params = info.params as RouterInputs[K1];
       }
 
-      const delayToAdd = endpoint.delayHook(req, params);
+      const delayToAdd = endpoint.delayHook(info.request, params);
 
       if (delayToAdd !== null && delayToAdd !== 0) {
-        transformers.push(ctx.delay(delayToAdd));
+        await delay(delayToAdd);
       }
     }
 
     // Note we use `httpLink` and not `httpBatchLink` when mocking, so no need to wrap the response into an array
-    transformers.push(ctx.json(rpcResponse));
-
-    return res(...transformers);
+    return HttpResponse.json(rpcResponse);
   });
 };
 
-export function extractParamsFromQuery(req: RestRequest<DefaultBodyType, PathParams<string>>): object {
-  const url = new URL(req.url);
+export function extractParamsFromQuery(request: StrictRequest<DefaultBodyType>): object {
+  const url = new URL(request.url);
 
   const inputQueryParam = url.searchParams.get('input');
   if (inputQueryParam) {

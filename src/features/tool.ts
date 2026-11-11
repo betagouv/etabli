@@ -148,7 +148,7 @@ export async function formatToolsIntoDatabase() {
           name: dsfrName,
           title: "Official french government's design system (Système de Design de l'État)",
           description: `Le Système de Design de l'État (ci-après, le DSFR) est un ensemble de composants web HTML, CSS et Javascript pour faciliter le travail des équipes projets des sites Internet publics, et créer des interfaces numériques de qualité et accessibles.`,
-          category: ToolCategorySchema.Values.LANGUAGES_AND_FRAMEWORKS,
+          category: ToolCategorySchema.enum.LANGUAGES_AND_FRAMEWORKS,
         })
       );
 

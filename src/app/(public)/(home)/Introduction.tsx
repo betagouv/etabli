@@ -1,7 +1,7 @@
 'use client';
 
-import Button from '@mui/lab/LoadingButton';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import Image from 'next/image';
 import * as React from 'react';

@@ -13,21 +13,18 @@ import { DsfrProvider, StartDsfrOnHydration } from '@etabli/src/dsfr-bootstrap';
 import { DsfrHead, getHtmlAttributes } from '@etabli/src/dsfr-bootstrap/server-only-index';
 import { colorSchemeCookieName } from '@etabli/src/utils/color-scheme';
 
-export interface RootLayoutProps {
-  workaroundForNextJsPages?: boolean;
-}
+export interface RootLayoutProps {}
 
-// [WORKAROUND] `DsfrHead` needs the color scheme registered by this function, even with `workaroundForNextJsPages: true` where `<html>` is not rendered
+// [WORKAROUND] `DsfrHead` needs the color scheme registered by this function before rendering
 getHtmlAttributes({ lang: 'fr' });
 
-function MainStructure(props: PropsWithChildren) {
-  const nonce = headers().get('x-nonce') || undefined;
-  const colorScheme = cookies().get(colorSchemeCookieName)?.value;
+export async function RootLayout(props: PropsWithChildren<RootLayoutProps>) {
+  const nonce = (await headers()).get('x-nonce') || undefined;
+  const colorScheme = (await cookies()).get(colorSchemeCookieName)?.value;
   const ssrIsDark = colorScheme === 'dark'; // Without a known color scheme (first visit), the light one like the DSFR provider
 
   return (
-    <>
-      {/* eslint-disable-next-line @next/next/no-head-element */}
+    <html lang="fr" {...getHtmlAttributes({ lang: 'fr' })}>
       <head>
         <DsfrHead nonce={nonce} preloadFonts={['Marianne-Regular', 'Marianne-Medium', 'Marianne-Bold']} />
         {/* The browser renders first with the color scheme used by the server so both match, then switches if it differs (react-dsfr reads it, and its own script in `DsfrHead` sets the default one, so this one comes after) */}
@@ -51,21 +48,6 @@ function MainStructure(props: PropsWithChildren) {
         </DsfrProvider>
         <Matomo nonce={nonce} />
       </body>
-    </>
-  );
-}
-
-export function RootLayout(props: PropsWithChildren<RootLayoutProps>) {
-  if (props.workaroundForNextJsPages === true) {
-    // When embedded through a server-side only page (for errors for example) `<html>` and `<body>`
-    // are already included by Next.js (the browser can ajust the structure but in our case `<html>` duplication
-    // throws a visible error in development so we avoid it (it does not change things that much since it's only specific pages))
-    return <MainStructure {...props} />;
-  }
-
-  return (
-    <html lang="fr" {...getHtmlAttributes({ lang: 'fr' })}>
-      <MainStructure {...props} />
     </html>
   );
 }

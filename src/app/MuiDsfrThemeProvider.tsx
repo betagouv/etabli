@@ -2,8 +2,8 @@
 
 import { createMuiDsfrThemeProvider } from '@codegouvfr/react-dsfr/mui';
 import { frFR as coreFrFR } from '@mui/material/locale';
-import { frFR as dataGridFrFR } from '@mui/x-data-grid/locales/frFR';
-import { frFR as datePickerFrFR } from '@mui/x-date-pickers/locales/frFR';
+import { frFR as dataGridFrFR } from '@mui/x-data-grid/locales';
+import { frFR as datePickerFrFR } from '@mui/x-date-pickers/locales';
 
 export const { MuiDsfrThemeProvider } = createMuiDsfrThemeProvider({
   augmentMuiTheme: ({ nonAugmentedMuiTheme }) => {
@@ -48,6 +48,25 @@ export const { MuiDsfrThemeProvider } = createMuiDsfrThemeProvider({
                 },
               ])
             ),
+          },
+        },
+        // A collapsed content has no height, but browsers still counted it into the page height (an empty band under the footer
+        // with the questions of the home page). Removed from the layout once collapsed, it stays in the HTML for search engines
+        MuiCollapse: {
+          styleOverrides: {
+            hidden: {
+              display: 'none',
+            },
+          },
+        },
+        // Since MUI X v8 the grid paints its own background, slightly lighter than the page in dark mode where the grey texts no longer
+        // reach the contrast ratio. It shows the page background as before
+        MuiDataGrid: {
+          styleOverrides: {
+            root: {
+              '--DataGrid-t-color-background-base': 'transparent',
+              backgroundColor: 'transparent',
+            },
           },
         },
         MuiDialog: {

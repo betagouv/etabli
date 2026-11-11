@@ -4,6 +4,7 @@ export const wideContainerGridProps: GridProps = {
   sx: {
     px: 3,
     py: 6,
+    width: '100%', // A grid container no longer stretches by itself (and these ones are often into a flex parent)
   },
 };
 
@@ -12,7 +13,6 @@ export const centeredContainerGridProps: GridProps = {
     ...wideContainerGridProps.sx,
     maxWidth: 'lg',
     mx: 'auto',
-    width: '100%', // [WORKAROUND] When using `mx: auto` it does a weird thing like `width: calc(100% + 2.5rem)`... maybe due to DSFR values
   },
 };
 

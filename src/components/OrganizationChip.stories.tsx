@@ -1,5 +1,5 @@
-import { Meta, StoryFn } from '@storybook/react';
-import { userEvent, within } from '@storybook/test';
+import { Meta, StoryFn } from '@storybook/nextjs';
+import { userEvent, within } from 'storybook/test';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { OrganizationChip, OrganizationChips, UnclassifiedOrganizationChip } from '@etabli/src/components/OrganizationChip';
@@ -47,6 +47,11 @@ FocusedStory.args = {
 };
 FocusedStory.play = async ({ canvasElement }) => {
   await within(canvasElement).findByText(/DINUM/i);
+
+  const chip = await within(canvasElement).findByRole('link', { name: /voir les initiatives/i });
+
+  // The tooltip still displays the whole branch, down to the bound organization
+  await userEvent.hover(chip);
 };
 
 export const Focused = prepareStory(FocusedStory);

@@ -1,11 +1,12 @@
 import { DsfrProviderBase, StartDsfrOnHydration } from '@codegouvfr/react-dsfr/next-app-router';
 import { DsfrHeadBase, createGetHtmlAttributes } from '@codegouvfr/react-dsfr/next-app-router/server-only-index';
 import { withLinks } from '@storybook/addon-links';
-import { configure as testingConfigure } from '@storybook/test';
-import { themes } from '@storybook/theming';
-import { initialize, mswDecorator } from 'msw-storybook-addon';
+import { mswLoader } from 'msw-storybook-addon/csf3';
+import { setupWorker } from 'msw/browser';
 import Link from 'next/link';
 import React, { useEffect } from 'react';
+import { configure as testingConfigure } from 'storybook/test';
+import { themes } from 'storybook/theming';
 
 import { ThemedDocsContainer } from '@etabli/.storybook/ThemedDocsContainer';
 // import { DARK_MODE_EVENT_NAME, UPDATE_DARK_MODE_EVENT_NAME } from 'storybook-dark-mode';
@@ -38,18 +39,23 @@ if (window.matchMedia) {
   });
 }
 
-// Initialize MSW
-const mswServerSingleton = initialize({
-  onUnhandledRequest: (request, print) => {
-    if (request.url.pathname.startsWith('/api/')) {
-      // If API calls are not handled it means they are missing handlers for the server mock
-      print.error();
-    } else {
+// The mock server is started once by the loader below, then each story gives its own handlers through `parameters.msw`
+async function startMockServiceWorker() {
+  const worker = setupWorker();
+
+  await worker.start({
+    quiet: true,
+    onUnhandledRequest: (request, print) => {
+      if (new URL(request.url).pathname.startsWith('/api/')) {
+        // If API calls are not handled it means they are missing handlers for the server mock
+        print.error();
+      }
       // Otherwise let XHR library get local files, favicon...
-      request.passthrough();
-    }
-  },
-});
+    },
+  });
+
+  return worker;
+}
 
 // Increase the timeout because when testing (test runners or interactions panel) all async methods like `findBy`
 // have 1 second of timeout, this is sometimes too short when there are multiple loadings behind
@@ -128,9 +134,10 @@ export const parameters = {
   },
 };
 
+export const loaders = [mswLoader(startMockServiceWorker)];
+
 export const decorators = [
   withLinks,
-  mswDecorator,
   (Story, context) => {
     // Provide the necessary depending on the context
 

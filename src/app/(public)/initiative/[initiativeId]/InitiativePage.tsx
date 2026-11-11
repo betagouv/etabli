@@ -74,7 +74,7 @@ export interface InitiativePageProps {
 export function InitiativePage({ params: { initiativeId }, relatedInitiatives }: InitiativePageProps) {
   const { t } = useTranslation('common');
 
-  const { data, error, isLoading, refetch } = trpc.getInitiative.useQuery(
+  const { data, error, isPending, refetch } = trpc.getInitiative.useQuery(
     {
       id: initiativeId,
     },
@@ -83,12 +83,12 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
     }
   );
 
-  if (isLoading) {
+  if (isPending) {
     return <LoadingArea ariaLabelTarget="contenu" />;
   } else if (error) {
     return (
       <Grid container {...centeredAlertContainerGridProps}>
-        {error.data?.code === 'BAD_REQUEST' && error.data.zodError && error.data.zodError[0].code === 'invalid_string' ? (
+        {error.data?.code === 'BAD_REQUEST' && error.data.zodError && error.data.zodError[0].code === 'invalid_format' ? (
           // Since this page can be referenced by the assistant and that sometimes the assistant is more creative than it should
           // It creates links with UUID not existing, or preprending/appending some by adding a 0 or so, makin it invalid
           // We just warn the user about this so he can have a bit of context why it fails
@@ -107,7 +107,7 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
       <Box sx={pageLayoutSx}>
         <Box sx={{ gridArea: 'main', minWidth: 0 }}>
           <Grid container alignContent="flex-start" spacing={2}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography
                 component="h1"
                 variant="h1"
@@ -122,18 +122,22 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
               <InitiativeRankingChips initiative={initiative} sx={{ mt: 1 }} />
             </Grid>
             <Grid
-              item
-              xs={12}
               sx={{
                 pb: 2,
                 whiteSpace: 'pre-wrap !important',
                 wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
               }}
+              size={12}
             >
               {initiative.description}
             </Grid>
             {initiative.websites.length > 0 && (
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6,
+                }}
+              >
                 <Typography
                   component="div"
                   variant="overline"
@@ -169,7 +173,12 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
               </Grid>
             )}
             {initiative.repositories.length > 0 && (
-              <Grid item xs={12} md={6}>
+              <Grid
+                size={{
+                  xs: 12,
+                  md: 6,
+                }}
+              >
                 <Typography
                   component="div"
                   variant="overline"
@@ -216,14 +225,14 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
               </Grid>
             )}
             {initiative.businessUseCases.length > 0 && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Typography component="div" variant="overline">
                   {t('model.initiative.businessUseCase', { count: initiative.businessUseCases.length })}
                 </Typography>
-                <Grid container component="ul" direction="row" spacing={1} sx={ulComponentResetStyles}>
+                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1 }}>
                   {initiative.businessUseCases.map((businessUseCase) => {
                     return (
-                      <Grid key={businessUseCase} item component="li">
+                      <Grid key={businessUseCase} component="li">
                         <BusinessUseCaseChip label={businessUseCase} />
                       </Grid>
                     );
@@ -232,14 +241,14 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
               </Grid>
             )}
             {initiative.functionalUseCases.length > 0 && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Typography component="div" variant="overline">
                   {t('model.initiative.functionalUseCase.label', { count: initiative.functionalUseCases.length })}
                 </Typography>
-                <Grid container component="ul" direction="row" spacing={1} sx={ulComponentResetStyles}>
+                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1 }}>
                   {initiative.functionalUseCases.map((functionalUseCase) => {
                     return (
-                      <Grid key={functionalUseCase} item component="li">
+                      <Grid key={functionalUseCase} component="li">
                         <FunctionalUseCaseChip useCase={functionalUseCase} />
                       </Grid>
                     );
@@ -248,7 +257,7 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
               </Grid>
             )}
             {initiative.organizations.length > 0 && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Typography
                   component="div"
                   variant="overline"
@@ -273,14 +282,14 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
               </Grid>
             )}
             {initiative.tools.length > 0 && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Typography component="div" variant="overline">
                   {t('model.initiative.tool', { count: initiative.tools.length })}
                 </Typography>
-                <Grid container component="ul" direction="row" spacing={1} sx={ulComponentResetStyles}>
+                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1 }}>
                   {initiative.tools.map((tool) => {
                     return (
-                      <Grid key={tool} item component="li">
+                      <Grid key={tool} component="li">
                         <ToolChip label={tool} />
                       </Grid>
                     );

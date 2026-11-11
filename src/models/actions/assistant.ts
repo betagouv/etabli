@@ -10,7 +10,7 @@ export const RequestAssistantSchema = z
   .strict();
 export type RequestAssistantSchemaType = z.infer<typeof RequestAssistantSchema>;
 
-export const RequestAssistantPrefillSchema = RequestAssistantSchema.deepPartial();
+export const RequestAssistantPrefillSchema = RequestAssistantSchema.partial();
 export type RequestAssistantPrefillSchemaType = z.infer<typeof RequestAssistantPrefillSchema>;
 
 export const SubscribeAssistantAnswerChunkSchema = z
@@ -20,5 +20,5 @@ export const SubscribeAssistantAnswerChunkSchema = z
   .strict();
 export type SubscribeAssistantAnswerChunkSchemaType = z.infer<typeof SubscribeAssistantAnswerChunkSchema>;
 
-export const SubscribeAssistantAnswerChunkPrefillSchema = SubscribeAssistantAnswerChunkSchema.deepPartial();
+export const SubscribeAssistantAnswerChunkPrefillSchema = SubscribeAssistantAnswerChunkSchema.partial();
 export type SubscribeAssistantAnswerChunkPrefillSchemaType = z.infer<typeof SubscribeAssistantAnswerChunkPrefillSchema>;

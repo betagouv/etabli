@@ -2,11 +2,10 @@ const path = require('path');
 
 const { commonPackages } = require('./transpilePackages');
 
-const { withSentryConfig } = require('@sentry/nextjs');
+const { withSentryConfig } = require('@sentry/nextjs/config');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const gitRevision = require('git-rev-sync');
 const { getCommitSha, getHumanVersion, getTechnicalVersion } = require('./src/utils/app-version.js');
-const { i18n } = require('./next-i18next.config');
 
 const mode = process.env.APP_MODE || 'test';
 
@@ -19,44 +18,42 @@ const moduleExports = async () => {
    */
   let standardModuleExports = {
     reactStrictMode: true,
-    swcMinify: true,
     output: process.env.NEXTJS_BUILD_OUTPUT_MODE || 'standalone', // To debug locally the `next start` comment this line (it will avoid trying to mess with the assembling folders logic of standalone mode)
     env: {
       // Those will replace `process.env.*` with hardcoded values (useful when the value is calculated during the build time)
       SENTRY_RELEASE_TAG: appHumanVersion,
     },
-    serverRuntimeConfig: {},
-    publicRuntimeConfig: {
-      appMode: mode,
-      appVersion: appHumanVersion,
-    },
-    i18n: i18n,
-    eslint: {
-      ignoreDuringBuilds: true, // Skip since already done in a specific step of our CI/CD
-    },
     typescript: {
       ignoreBuildErrors: true, // Skip since already done in a specific step of our CI/CD
     },
     transpilePackages: commonPackages,
-    experimental: {
-      outputFileTracingIncludes: {
-        '*': ['./src/prisma/migrations/**/*', './src/prisma/schema.prisma', './prisma.config.ts', './start-and-wait-to-init.sh'],
-      },
-      // It should have been the new `outputFileTracingExcludes` property but it's messing with the Next.js core (ref: https://github.com/vercel/next.js/issues/62331)
-      outputFileTracingExcludes: {
-        '*': [
-          // // The global exclusion of `data` should have worked but it's not so listing one by one (ref: https://github.com/vercel/next.js/issues/62331)
-          // './data/**/*'
-          './data/initiatives/**/*',
-          './data/domains.csv',
-          './data/graph.json',
-          './data/repositories.json',
-          './data/tools.csv',
-          './scripts/**/*',
-        ], // Note that folders starting with a dot are already ignored after verification
-      },
-      swcPlugins: [['next-superjson-plugin', { excluded: [] }]],
-      instrumentationHook: true, // [Next 14] required so `instrumentation.ts` `register()` runs server-side (it becomes the default in Next 15)
+    outputFileTracingIncludes: {
+      '*': ['./src/prisma/migrations/**/*', './src/prisma/schema.prisma', './prisma.config.ts', './start-and-wait-to-init.sh'],
+    },
+    outputFileTracingExcludes: {
+      // Local data (database dumps, datasets, downloaded lists...) must never be embedded into the build. A global `./data/**/*` cannot be used
+      // since Next.js also applies it to paths containing `.../metadata/` and removes some of its own files (ref: https://github.com/vercel/next.js/issues/62331)
+      '*': [
+        // Only distinctive names: a pattern like `./data/*.json` also removed `node_modules/psl/data/rules.json`
+        './data/*.db',
+        './data/*.dump',
+        './data/etabli-import-*.sql',
+        './data/datasets/**/*',
+        './data/initiatives/**/*',
+        './data/wappalyzer/**/*',
+        './data/codegouv-repository-organizations.yaml',
+        './data/repository-organizations.yaml',
+        './data/dila-organizations.json',
+        './data/organizations.json',
+        './data/education-establishments.json',
+        './data/repositories*.json',
+        './data/dpnt-quotidien.json.gz',
+        './data/ip2asn-v4.tsv.gz',
+        './data/domains*.csv',
+        './data/tools.csv',
+        './data/graph.json',
+        './scripts/**/*',
+      ], // Note that folders starting with a dot are already ignored after verification
     },
     async rewrites() {
       return [
@@ -132,8 +129,13 @@ const moduleExports = async () => {
   const uploadToSentry = process.env.SENTRY_RELEASE_UPLOAD === 'true' && process.env.NODE_ENV === 'production';
 
   const sentryBuildOptions = {
-    unstable_sentryWebpackPluginOptions: {
-      disable: !uploadToSentry,
+    webpack: {
+      unstable_sentryWebpackPluginOptions: {
+        disable: !uploadToSentry,
+      },
+      treeshake: {
+        removeDebugLogging: false,
+      },
     },
     debug: false,
     silent: false,
@@ -157,7 +159,6 @@ const moduleExports = async () => {
       disable: process.env.NODE_ENV === 'development',
       deleteSourcemapsAfterUpload: mode === 'prod', // do not serve sourcemaps in `prod` (replaces the former `hideSourceMaps`)
     },
-    disableLogger: false,
   };
 
   return withSentryConfig(standardModuleExports, sentryBuildOptions);

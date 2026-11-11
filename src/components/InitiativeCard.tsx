@@ -2,9 +2,9 @@
 
 import DataObjectIcon from '@mui/icons-material/DataObject';
 import LanguageIcon from '@mui/icons-material/Language';
+import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import Grid from '@mui/material/Grid';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import NextLink from 'next/link';
@@ -83,8 +83,8 @@ export function InitiativeCard(props: InitiativeCardProps) {
         }}
       />
       <CardContent>
-        <Grid container direction={'column'} spacing={2}>
-          <Grid item xs={12}>
+        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+          <Box>
             <Link
               component={NextLink}
               href={props.initiativeLink}
@@ -96,9 +96,8 @@ export function InitiativeCard(props: InitiativeCardProps) {
             >
               {props.initiative.name}
             </Link>
-          </Grid>
-          {/* In a column grid `xs` sets no width, so the width is forced for names to be truncated instead of widening the card */}
-          <Grid item xs={12} sx={{ pt: '8px !important', width: '100%', minWidth: 0 }}>
+          </Box>
+          <Box sx={{ mt: 1, minWidth: 0 }}>
             <OrganizationChips
               summaries={organizationSummaries}
               websitesCount={props.initiative.websites.length}
@@ -108,16 +107,16 @@ export function InitiativeCard(props: InitiativeCardProps) {
             />
             {/* Only as wide as its chips so the rest of the line still opens the sheet, and not looking clickable since chips only explain on hover */}
             <InitiativeRankingChips initiative={props.initiative} sx={{ mt: 1, ...interactiveLayer, width: 'fit-content', cursor: 'default' }} />
-          </Grid>
-          <Grid item xs={12}>
+          </Box>
+          <Box sx={{ mt: 2 }}>
             <Typography component="div">
               <ClampedText lines={3} likelyClamped={props.initiative.description.length > likelyClampedDescriptionLength}>
                 {props.initiative.description}
               </ClampedText>
             </Typography>
-          </Grid>
+          </Box>
           {(props.initiative.websites.length > 0 || props.initiative.repositories.length > 0) && (
-            <Grid item xs={12}>
+            <Box sx={{ mt: 2 }}>
               <ul style={{ ...ulComponentResetStyles }}>
                 {props.initiative.websites.length > 0 && (
                   <li key={props.initiative.websites[0]}>
@@ -170,9 +169,9 @@ export function InitiativeCard(props: InitiativeCardProps) {
                   </li>
                 )}
               </ul>
-            </Grid>
+            </Box>
           )}
-        </Grid>
+        </Box>
       </CardContent>
     </Card>
   );

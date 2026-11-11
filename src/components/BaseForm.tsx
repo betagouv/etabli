@@ -15,7 +15,7 @@ import { capitalizeFirstLetter } from '@etabli/src/utils/format';
 export interface BaseFormProps<FormSchemaType extends FieldValues> {
   handleSubmit: UseFormHandleSubmit<FormSchemaType>;
   onSubmit: (input: FormSchemaType) => Promise<void>;
-  control: Control<any>;
+  control: Control<FormSchemaType, any, any>;
   ariaLabel: string;
   preventParentFormTrigger?: boolean;
   style?: CSSProperties;
@@ -96,13 +96,13 @@ export function BaseForm<FormSchemaType extends FieldValues>(props: PropsWithChi
       <form onSubmit={onSubmit} aria-label={props.ariaLabel} style={props.style} ref={setMultipleRefs}>
         <Grid container spacing={2}>
           {!!onSubmitError && (
-            <Grid item xs={12} sx={{ py: 2 }}>
+            <Grid sx={{ py: 2 }} size={12}>
               <ErrorAlert errors={[onSubmitError]} />
             </Grid>
           )}
 
           {Object.keys(validationErrors).length > 0 && (
-            <Grid item xs={12} sx={{ py: 2 }}>
+            <Grid sx={{ py: 2 }} size={12}>
               <Alert severity="error">
                 {validationErrors[''] !== undefined
                   ? capitalizeFirstLetter(validationErrors['']?.message as string) // Uppercase first letter since our errors are lowercase by default for flexibility

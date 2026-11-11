@@ -1,6 +1,6 @@
 'use client';
 
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { PropsWithChildren, createContext, useContext } from 'react';

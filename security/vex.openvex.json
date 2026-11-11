@@ -1,0 +1,8 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/betagouv/etabli/security/vex.openvex.json",
+  "author": "Établi",
+  "timestamp": "2026-11-10T00:00:00Z",
+  "version": 1,
+  "statements": []
+}

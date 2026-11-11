@@ -1,10 +1,12 @@
-import Button from '@mui/lab/LoadingButton';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
-import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
+import type { JSX } from 'react';
 import React, { useRef, useState } from 'react';
 
 import { ErrorAlert } from '@etabli/src/components/ErrorAlert';
@@ -44,16 +46,12 @@ export const ConfirmationDialog = (props: ConfirmationDialogProps) => {
       <DialogTitle>{props.title || 'Confirmation'}</DialogTitle>
       <DialogContent ref={dialogContentRef}>
         <DialogContentText component="div">
-          <Grid container direction="column" spacing={2}>
-            {!!actionError && (
-              <Grid item xs={12}>
-                <ErrorAlert errors={[actionError]} />
-              </Grid>
-            )}
-            <Grid item component="p" xs={12}>
+          <Stack spacing={2}>
+            {!!actionError && <ErrorAlert errors={[actionError]} />}
+            <Box component="p" sx={{ m: 0 }}>
               {props.description || 'Êtes-vous sûr de vouloir continuer ?'}
-            </Grid>
-          </Grid>
+            </Box>
+          </Stack>
         </DialogContentText>
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>

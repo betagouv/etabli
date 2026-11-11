@@ -35,10 +35,22 @@ export function IntroductionContainer({
         }}
       >
         <Grid container alignItems="center" wrap="nowrap" sx={{ height: '100%', mx: 'auto' }}>
-          <Grid item md={7} lg={6} sx={{ m: 'auto' }}>
+          <Grid
+            sx={{ m: 'auto' }}
+            size={{
+              md: 7,
+              lg: 6,
+            }}
+          >
             {left}
           </Grid>
-          <Grid item md={5} lg={6} sx={{ maxHeight: '100%', display: { xs: 'none', md: 'initial' } }}>
+          <Grid
+            sx={{ maxHeight: '100%', display: { xs: 'none', md: 'initial' } }}
+            size={{
+              md: 5,
+              lg: 6,
+            }}
+          >
             <Box
               ref={rightRef}
               id="introduction-container-right-area"

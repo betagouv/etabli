@@ -1,7 +1,7 @@
 import Button from '@mui/material/Button';
-import { Meta, StoryFn } from '@storybook/react';
-import { screen, userEvent, within } from '@storybook/test';
+import { Meta, StoryFn } from '@storybook/nextjs';
 import { useState } from 'react';
+import { screen, userEvent, within } from 'storybook/test';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { InitiativeFiltersModal, InitiativeFiltersValue, emptyInitiativeFilters } from '@etabli/src/components/InitiativeFiltersModal';

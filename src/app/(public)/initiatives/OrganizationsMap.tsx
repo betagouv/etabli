@@ -6,6 +6,7 @@ import Grid from '@mui/material/Grid';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { keepPreviousData } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useIsomorphicLayoutEffect } from 'react-use';
 
@@ -116,7 +117,10 @@ function OrganizationsMapColorControl(props: { mode: MapColorMode; onChange: (mo
 export function OrganizationsMap(props: OrganizationsMapProps) {
   const [mapElement, setMapElement] = useState<HTMLElement | null>(null);
   const mapTop = usePageTop(mapElement);
-  const { data, error, isLoading, refetch, isFetching } = trpc.getOrganizationsMap.useQuery({ filterBy: props.filterBy }, { keepPreviousData: true });
+  const { data, error, isPending, refetch, isFetching } = trpc.getOrganizationsMap.useQuery(
+    { filterBy: props.filterBy },
+    { placeholderData: keepPreviousData }
+  );
 
   const root = useMemo(() => (data ? layoutOrganizationsMap(data) : null), [data]);
 
@@ -151,7 +155,7 @@ export function OrganizationsMap(props: OrganizationsMapProps) {
     [circles, focus, scale]
   );
 
-  if (isLoading) {
+  if (isPending) {
     return <LoadingArea ariaLabelTarget="carte des organisations" />;
   } else if (error || !root) {
     return (

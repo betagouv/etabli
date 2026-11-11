@@ -1,6 +1,6 @@
-import { Meta, StoryFn } from '@storybook/react';
-import { userEvent, within } from '@storybook/test';
+import { Meta, StoryFn } from '@storybook/nextjs';
 import { useState } from 'react';
+import { userEvent, within } from 'storybook/test';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { OrganizationPicker, OrganizationPickerValue } from '@etabli/src/components/OrganizationPicker';

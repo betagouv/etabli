@@ -118,7 +118,7 @@ export function UnclassifiedOrganizationChip(props: UnclassifiedOrganizationChip
           ? {
               component: NextLink,
               href: getUnclassifiedInitiativesLink(),
-              'aria-label': 'Voir les initiatives non classées (aucune organisation reconnue)',
+              'aria-label': 'Non classée : voir les initiatives sans organisation reconnue',
             }
           : {
               component: 'span',

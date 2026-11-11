@@ -1,4 +1,5 @@
 import { notFound as real_notFound } from 'next/navigation';
+import type { JSX } from 'react';
 
 import { ErrorPage, error404Props } from '@etabli/src/components/ErrorPage';
 import { areMocksGloballyEnabled } from '@etabli/src/utils/environment';

@@ -37,7 +37,7 @@ export function FrequentlyAskedQuestions() {
           Les questions-réponses pour en savoir plus
         </Typography>
         <Grid container spacing={2}>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Accordion sx={{ boxShadow: 'none' }}>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography sx={{ fontWeight: 600 }}>Qu&apos;est-ce qu&apos;une &quot;initiative&quot; ?</Typography>

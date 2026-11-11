@@ -1,5 +1,5 @@
-import { Meta, StoryFn } from '@storybook/react';
-import { rest } from 'msw';
+import { Meta, StoryFn } from '@storybook/nextjs';
+import { HttpResponse, http } from 'msw';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { RequestAssistantForm } from '@etabli/src/app/(public)/assistant/RequestAssistantForm';
@@ -21,11 +21,8 @@ export default {
 const defaultMswParameters = {
   msw: {
     handlers: [
-      rest.post<RequestAssistantSchemaType>(`${mockBaseUrl}/api/request-assistant`, (req, res, ctx) => {
-        return res(
-          ctx.status(200), // Set the response status
-          ctx.text(messages[1].content)
-        );
+      http.post<never, RequestAssistantSchemaType>(`${mockBaseUrl}/api/request-assistant`, () => {
+        return HttpResponse.text(messages[1].content, { status: 200 });
       }),
     ],
   },

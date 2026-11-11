@@ -75,10 +75,10 @@ export function InitiativeList(props: InitiativeListProps) {
       minWidth: 300,
       renderCell: (params) => {
         return params.row.businessUseCases.length > 0 ? (
-          <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, overflow: 'hidden' }}>
+          <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1, overflow: 'hidden' }}>
             {params.row.businessUseCases.map((businessUseCase) => {
               return (
-                <Grid key={businessUseCase} item component="li">
+                <Grid key={businessUseCase} component="li">
                   <BusinessUseCaseChip label={businessUseCase} />
                 </Grid>
               );
@@ -145,9 +145,16 @@ export function InitiativeList(props: InitiativeListProps) {
       ) : (
         <>
           {/* We use "grid+row" as of the DataGrid instead of "ul+li" for stories tests to pass (cannot perform a "or") */}
-          <Grid container component="ul" spacing={2} sx={ulComponentResetStyles} aria-label="liste des initiatives">
+          <Grid container component="ul" spacing={2} sx={{ ...ulComponentResetStyles, pt: 2 }} aria-label="liste des initiatives">
             {props.initiatives.map((initiative) => (
-              <Grid key={initiative.id} item component="li" xs={12} sm={6}>
+              <Grid
+                key={initiative.id}
+                component="li"
+                size={{
+                  xs: 12,
+                  sm: 6,
+                }}
+              >
                 <InitiativeCard
                   initiativeLink={withInitiativeSlug(
                     linkRegistry.get('initiative', {

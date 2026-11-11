@@ -1,11 +1,13 @@
-import Button from '@mui/lab/LoadingButton';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
-import Grid from '@mui/material/Grid';
+import Stack from '@mui/material/Stack';
 import { TRPCClientErrorLike } from '@trpc/client';
+import type { JSX } from 'react';
 import { useRef } from 'react';
 
 import { ErrorAlert } from '@etabli/src/components/ErrorAlert';
@@ -37,14 +39,12 @@ export const ErrorDialog = (props: ErrorDialogProps) => {
       <DialogTitle>{props.title || 'Erreur'}</DialogTitle>
       <DialogContent ref={dialogContentRef}>
         <DialogContentText component="div">
-          <Grid container direction="column" spacing={2}>
-            <Grid item component="p" xs={12}>
+          <Stack spacing={2}>
+            <Box component="p" sx={{ m: 0 }}>
               {props.description || 'Une erreur est survenue lors de votre précédente action.'}
-            </Grid>
-            <Grid item xs={12}>
-              <ErrorAlert errors={[props.error]} />
-            </Grid>
-          </Grid>
+            </Box>
+            <ErrorAlert errors={[props.error]} />
+          </Stack>
         </DialogContentText>
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>

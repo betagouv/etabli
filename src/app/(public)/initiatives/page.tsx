@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 export interface InitiativesRoutePageProps extends InitiativeListPageProps {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 // Rendered for each request: the data given to the browser must never come from a page cached for someone else
@@ -31,7 +31,7 @@ export default async function Page(props: InitiativesRoutePageProps) {
   // (search engines, no JavaScript) and the browser does not ask for them again. If anything fails here the browser fetches them as before
   let prefetchedState: ReturnType<typeof serializePrefetchedQueries> | null = null;
   try {
-    const params = loadDirectoryParams(props.searchParams);
+    const params = loadDirectoryParams(await props.searchParams);
 
     // The map is drawn by the browser only, and it is not meant for search engines
     if (params.view !== 'map') {
@@ -58,7 +58,7 @@ export default async function Page(props: InitiativesRoutePageProps) {
     console.error(error);
   }
 
-  const initialListDisplay = parseListDisplay(cookies().get(listDisplayCookieName)?.value);
+  const initialListDisplay = parseListDisplay((await cookies()).get(listDisplayCookieName)?.value);
 
   return prefetchedState ? (
     <HydrateClient state={prefetchedState as any}>

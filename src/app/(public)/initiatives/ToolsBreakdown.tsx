@@ -5,6 +5,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { keepPreviousData } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -50,9 +51,9 @@ export function ToolsBreakdown(props: ToolsBreakdownProps) {
   const { t } = useTranslation('common');
   const [category, setCategory] = useState<ToolCategorySchemaType>('LANGUAGES_AND_FRAMEWORKS');
 
-  const { data, isLoading } = trpc.getToolsBreakdown.useQuery(
+  const { data, isPending } = trpc.getToolsBreakdown.useQuery(
     { nodeId: props.nodeId, category: category, filterBy: props.filterBy },
-    { keepPreviousData: true }
+    { placeholderData: keepPreviousData }
   );
 
   const categories = useMemo(
@@ -82,7 +83,7 @@ export function ToolsBreakdown(props: ToolsBreakdownProps) {
           </MenuItem>
         ))}
       </TextField>
-      {isLoading || !data ? (
+      {isPending || !data ? (
         <Box sx={{ py: 2 }}>
           <CircularProgress size={16} aria-label="chargement" />
         </Box>

@@ -55,12 +55,13 @@ export function RelatedInitiatives(props: RelatedInitiativesProps) {
             return (
               <Grid
                 key={initiative.id}
-                item
                 component="li"
-                xs={12 / columnsByBreakpoint.xs}
-                sm={12 / columnsByBreakpoint.sm}
-                md={12 / columnsByBreakpoint.md}
-                lg={12 / columnsByBreakpoint.lg}
+                size={{
+                  xs: 12 / columnsByBreakpoint.xs,
+                  sm: 12 / columnsByBreakpoint.sm,
+                  md: 12 / columnsByBreakpoint.md,
+                  lg: 12 / columnsByBreakpoint.lg,
+                }}
               >
                 <Card
                   variant="outlined"

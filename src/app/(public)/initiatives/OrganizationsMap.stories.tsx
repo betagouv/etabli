@@ -1,5 +1,5 @@
-import { Meta, StoryFn } from '@storybook/react';
-import { within } from '@storybook/test';
+import { Meta, StoryFn } from '@storybook/nextjs';
+import { within } from 'storybook/test';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { OrganizationsMap } from '@etabli/src/app/(public)/initiatives/OrganizationsMap';

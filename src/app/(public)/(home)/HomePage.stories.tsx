@@ -1,4 +1,4 @@
-import { Meta, StoryFn } from '@storybook/react';
+import { Meta, StoryFn } from '@storybook/nextjs';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { HomePage } from '@etabli/src/app/(public)/(home)/HomePage';

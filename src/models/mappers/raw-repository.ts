@@ -3,10 +3,10 @@ import { RawRepositoryPlatformSchema, RawRepositoryPlatformSchemaType } from '@e
 
 export function rawRepositoryPlatformJsonToModel(csvType: JsonRepositoryPlatformSchemaType): RawRepositoryPlatformSchemaType | null {
   switch (csvType) {
-    case JsonRepositoryPlatformSchema.Values.GitHub:
-      return RawRepositoryPlatformSchema.Values.GITHUB;
-    case JsonRepositoryPlatformSchema.Values.GitLab:
-      return RawRepositoryPlatformSchema.Values.GITLAB;
+    case JsonRepositoryPlatformSchema.enum.GitHub:
+      return RawRepositoryPlatformSchema.enum.GITHUB;
+    case JsonRepositoryPlatformSchema.enum.GitLab:
+      return RawRepositoryPlatformSchema.enum.GITLAB;
     default:
       throw new Error('should be a defined platform');
   }

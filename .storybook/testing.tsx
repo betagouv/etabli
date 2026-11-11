@@ -1,10 +1,10 @@
-import { DecoratorFn } from '@storybook/react';
-import { within } from '@storybook/test';
+import { Decorator } from '@storybook/nextjs';
 import React from 'react';
+import { within } from 'storybook/test';
 
 export const userAgentNameToBeDetected = 'StorybookTestRunner';
 
-export const withDisablingTestRunner: DecoratorFn = (Story, { parameters }) => {
+export const withDisablingTestRunner: Decorator = (Story, { parameters }) => {
   if (parameters.testRunner?.disable === true && navigator.userAgent.includes(userAgentNameToBeDetected)) {
     return (
       <>

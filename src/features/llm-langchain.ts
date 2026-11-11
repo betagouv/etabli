@@ -1,7 +1,10 @@
+import { createRetrievalChain } from '@langchain/classic/chains/retrieval';
+import { BufferMemory } from '@langchain/classic/memory';
 import { PrismaVectorStore } from '@langchain/community/vectorstores/prisma';
 import { Document } from '@langchain/core/documents';
 import { TokenUsage } from '@langchain/core/language_models/base';
 import { JsonOutputParser } from '@langchain/core/output_parsers';
+import { LLMResult } from '@langchain/core/outputs';
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { RunnableLambda } from '@langchain/core/runnables';
 import { toJsonSchema } from '@langchain/core/utils/json_schema';
@@ -13,8 +16,6 @@ import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
 import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import { subHours } from 'date-fns/subHours';
 import fs from 'fs/promises';
-import { createRetrievalChain } from 'langchain/chains/retrieval';
-import { BufferMemory } from 'langchain/memory';
 import mistralTokenizer from 'mistral-tokenizer-js';
 import path from 'path';
 import { z } from 'zod';
@@ -965,7 +966,7 @@ CONTEXTE :
       const combineDocsChain = await createStuffDocumentsChain({
         llm: this.mistralaiClient
           // Those specific settings cannot be set into the global instance directly
-          .bind({
+          .withConfig({
             // [IMPORTANT] `timeout` is not passed to the underlying Mistral client, so we had to patch the module directly with `patch-package`
             timeout: secondsToMilliseconds(60), // It's unlikely the total call duration would take that much time, setting a limit to not block the process and warn the user soemtimes wrong is happening
             configurable: {
@@ -973,14 +974,14 @@ CONTEXTE :
             },
             callbacks: [
               {
-                handleLLMStart: async (llm, messages) => {
+                handleLLMStart: async (llm: unknown, messages: string[]) => {
                   assert(messages.length === 1);
 
                   const tokens = mistralTokenizer.encode(messages[0]);
 
                   totalTokensUsed += tokens.length;
                 },
-                handleLLMEnd: async (output) => {
+                handleLLMEnd: async (output: LLMResult) => {
                   if (!!output.generations[0]?.[0]) {
                     const tokens = mistralTokenizer.encode(output.generations[0][0].text);
 
@@ -1025,14 +1026,14 @@ CONTEXTE :
       const chain = await createRetrievalChain({
         // When the message has no topical intent, skip the vector search entirely: no embeddings call (which would
         // otherwise 400 on an empty input) and no arbitrary initiatives polluting the context — the assistant just
-        // answers conversationally. `createRetrievalChain` passes the whole input object to a non-retriever Runnable,
-        // so we read the query from `input.input` and only hit the real retriever when there is something to search.
-        retriever: RunnableLambda.from(async (chainInput: { input: string }): Promise<Document[]> => {
+        // answers conversationally. The chain gives the query string to a retriever (and the whole input object to other Runnables),
+        // both are accepted to not depend on this detail.
+        retriever: RunnableLambda.from(async (chainInput: string | { input: string }): Promise<Document[]> => {
           if (!hasSearchableIntent) {
             return [];
           }
 
-          return baseRetriever.invoke(chainInput.input);
+          return baseRetriever.invoke(typeof chainInput === 'string' ? chainInput : chainInput.input);
         }),
         combineDocsChain: combineDocsChain,
       });
@@ -1077,7 +1078,7 @@ CONTEXTE :
 
       // Update history in case of a next invocation
       await session.history.chatHistory.addUserMessage(input); // We add the original user message, not the `query` one that is rephrased to make the retriever better
-      await session.history.chatHistory.addAIChatMessage(fullAnswer);
+      await session.history.chatHistory.addAIMessage(fullAnswer);
 
       // Truncate history for oldest messages to keep next call possible (and not too costly)
       // [WORKAROUND] The chat history messages are in a private property so impossible to filter them directly, so rebuilding the history

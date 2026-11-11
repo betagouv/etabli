@@ -1,45 +1,43 @@
-const CopyWebpackPlugin = require('copy-webpack-plugin');
-const FileManagerPlugin = require('filemanager-webpack-plugin');
-const path = require('path');
-const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
+import type { StorybookConfig } from '@storybook/nextjs';
+import CopyWebpackPlugin from 'copy-webpack-plugin';
+import FileManagerPlugin from 'filemanager-webpack-plugin';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import path from 'path';
+import TsconfigPathsPlugin from 'tsconfig-paths-webpack-plugin';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
 const staticBuildFolderPath = path.resolve(__dirname, '../storybook-static/');
 
-module.exports = {
+const config: StorybookConfig = {
   stories: [path.resolve(__dirname, '../src/**/*.stories.@(js|ts|jsx|tsx|mdx)')],
   staticDirs: ['../public'],
   addons: [
     '@storybook/addon-a11y',
     '@storybook/addon-coverage',
     '@storybook/addon-designs',
-    '@storybook/addon-essentials',
-    '@storybook/addon-interactions',
+    '@storybook/addon-docs',
     '@storybook/addon-links',
-    '@storybook/addon-measure',
-    '@storybook/addon-viewport',
     'storybook-addon-pseudo-states',
-    'storybook-dark-mode',
+    '@vueless/storybook-dark-mode',
+    '@chromatic-com/storybook',
+    'msw-storybook-addon',
   ],
-  features: {
-    buildStoriesJson: true,
-  },
   framework: {
     name: '@storybook/nextjs',
     options: {
       // https://github.com/storybookjs/storybook/tree/next/code/frameworks/nextjs
       nextConfigPath: path.resolve(__dirname, '../next.config.js'),
+      builder: {
+        fsCache: true,
+      },
     },
   },
   core: {
     enableCrashReports: false,
     disableTelemetry: true,
-    builder: {
-      name: 'webpack5',
-      options: {
-        fsCache: true,
-        // lazyCompilation: true, // It's too slow for now
-      },
-    },
   },
   env: (config) => ({
     ...config,
@@ -47,7 +45,7 @@ module.exports = {
     STORYBOOK_ENVIRONMENT: 'true',
     TRPC_SERVER_MOCK: 'true',
   }),
-  async webpackFinal(config, { configType }) {
+  async webpackFinal(config) {
     // When building Storybook from scratch assets are copied into the `outputDir` before `CopyWebpackPlugin` builds the `/public/` folder
     // resulting in missing assets... so we have to make sure to copy a new time with all files
     // Ref: https://github.com/chromaui/chromatic-cli/issues/722
@@ -65,7 +63,7 @@ module.exports = {
     }
 
     if (buildMode) {
-      config.plugins.push(
+      config.plugins!.push(
         new FileManagerPlugin({
           events: {
             onEnd: {
@@ -83,7 +81,7 @@ module.exports = {
 
     // Expose all DSFR fonts as static at the root so emails and PDFs can download them when needed
     // And also static files embedded in the application
-    config.plugins.push(
+    config.plugins!.push(
       new CopyWebpackPlugin({
         patterns: [
           {
@@ -91,14 +89,14 @@ module.exports = {
             to: path.resolve(__dirname, '../public/assets/fonts/'),
           },
           {
-            from: require.resolve('@etabli/src/assets/fonts/index.css'),
+            from: path.resolve(__dirname, '../src/assets/fonts/index.css'),
             to: path.resolve(__dirname, '../public/assets/fonts/'),
           },
         ],
       })
     );
 
-    config.module.rules.push({
+    config.module!.rules!.push({
       test: /\.(txt|html)$/i,
       use: 'raw-loader',
     });
@@ -111,14 +109,6 @@ module.exports = {
       config.resolve.alias = {};
     }
 
-    // [IMPORTANT] We wanted to use the node version for `main` and the browser for `docs` but we had issues using just an alias with default name as origin
-    // so we changed to a `xxx-proxy` but then the `TypeScript is unable to find the module with right `paths` settings in `tsconfig.json`
-    // so definitely giving up the optimization and using the ESM browser also for the node version
-    // // Needed to make the CSV node library working in the browser
-    // // We tried to do `csv-parse --> csv-parse/browser/esm` but it does not work, maybe because it's the same prefix... so we use a suffix `-proxy`
-    // config.resolve.alias['csv-parse-proxy'] = 'csv-parse/browser/esm';
-    // config.resolve.alias['csv-stringify-proxy'] = 'csv-stringify/browser/esm';
-
     config.resolve.plugins = [
       new TsconfigPathsPlugin({
         configFile: path.resolve(__dirname, '../tsconfig.json'),
@@ -127,7 +117,7 @@ module.exports = {
 
     return config;
   },
-  docs: {
-    autodocs: false, // These pages bring nothing more than the stories
-  },
+  docs: {},
 };
+
+export default config;

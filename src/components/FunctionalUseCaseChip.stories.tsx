@@ -1,5 +1,5 @@
-import { Meta, StoryFn } from '@storybook/react';
-import { within } from '@storybook/test';
+import { Meta, StoryFn } from '@storybook/nextjs';
+import { within } from 'storybook/test';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { FunctionalUseCaseChip } from '@etabli/src/components/FunctionalUseCaseChip';
@@ -26,7 +26,7 @@ const Template: StoryFn<ComponentType> = (args) => {
 
 const NormalStory = Template.bind({});
 NormalStory.args = {
-  useCase: FunctionalUseCaseSchema.Values.SENDS_EMAILS,
+  useCase: FunctionalUseCaseSchema.enum.SENDS_EMAILS,
 };
 NormalStory.play = async ({ canvasElement }) => {
   await within(canvasElement).findByText(/emails/i);

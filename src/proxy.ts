@@ -91,7 +91,7 @@ export function mergeHeadersForNextjs(headersToAdjust: Headers, headersToAdd: { 
   });
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
   const requestHeaders = new Headers(request.headers);

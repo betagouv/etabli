@@ -1,14 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import getConfig from 'next/config';
 
 import { apiHandlerWrapper } from '@etabli/src/utils/api';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 
-const { publicRuntimeConfig } = getConfig();
-
 export function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only allow indexing in production
-  if (publicRuntimeConfig.appMode === 'prod') {
+  if (process.env.APP_MODE === 'prod') {
     // Note: sitemap URLs need to be absolute (ref: https://stackoverflow.com/a/14218476/3608410)
     res.send(
       `

@@ -17,6 +17,5 @@ export async function register() {
     await import('./instrumentation-edge');
   }
 
-  // Note: the browser SDK is initialized from `sentry.client.config.ts` (we are on Next 14, which does not support
-  // the `instrumentation-client.ts` file — that one requires Next 15.3+).
+  // Note: the browser SDK is initialized from `instrumentation-client.ts`
 }

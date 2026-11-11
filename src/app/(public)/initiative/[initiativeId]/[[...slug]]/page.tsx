@@ -8,7 +8,7 @@ import { InitiativePage, InitiativePageProps } from '@etabli/src/app/(public)/in
 import { HydrateClient } from '@etabli/src/client/HydrateClient';
 import { getInitiativeRedirection } from '@etabli/src/features/initiative-redirection';
 import { retrieveInitiativesOrganizations } from '@etabli/src/features/organization-read';
-import { useServerTranslation } from '@etabli/src/i18n';
+import { getServerTranslation } from '@etabli/src/i18n';
 import { GetInitiativeSchema } from '@etabli/src/models/actions/initiative';
 import { prisma } from '@etabli/src/prisma';
 import { appRouter } from '@etabli/src/server/app-router';
@@ -27,9 +27,11 @@ import { maximumRelatedInitiatives } from '@etabli/src/utils/related-initiatives
 import { getBaseUrl } from '@etabli/src/utils/url';
 
 export interface InitiativeRoutePageProps {
-  params: InitiativePageProps['params'] & {
-    slug?: string[]; // Only the name of the sheet for readers and search engines, it is ignored to find it
-  };
+  params: Promise<
+    InitiativePageProps['params'] & {
+      slug?: string[]; // Only the name of the sheet for readers and search engines, it is ignored to find it
+    }
+  >;
 }
 
 // `generateMetadata` and the page are rendered for the same request, React deduplicates these calls between both
@@ -66,7 +68,8 @@ const getPageInitiativeOrganizations = cache(async (initiativeId: string) => {
 });
 
 export async function generateMetadata(props: InitiativeRoutePageProps): Promise<Metadata> {
-  const idResult = GetInitiativeSchema.shape.id.safeParse(props.params.initiativeId);
+  const params = await props.params;
+  const idResult = GetInitiativeSchema.shape.id.safeParse(params.initiativeId);
   const initiative = idResult.success ? await getPageInitiative(idResult.data) : null;
 
   // The page itself redirects or tells it does not exist
@@ -105,9 +108,10 @@ export async function generateMetadata(props: InitiativeRoutePageProps): Promise
 export const dynamic = 'force-dynamic';
 
 export default async function Page(props: InitiativeRoutePageProps) {
-  const { t } = useServerTranslation('common');
+  const { t } = getServerTranslation('common');
+  const params = await props.params;
 
-  const idResult = GetInitiativeSchema.shape.id.safeParse(props.params.initiativeId);
+  const idResult = GetInitiativeSchema.shape.id.safeParse(params.initiativeId);
   if (!idResult.success) {
     return notFound();
   }
@@ -123,7 +127,7 @@ export default async function Page(props: InitiativeRoutePageProps) {
     }
 
     return notFound();
-  } else if ((props.params.slug ?? []).join('/') !== slugifyInitiativeName(dbInitiative.name)) {
+  } else if ((params.slug ?? []).join('/') !== slugifyInitiativeName(dbInitiative.name)) {
     // A missing, outdated or wrong name in the address leads to the right one so the sheet has a single address
     permanentRedirect(getInitiativePathname(dbInitiative.id, dbInitiative.name));
   }

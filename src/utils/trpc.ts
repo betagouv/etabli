@@ -1,5 +1,5 @@
 import { TRPCClientErrorLike } from '@trpc/client';
-import { UseTRPCQueryResult } from '@trpc/react-query/dist/shared';
+import { UseTRPCQueryResult } from '@trpc/react-query/shared';
 import { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 
 import type { AppRouter } from '@etabli/src/server/app-router';
@@ -26,11 +26,13 @@ export class AggregatedQueries {
     return this.queries.map((query) => query.refetch);
   }
 
+  // No data yet (enabled or not)
   public get isLoading(): boolean {
-    return this.queries.filter((query) => query.isLoading).length > 0;
+    return this.queries.filter((query) => query.isPending).length > 0;
   }
 
+  // Fetching for the first time
   public get isInitialLoading(): boolean {
-    return this.queries.filter((query) => query.isInitialLoading).length > 0;
+    return this.queries.filter((query) => query.isLoading).length > 0;
   }
 }

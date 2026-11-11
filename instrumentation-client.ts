@@ -3,8 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 
 import { beforeSend, dsn, environment, release } from '@etabli/src/utils/sentry';
 
-// [NOTE] On Next 14 we keep this `sentry.client.config.ts` file (the `instrumentation-client.ts` convention requires
-// Next 15.3+). The Sentry v9 webpack plugin still picks it up; the only caveat is Turbopack, which we do not use.
+// Loaded by Next.js in the browser before the application (it replaces the former `sentry.client.config.ts`)
 
 const hasReplays = true;
 const integrations: Integration[] = [];
@@ -34,3 +33,6 @@ Sentry.init({
   transportOptions: {},
   beforeSend: beforeSend,
 });
+
+// Required to follow navigations of the App Router
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

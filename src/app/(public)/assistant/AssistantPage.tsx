@@ -47,7 +47,7 @@ export function AssistantPage(props: AssistantPageProps) {
     if (!message) {
       message = {
         id: data.messageId,
-        author: MessageAuthorSchema.Values.ASSISTANT,
+        author: MessageAuthorSchema.enum.ASSISTANT,
         content: '',
         complete: false,
       };
@@ -93,7 +93,7 @@ export function AssistantPage(props: AssistantPageProps) {
           </Box>
         ) : (
           <Grid container spacing={2} justifyContent="center" sx={{ height: '100%' }}>
-            <Grid item xs={12} sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+            <Grid sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', pb: 2 }} size={12}>
               <Box sx={{ flex: 1 }} />
               <Box sx={{ textAlign: 'center', mt: 1, mb: { xs: 2, sm: 4 } }}>
                 <Avatar fullName="Assistant" src={assistantAvatar.src} size={48} sx={{ margin: 'auto' }} />
@@ -120,11 +120,10 @@ export function AssistantPage(props: AssistantPageProps) {
           spacing={2}
           sx={{
             bgcolor: 'var(--background-default-grey)',
-            p: '1rem',
-            pr: 0, // This padding is added by another block
+            pb: '1rem', // The other sides are given by the surrounding blocks
           }}
         >
-          <Grid item xs={12}>
+          <Grid size={12}>
             <ContextualRequestAssistantForm
               prefill={{ sessionId: sessionId }}
               onNewMessageChunk={handleNewMessageChunk}

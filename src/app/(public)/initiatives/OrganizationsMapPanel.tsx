@@ -11,6 +11,7 @@ import IconButton from '@mui/material/IconButton';
 import Link from '@mui/material/Link';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { keepPreviousData } from '@tanstack/react-query';
 import NextLink from 'next/link';
 import { MouseEvent, useEffect, useRef } from 'react';
 
@@ -52,7 +53,7 @@ function BestResults(props: { filterBy: ListInitiativesSchemaType['filterBy'] })
   const maximumResults = 5;
   const { data } = trpc.listInitiatives.useQuery(
     { page: 1, pageSize: PaginationSize.size10, orderBy: {}, filterBy: props.filterBy },
-    { keepPreviousData: true }
+    { placeholderData: keepPreviousData }
   );
 
   if (!data || data.initiatives.length === 0) {

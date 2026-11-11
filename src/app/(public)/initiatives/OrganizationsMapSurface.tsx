@@ -37,6 +37,7 @@ const OrganizationsMapAnnotations = memo(function OrganizationsMapAnnotations(pr
             stroke="var(--background-default-grey)"
             strokeWidth={3}
             paintOrder="stroke"
+            strokeLinejoin="round" // The default sharp joins made spikes on letters like "M"
             style={{ pointerEvents: 'none' }}
           >
             {node.data.initiativesCount.toLocaleString('fr-FR')}
@@ -63,6 +64,7 @@ const OrganizationsMapAnnotations = memo(function OrganizationsMapAnnotations(pr
             stroke="var(--background-default-grey)"
             strokeWidth={4}
             paintOrder="stroke"
+            strokeLinejoin="round" // The default sharp joins made spikes on letters like "M"
             style={{ pointerEvents: 'none' }}
           >
             {label}
@@ -190,6 +192,7 @@ export function OrganizationsMapSurface(props: OrganizationsMapSurfaceProps) {
                   stroke="var(--background-default-grey)"
                   strokeWidth={5}
                   paintOrder="stroke"
+                  strokeLinejoin="round" // The default sharp joins made spikes on letters like "M"
                 >
                   {label}
                 </text>

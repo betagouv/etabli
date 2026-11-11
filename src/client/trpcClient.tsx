@@ -11,7 +11,7 @@ import { mockBaseUrl, shouldTargetMock } from '@etabli/src/server/mock/environme
 import { getBaseUrl } from '@etabli/src/utils/url';
 
 export const trpc = createTRPCReact<AppRouter>({
-  unstable_overrides: {
+  overrides: {
     useMutation: {
       async onSuccess(opts) {
         await opts.originalFn();
@@ -40,14 +40,15 @@ export function ClientProvider(props: { children: React.ReactNode }) {
   const appropriateHttpLink = shouldTargetMock
     ? httpLink({
         url: `${baseUrl}/api/trpc`,
+        transformer: superjson,
       })
     : httpBatchLink({
         url: `${baseUrl}/api/trpc`,
+        transformer: superjson,
       });
 
   const [trpcClient] = useState(() =>
     trpc.createClient({
-      transformer: superjson,
       links: [
         loggerLink({
           enabled: (opts) => process.env.NODE_ENV === 'development' || (opts.direction === 'down' && opts.result instanceof Error),

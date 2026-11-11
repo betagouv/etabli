@@ -12,6 +12,7 @@ export function HomePage() {
       container
       sx={{
         display: 'block',
+        width: '100%', // A grid container no longer stretches by itself
         mx: 'auto',
       }}
     >

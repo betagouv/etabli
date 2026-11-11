@@ -1,5 +1,5 @@
 import { CustomErrorInterface, CustomErrorProperties } from 'ts-custom-error';
-import z, { IssueData } from 'zod';
+import z from 'zod';
 
 import { i18n } from '@etabli/src/i18n';
 import { CustomError } from '@etabli/src/models/entities/errors';
@@ -8,10 +8,10 @@ export interface ZodIssueOptions {
   overridePath?: string[];
 }
 
-export function customErrorToZodIssue(customError: CustomErrorInterface & CustomErrorProperties, options?: ZodIssueOptions): IssueData {
+export function customErrorToZodIssue(customError: CustomErrorInterface & CustomErrorProperties, options?: ZodIssueOptions): z.core.$ZodIssueCustom {
   return {
-    path: options?.overridePath || undefined,
-    code: z.ZodIssueCode.custom,
+    path: options?.overridePath ?? [],
+    code: 'custom',
     params: {
       type: customError.code,
     },

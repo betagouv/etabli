@@ -1,4 +1,4 @@
-import { Meta, StoryFn } from '@storybook/react';
+import { Meta, StoryFn } from '@storybook/nextjs';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { LiveChatProvider } from '@etabli/src/components/live-chat/LiveChatProvider';
@@ -39,7 +39,7 @@ const NormalStory = Template.bind({});
 NormalStory.args = {};
 NormalStory.parameters = {};
 NormalStory.decorators = [
-  (Story: StoryFn) => {
+  (Story) => {
     return (
       <LiveChatProvider>
         <Story />

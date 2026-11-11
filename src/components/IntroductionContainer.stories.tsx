@@ -1,7 +1,7 @@
-import Button from '@mui/lab/LoadingButton';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import { Meta, StoryFn } from '@storybook/react';
+import { Meta, StoryFn } from '@storybook/nextjs';
 import Image from 'next/image';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';

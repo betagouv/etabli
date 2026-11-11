@@ -200,15 +200,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push the application Docker image
+      - name: Build the application Docker image
         if: ${{ !github.event.act && (github.ref_name == 'dev' || github.ref_name == 'main') }}
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
+          load: true
+          push: false
           tags: ${{ env.CONTAINER_IMAGE_FOLDER }}/${{ env.APP_NAME }}-${{ github.ref_name }}:${{ github.sha }},${{ env.CONTAINER_IMAGE_FOLDER }}/${{ env.APP_NAME }}-${{ github.ref_name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Scan the application Docker image
+        if: ${{ !github.event.act && (github.ref_name == 'dev' || github.ref_name == 'main') }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_VEX: security/vex.openvex.json
+        with:
+          image-ref: ${{ env.CONTAINER_IMAGE_FOLDER }}/${{ env.APP_NAME }}-${{ github.ref_name }}:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1' # A vulnerable image is never pushed (and so never deployed)
+          format: table
+
+      - name: Push the application Docker image
+        if: ${{ !github.event.act && (github.ref_name == 'dev' || github.ref_name == 'main') }}
+        env:
+          IMAGE: ${{ env.CONTAINER_IMAGE_FOLDER }}/${{ env.APP_NAME }}-${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          docker push "${IMAGE}:${SHA}"
+          docker push "${IMAGE}:latest"
 
       - name: Deploy to Clever Cloud
         if: ${{ !github.event.act && (github.ref_name == 'dev' || github.ref_name == 'main') }}

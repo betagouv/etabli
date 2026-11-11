@@ -1,5 +1,5 @@
-import { Meta, StoryFn } from '@storybook/react';
-import { screen, userEvent, within } from '@storybook/test';
+import { Meta, StoryFn } from '@storybook/nextjs';
+import { screen, userEvent, within } from 'storybook/test';
 
 import { StoryHelperFactory } from '@etabli/.storybook/helpers';
 import { InitiativeReputationDashboard } from '@etabli/src/components/InitiativeReputationDashboard';

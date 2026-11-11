@@ -15,7 +15,13 @@ export function KeyReasons() {
         Quelques bonnes raisons d&apos;explorer avec Établi
       </Typography>
       <Grid container spacing={2}>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6,
+            md: 4,
+          }}
+        >
           <Widget icon={<HubIcon fontSize="small" />} title="Mutualiser l'effort de réalisation">
             <Typography variant="body2" color="text.secondary">
               Établi référence chaque initiative avec ses cas d&apos;utilisation métiers, ses cas d&apos;utilisation fonctionnels, et ses principaux
@@ -27,7 +33,13 @@ export function KeyReasons() {
             </Typography>
           </Widget>
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6,
+            md: 4,
+          }}
+        >
           <Widget icon={<GroupsIcon fontSize="small" />} title="Échanger et apprendre de ses pairs">
             <Typography variant="body2" color="text.secondary">
               Au-delà de la réutilisation, si vous trouvez des initiatives très similaires aux vôtres nous vous conseillons de rentrer en contact avec
@@ -38,7 +50,13 @@ export function KeyReasons() {
             </Typography>
           </Widget>
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid
+          size={{
+            xs: 12,
+            sm: 6,
+            md: 4,
+          }}
+        >
           <Widget icon={<EmojiPeopleIcon fontSize="small" />} title="Être guidé en tant qu'utilisateur final">
             <Typography variant="body2" color="text.secondary">
               Il est parfois difficile de savoir si le service public propose ou non tel projet ou tel service.

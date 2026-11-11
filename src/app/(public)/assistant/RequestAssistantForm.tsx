@@ -92,7 +92,7 @@ export function RequestAssistantForm(props: RequestAssistantFormProps) {
         props.onNewMessage(
           MessageSchema.parse({
             id: uuidv4(),
-            author: MessageAuthorSchema.Values.USER,
+            author: MessageAuthorSchema.enum.USER,
             content: input.message,
             complete: true,
           })

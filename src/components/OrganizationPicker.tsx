@@ -13,6 +13,7 @@ import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { keepPreviousData } from '@tanstack/react-query';
 import { useId, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 
@@ -187,9 +188,9 @@ function OrganizationChildrenPage(
     onLoadMore: () => void;
   }
 ) {
-  const { data, isLoading } = trpc.listOrganizationChildren.useQuery({ parentId: props.parentId, offset: props.offset });
+  const { data, isPending } = trpc.listOrganizationChildren.useQuery({ parentId: props.parentId, offset: props.offset });
 
-  if (isLoading || !data) {
+  if (isPending || !data) {
     return (
       <Box component="li" sx={{ pl: `${44 + props.depth * indentationStep}px`, py: 1.5 }}>
         <CircularProgress size={16} aria-label="chargement des organisations" />
@@ -285,7 +286,7 @@ export function OrganizationPicker(props: OrganizationPickerProps) {
 
   const searchOrganizations = trpc.searchOrganizations.useQuery(
     { query: debouncedQuery },
-    { enabled: enabled && debouncedQuery !== '', keepPreviousData: true }
+    { enabled: enabled && debouncedQuery !== '', placeholderData: keepPreviousData }
   );
 
   const rootChildren = trpc.listOrganizationChildren.useQuery({ parentId: null, offset: 0 }, { enabled: enabled });
@@ -293,7 +294,7 @@ export function OrganizationPicker(props: OrganizationPickerProps) {
   // Selected organizations may not be visible in the tree or the search results (e.g. coming from the URL)
   const getOrganizations = trpc.getOrganizations.useQuery(
     { ids: props.value.organizationIds },
-    { enabled: enabled && props.value.organizationIds.length > 0, keepPreviousData: true }
+    { enabled: enabled && props.value.organizationIds.length > 0, placeholderData: keepPreviousData }
   );
 
   // Remember organizations seen anywhere so the selection can always be displayed and compared

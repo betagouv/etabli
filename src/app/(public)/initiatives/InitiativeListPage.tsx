@@ -27,6 +27,7 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { push } from '@socialgouv/matomo-next';
+import { keepPreviousData } from '@tanstack/react-query';
 import debounce from 'lodash.debounce';
 import NextLink from 'next/link';
 import { createSerializer, useQueryStates } from 'nuqs';
@@ -163,9 +164,9 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
     staleTime: serverPrefetchedQueryStaleTime,
     // While typing or changing a criterion the previous results stay displayed, otherwise the page collapsed to a loader (footer
     // jumping up, scrollbar disappearing) before growing again
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
-  const isRefreshingResults = listInitiatives.isFetching && listInitiatives.isPreviousData;
+  const isRefreshingResults = listInitiatives.isFetching && listInitiatives.isPlaceholderData;
 
   // Only signaled when the wait is noticeable, otherwise the progress bar flashed for fast answers and not for others
   const [showRefreshIndicator, setShowRefreshIndicator] = useState(false);
@@ -184,12 +185,12 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
   // To display active organization filters with a readable name
   const selectedOrganizations = trpc.getOrganizations.useQuery(
     { ids: organizationIds },
-    { enabled: organizationIds.length > 0, keepPreviousData: true, staleTime: serverPrefetchedQueryStaleTime }
+    { enabled: organizationIds.length > 0, placeholderData: keepPreviousData, staleTime: serverPrefetchedQueryStaleTime }
   );
 
   const selectedTools = trpc.listTools.useQuery(undefined, {
     enabled: params.tools.length > 0,
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
     staleTime: serverPrefetchedQueryStaleTime,
   });
 
@@ -344,10 +345,10 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
   return (
     <>
       <Grid container sx={{ ...wideContainerGridProps.sx, px: 0, pt: 3, pb: isMapView ? 2 : 6 }} direction="column" alignContent="flex-start">
-        <Grid item sx={{ width: '100%' }}>
+        <Grid sx={{ width: '100%' }}>
           {/* Controls stay at the same place between views, and are kept compact so the map fits in the screen below them */}
           <Grid container sx={{ ...reusableCentering, pb: 2 }}>
-            <Grid item xs={12} sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
+            <Grid sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }} size={12}>
               <Typography component="h1" variant="h5" sx={{ mb: 0 }}>
                 Annuaire des initiatives
               </Typography>
@@ -372,7 +373,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                 </ToggleButton>
               </ToggleButtonGroup>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center">
                 <TextField
                   type="text"
@@ -462,7 +463,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
               )}
             </Grid>
             {activeFiltersCount > 0 && (
-              <Grid item xs={12} sx={{ mt: 1 }}>
+              <Grid sx={{ mt: 1 }} size={12}>
                 <Stack
                   direction="row"
                   spacing={1}
@@ -610,10 +611,10 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
             )}
           </Grid>
         </Grid>
-        {isMapView || !listInitiatives.isLoading ? (
+        {isMapView || !listInitiatives.isPending ? (
           <>
             {isMapView ? (
-              <Grid item sx={{ width: '100%' }}>
+              <Grid sx={{ width: '100%' }}>
                 <OrganizationsMap
                   filterBy={filterBy}
                   focusedNodeId={params.zoom}
@@ -625,7 +626,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                 />
               </Grid>
             ) : hasResults ? (
-              <Grid item sx={{ width: '100%' }}>
+              <Grid sx={{ width: '100%' }}>
                 <Grid container direction="column">
                   <Grid
                     container
@@ -646,15 +647,15 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                   </Grid>
                   {params.page >= 2 && (
                     <Grid container sx={reusableCentering}>
-                      <Grid item xs={12} sx={{ mt: 3 }}>
+                      <Grid sx={{ mt: 3 }} size={12}>
                         <Alert severity="info">
                           Vous n&apos;avez pas trouvé&nbsp;? Préciser votre recherche, ajouter des filtres ou {assistantLink} peut aider.
                         </Alert>
                       </Grid>
                     </Grid>
                   )}
-                  <Grid container justifyContent="space-between" alignItems="center" rowSpacing={2} sx={{ ...reusableCentering, mt: 3 }}>
-                    <Grid item>
+                  <Grid container justifyContent="space-between" alignItems="center" rowSpacing={2} sx={{ ...reusableCentering, mt: 5 }}>
+                    <Grid>
                       <Stack direction="row" spacing={2} alignItems="center">
                         {totalCount >= 0 && (
                           <Typography variant="body2" color="text.secondary">
@@ -680,7 +681,7 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                         </TextField>
                       </Stack>
                     </Grid>
-                    <Grid item>
+                    <Grid>
                       <Pagination
                         count={pagesCount ?? 1}
                         page={params.page}
@@ -712,9 +713,9 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                 </Grid>
               </Grid>
             ) : (
-              <Grid item sx={{ width: '100%' }}>
+              <Grid sx={{ width: '100%' }}>
                 <Grid container sx={reusableCentering}>
-                  <Grid item xs={12} sx={{ py: 2 }}>
+                  <Grid sx={{ py: 2 }} size={12}>
                     {!noResultsWithCriteria ? (
                       <Typography variant="body2">Aucune initiative n&apos;a été indexée pour le moment</Typography>
                     ) : (

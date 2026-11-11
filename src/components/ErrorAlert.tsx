@@ -37,7 +37,7 @@ export function ErrorAlert(props: ErrorAlertProps) {
 
           for (const issue of zodError.issues) {
             // As fallback display the error message from the server, should be good enough but can be in another language
-            errs.push(formatMessageFromIssue(issue) || issue.message);
+            errs.push(formatMessageFromIssue(issue as z.core.$ZodRawIssue) || issue.message);
           }
         } else if (trpcError.data?.customError) {
           const customErrorPayload = trpcError.data.customError as CustomError;

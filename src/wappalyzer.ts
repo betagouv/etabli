@@ -23,6 +23,7 @@ export type TechnologySchemaType = z.infer<typeof TechnologySchema>;
 
 export const WappalyzerResultSchema = z.object({
   urls: z.record(
+    z.string(),
     z.object({
       status: z.number(),
       error: z.string().nullish(),

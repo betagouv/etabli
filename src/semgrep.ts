@@ -54,8 +54,9 @@ export const ResultItemSchema = z.object({
     is_ignored: z.boolean(),
     lines: z.string(),
     message: z.string(),
-    metadata: z.record(z.unknown()),
+    metadata: z.record(z.string(), z.unknown()),
     metavars: z.record(
+      z.string(),
       z.object({
         abstract_content: z.string(),
         end: PositionSchema,

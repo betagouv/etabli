@@ -1,55 +1,49 @@
+import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite-pgvector';
+import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
+import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
+import { unaccent } from '@electric-sql/pglite/contrib/unaccent';
+import { uuid_ossp } from '@electric-sql/pglite/contrib/uuid_ossp';
+import fs from 'fs/promises';
 import path from 'path';
-import { DockerComposeEnvironment, Wait } from 'testcontainers';
-import type { StartedGenericContainer } from 'testcontainers/dist/src/generic-container/started-generic-container';
+import { PrismaPGlite } from 'pglite-prisma-adapter';
 
-import { bindContainerLogs, defaultEnvironment, formatContainerNameWithSuffix } from '@etabli/src/utils/testcontainers';
+import { PrismaClient } from '@etabli/src/generated/prisma/client';
 
-const __root_dirname = process.cwd();
+const migrationsDirectory = path.resolve(process.cwd(), './src/prisma/migrations');
 
-export interface PostgresContainer {
-  container: StartedGenericContainer;
-  url: string;
+export interface TestDatabase {
+  db: PGlite;
+  prisma: PrismaClient;
 }
 
-export async function setupPostgres(): Promise<PostgresContainer> {
-  const dummyUser = 'postgres';
-  const dummyPassword = 'postgres';
-  const dummyDatabase = 'postgres';
-
-  const isPipelineWorker = process.env.CI === 'true';
-  if (isPipelineWorker) {
-    process.env.TESTCONTAINERS_RYUK_DISABLED = 'true';
-  }
-
-  const composeFilePath = path.resolve(__root_dirname, './');
-  const composeFile = 'docker-compose.yaml';
-  const serviceName = 'postgres';
-  const containerName = formatContainerNameWithSuffix('etabli_postgres_container');
-
-  const environment = await new DockerComposeEnvironment(composeFilePath, composeFile)
-    .withEnvironment({
-      ...defaultEnvironment,
-      DOCKER_COMPOSE_POSTGRES_PORT_BINDING: '5432', // To use a random port from the host
-      POSTGRES_USER: dummyUser,
-      POSTGRES_PASSWORD: dummyPassword,
-      POSTGRES_DB: dummyDatabase,
-    })
-    .withWaitStrategy(serviceName, Wait.forHealthCheck())
-    .up([serviceName]);
-
-  const container = environment.getContainer(containerName);
-
-  bindContainerLogs(container, {
-    enabled: false,
+// A real Postgres compiled to WebAssembly and run in memory: no Docker is needed and each suite gets its own database.
+// The migrations themselves are applied (not a schema push) so they are tested too, with the extensions they rely on.
+// Note: there is a single session, so concurrent transactions are queued instead of competing
+export async function setupTestDatabase(): Promise<TestDatabase> {
+  const db = await PGlite.create({
+    extensions: { vector, uuid_ossp, pgcrypto, unaccent, pg_trgm },
   });
 
-  const ip = container.getHost();
-  const mappedPort = container.getMappedPort(5432);
+  const migrations = (await fs.readdir(migrationsDirectory, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
 
-  const url = `postgresql://${dummyUser}:${dummyPassword}@${ip}:${mappedPort}/${dummyDatabase}`;
+  for (const migration of migrations) {
+    try {
+      await db.exec(await fs.readFile(path.resolve(migrationsDirectory, migration, 'migration.sql'), 'utf-8'));
+    } catch (error) {
+      throw new Error(`the migration "${migration}" cannot be applied: ${(error as Error).message}`);
+    }
+  }
 
-  return {
-    container,
-    url,
-  };
+  const prisma = new PrismaClient({ adapter: new PrismaPGlite(db) });
+
+  return { db, prisma };
+}
+
+export async function teardownTestDatabase(database: TestDatabase | null): Promise<void> {
+  await database?.prisma.$disconnect();
+  await database?.db.close();
 }

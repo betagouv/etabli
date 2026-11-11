@@ -1,14 +1,14 @@
 /**
  * @jest-environment node
  */
-import concurrently from 'concurrently';
+import { jest } from '@jest/globals';
 import { randomUUID } from 'crypto';
 
 import type { LiteOrganizationSchemaType } from '@etabli/src/models/entities/organization';
-import { PostgresContainer, setupPostgres } from '@etabli/src/utils/database';
+import { TestDatabase, setupTestDatabase, teardownTestDatabase } from '@etabli/src/utils/database';
 
-// [IMPORTANT] Modules using the database must only be imported dynamically from `beforeAll`: the connection pool reads `DATABASE_URL`
-// when imported, so a static import would make these tests run on the database of the developer instead of the container
+// [IMPORTANT] Modules using the database must only be imported dynamically from `beforeAll`, once the client of the application
+// is replaced by the one of the in-memory database (a static import would make these tests run on the database of the developer)
 type OrganizationModule = typeof import('@etabli/src/features/organization');
 type FiltersModule = typeof import('@etabli/src/server/routers/common/initiative-filters');
 type RouterModule = typeof import('@etabli/src/server/routers/organization');
@@ -34,40 +34,27 @@ function toMap(organizations: LiteOrganizationSchemaType[]): Map<string, LiteOrg
 }
 
 describe('organizations', () => {
-  let postgres: PostgresContainer;
+  let database: TestDatabase | null = null;
   let organizationModule: OrganizationModule;
   let filtersModule: FiltersModule;
   let routerModule: RouterModule;
   let prisma: PrismaModule['prisma'];
 
   beforeAll(async () => {
-    postgres = await setupPostgres();
-    process.env.DATABASE_URL = postgres.url;
+    database = await setupTestDatabase();
+
+    const testDatabase = database;
+    jest.unstable_mockModule('@etabli/src/prisma', () => ({ prisma: testDatabase.prisma }));
+    jest.unstable_mockModule('@etabli/src/prisma/client', () => ({ prisma: testDatabase.prisma }));
 
     prisma = (await import('@etabli/src/prisma')).prisma;
     organizationModule = await import('@etabli/src/features/organization');
     filtersModule = await import('@etabli/src/server/routers/common/initiative-filters');
     routerModule = await import('@etabli/src/server/routers/organization');
-
-    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS "vector";`;
-    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`;
-    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`;
-    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS "unaccent";`;
-
-    await concurrently(['npm:db:push:unsecure']).result;
   }, 60 * 1000);
 
   afterAll(async () => {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
-
-    // The client does not own the pool, it must be closed before the database stops or its connections would throw
-    await (await import('@etabli/src/prisma/pool')).dbPool.end();
-
-    if (postgres) {
-      await postgres.container.stop();
-    }
+    await teardownTestDatabase(database);
   }, 30 * 1000);
 
   beforeEach(async () => {

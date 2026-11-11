@@ -1,5 +1,7 @@
-import { ArgsTable, Description, PRIMARY_STORY, Primary, Stories, Subtitle, Title } from '@storybook/addon-docs';
-import { Meta, StoryFn } from '@storybook/react';
+import { ArgTypes, Controls, Description, PRIMARY_STORY, Primary, Stories, Subtitle, Title } from '@storybook/addon-docs/blocks';
+import { Meta, StoryFn } from '@storybook/nextjs';
+import type { JSX } from 'react';
+import { PartialStoryFn } from 'storybook/internal/types';
 
 // Helper to get props type of a component
 export type ComponentProps<F extends (props: any) => JSX.Element> = F extends (...args: infer A) => any ? Partial<A[0]> : never;
@@ -70,7 +72,8 @@ export function generateMetaDefault<ComponentType>(initialMeta: Meta<ComponentTy
               <Subtitle />
               <Description />
               <Primary />
-              <ArgsTable story={PRIMARY_STORY} />
+              <ArgTypes of={PRIMARY_STORY} />
+              <Controls of={PRIMARY_STORY} />
               <Stories />
             </>
           );
@@ -145,25 +148,26 @@ export function prepareStory<ComponentType, ContextValueType extends MatchingCon
       story.parameters.nextAuthMock = { ...options.layoutStory.parameters.nextAuthMock, ...story.parameters.nextAuthMock };
     }
 
-    const LayoutStory = options.layoutStory;
+    const layoutStory = options.layoutStory;
+    const LayoutStory = layoutStory as PartialStoryFn; // `StoryFn` is no longer usable as a component
 
     story.decorators.push((Story, context) => {
       return (
-        <LayoutStory {...LayoutStory.args}>
+        <LayoutStory {...layoutStory.args}>
           <Story />
         </LayoutStory>
       );
     });
 
     // It we detect some network mocking from the layout story, make sure to reuse it
-    if (LayoutStory.parameters?.msw) {
+    if (layoutStory.parameters?.msw) {
       if (!story.parameters.msw) {
         story.parameters.msw = {
           handlers: [],
         };
       }
 
-      story.parameters.msw.handlers = [...LayoutStory.parameters.msw.handlers, ...story.parameters.msw.handlers];
+      story.parameters.msw.handlers = [...layoutStory.parameters.msw.handlers, ...story.parameters.msw.handlers];
     }
   }
 
@@ -179,7 +183,7 @@ export function prepareStory<ComponentType, ContextValueType extends MatchingCon
 
         if (child.decorators || child.args || child.decorators || child.args) {
           const childStory = child as StoryFn<any>;
-          const ChildStory = childStory;
+          const ChildStory = childStory as PartialStoryFn;
 
           // It we detect some network mocking from the child story, make sure to reuse it
           if (childStory.parameters?.msw) {

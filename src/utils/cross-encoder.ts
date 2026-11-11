@@ -1,4 +1,11 @@
-import { AutoModelForSequenceClassification, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer, env } from '@xenova/transformers';
+import {
+  AutoModelForSequenceClassification,
+  AutoTokenizer,
+  PreTrainedModel,
+  PreTrainedTokenizer,
+  ProgressInfo,
+  env,
+} from '@huggingface/transformers';
 import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import path from 'path';
 
@@ -31,33 +38,23 @@ export class CrossEncoderSingleton {
     }
 
     if (!this.model) {
-      let lastStatus: string = '';
       let lastProgress: number = 0;
 
       this.model = AutoModelForSequenceClassification.from_pretrained(this.model_id, {
-        quantized: true,
-        progress_callback: (data: { status: string; progress: number }) => {
-          // There is no type available for now but it looks like:
-          // ---
-          // {
-          //   status: 'progress',
-          //   name: 'xenova/ms-marco-TinyBERT-L-2-v2',
-          //   file: 'onnx/model_quantized.onnx',
-          //   progress: 94.45777392868533,
-          //   loaded: 4247103,
-          //   total: 4496298
-          // }
-          const progress = Math.ceil(data.progress);
-
-          if (
-            data.status !== lastStatus &&
-            progress !== lastProgress &&
-            progress % 10 === 0 // Do not flood the console
-          ) {
-            console.log(`model status: ${data.status} (${progress}%)`);
+        dtype: 'q8',
+        progress_callback: (data: ProgressInfo) => {
+          // Only downloads report a progress (other statuses are about initiating or finishing a file)
+          if (data.status !== 'progress') {
+            return;
           }
 
-          lastStatus = data.status;
+          const progress = Math.ceil(data.progress);
+
+          // Do not flood the console
+          if (progress !== lastProgress && progress % 10 === 0) {
+            console.log(`model ${data.file}: ${progress}%`);
+          }
+
           lastProgress = progress;
         },
       });

@@ -52,7 +52,10 @@ export const ListInitiativesSchema = GetterInputSchema.extend({
 }).strict();
 export type ListInitiativesSchemaType = z.infer<typeof ListInitiativesSchema>;
 
-export const ListInitiativesPrefillSchema = ListInitiativesSchema.deepPartial();
+export const ListInitiativesPrefillSchema = ListInitiativesSchema.partial().extend({
+  orderBy: ListInitiativesSchema.shape.orderBy.partial().optional(),
+  filterBy: ListInitiativesSchema.shape.filterBy.partial().optional(),
+});
 export type ListInitiativesPrefillSchemaType = z.infer<typeof ListInitiativesPrefillSchema>;
 
 export const SearchOrganizationsSchema = z

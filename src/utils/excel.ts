@@ -2,7 +2,7 @@ import {
   // See Webpack aliases into `@etabli/.storybook/main.js` to understand why we use the browser version at the end even if not optimal
   parse,
 } from 'csv-parse/browser/esm';
-import { Stringifier } from 'csv-stringify/.';
+import { Stringifier } from 'csv-stringify';
 import ExcelJS from 'exceljs';
 import { WriteStream } from 'fs';
 import { Transform, pipeline } from 'stream';

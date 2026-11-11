@@ -14,7 +14,7 @@ async function setColorSchemeToBrowser(colorScheme, timeToWaitAfterChangingTheme
 
 module.exports = {
   setup() {},
-  async preRender(page, context) {
+  async preVisit(page, context) {
     await Promise.all([
       setColorSchemeToBrowser('light'),
       injectAxe(page),
@@ -24,7 +24,7 @@ module.exports = {
       getStoryContext(page, context),
     ]);
   },
-  async postRender(page, context) {
+  async postVisit(page, context) {
     const storyContext = await getStoryContext(page, context);
 
     // Do not test a11y for stories that disable a11y (or that has the disabling fallback but still a play test function)

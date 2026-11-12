@@ -61,6 +61,10 @@ const __root_dirname = process.cwd();
 
 const fastFolderSizeAsync = promisify(fastFolderSize);
 
+// Only the last state of the default branch is cloned, over a run of ~15k repositories the median was 0.6 MB and only 48 were over 1 GiB: all of them
+// without notoriety and almost all keeping less than 1 MB of code to analyze once cleaned (their weight comes from images, datasets or models)
+const maximumCloneSizeInGiB = 1;
+
 // Many repositories of a run can be on the same forge (a university GitLab...), so whatever the global concurrency only a few clones
 // target the same host at once, otherwise small forges answer with "too many requests"
 const maximumConcurrentClonesPerHost = 3;
@@ -1105,8 +1109,10 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
             // `simpleGit` expects the folder to exists already
             await fs.mkdir(codeFolderPath, { recursive: true });
 
+            const cloneAbortController = new AbortController();
             const projectGit: SimpleGit = simpleGit({
               baseDir: codeFolderPath,
+              abort: cloneAbortController.signal,
               allowEnvironment: ['GIT_TERMINAL_PROMPT'], // Variables given to git are refused unless listed, the inherited ones (like `GIT_ASKPASS` set by IDEs such as `vscode`) are removed
               timeout: {
                 block: minutesToMilliseconds(5), // Last resort if git itself does not give up (below), it only stops git and not its own subprocesses
@@ -1126,6 +1132,17 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
             // * `--single-branch`: do not look for information of other branches (it should use the default branch)
             // * `--depth=1`: retrieve only information about the latest commit state (not having history will save space)
             // * `--filter=blob:limit=${SIZE}`: should not download blob objects over $SIZE size (we estimated a size to get big text file for code, while excluding big assets). In fact, it seems not working well because I do see some images fetched... just keeping this parameter in case it may work
+            // The size is checked during the clone since some forges do not apply the blob filter, and some repositories are datasets of tens of gigabytes
+            let cloneSizeLimitReached = false;
+            const cloneSizeWatcher = setInterval(async () => {
+              const cloneSize = await fastFolderSizeAsync(codeFolderPath).catch(() => undefined);
+
+              if (cloneSize !== undefined && cloneSize > maximumCloneSizeInGiB * bitsFor.GiB) {
+                cloneSizeLimitReached = true;
+                cloneAbortController.abort();
+              }
+            }, secondsToMilliseconds(2)); // A datacenter connection downloads hundreds of megabytes per second, so it is checked often (while downloading it only measures a single pack file)
+
             try {
               await withCloneSlotForHost(rawRepository.repositoryUrl, () =>
                 projectGit
@@ -1157,7 +1174,9 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
                     },
                     data: {
                       lastUpdateAttemptWithReachabilityError: new Date(),
-                      lastUpdateAttemptReachabilityError: error.message,
+                      lastUpdateAttemptReachabilityError: cloneSizeLimitReached
+                        ? `the clone of ${rawRepository.repositoryUrl} has been stopped since over ${maximumCloneSizeInGiB} GiB`
+                        : error.message,
                     },
                     select: {
                       id: true, // Ref: https://github.com/prisma/prisma/issues/6252
@@ -1177,6 +1196,8 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
                   await fs.rm(codeFolderPath, { recursive: true, force: true });
                 }
               }
+            } finally {
+              clearInterval(cloneSizeWatcher);
             }
 
             // Do not flood network (tiny delay since it seems GitHub has only limitations on the API requests, no the Git operations)

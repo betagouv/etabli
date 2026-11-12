@@ -51,6 +51,7 @@ export const { MuiDsfrThemeProvider } = createMuiDsfrThemeProvider({
           styleOverrides: {
             underlineHover: {
               backgroundImage: 'none !important',
+              textUnderlineOffset: '0.25em', // Away from the text like the DSFR one, the default one touched the letters
             },
           },
         },

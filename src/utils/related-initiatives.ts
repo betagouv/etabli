@@ -7,6 +7,7 @@ export const maximumRelatedInitiatives = Math.max(...Object.values(relatedInitia
 export interface RelatedInitiative {
   id: string;
   name: string;
+  description: string; // Only its beginning, shown in a tooltip
   websites: string[];
   repositories: string[];
 }

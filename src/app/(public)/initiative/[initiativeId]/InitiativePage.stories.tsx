@@ -47,6 +47,7 @@ const commonComponentProps: ComponentProps<ComponentType> = {
   relatedInitiatives: initiatives.slice(1, 4).map((initiative) => ({
     id: initiative.id,
     name: initiative.name,
+    description: initiative.description,
     websites: initiative.websites,
     repositories: initiative.repositories,
   })),

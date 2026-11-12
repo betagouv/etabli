@@ -5,7 +5,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { getRelatedInitiativeMainAddress } from '@etabli/src/utils/related-initiatives';
 
-const base = { id: 'a', name: 'Label bas carbone', websites: [] as string[], repositories: [] as string[] };
+const base = { id: 'a', name: 'Label bas carbone', description: '', websites: [] as string[], repositories: [] as string[] };
 
 describe('getRelatedInitiativeMainAddress()', () => {
   it('should give the main website first', () => {

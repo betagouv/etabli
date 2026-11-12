@@ -1242,7 +1242,8 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
                 // So instead we pass the list through a file (that will get deleted as the rest of unecessary files)
                 const filesToDeleteFilePath = path.resolve(codeFolderPath, `./.git/.filestodelete`);
 
-                await fs.writeFile(filesToDeleteFilePath, filesToRemove.join('\0'));
+                // Paths are given as literal pathspecs since a file name can look like a pattern or a magic signature (`*.js`, `:`...)
+                await fs.writeFile(filesToDeleteFilePath, filesToRemove.map((filePath) => `:(literal)${filePath}`).join('\0'));
                 await projectGit.raw([
                   'rm',
                   '--pathspec-from-file',

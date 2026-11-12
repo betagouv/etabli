@@ -772,7 +772,12 @@ export async function inferInitiativesFromDatabase() {
   console.log(`inferring has been done with success`);
 }
 
-export async function feedInitiativesFromDatabase(options?: { onlyMissing?: boolean; onlyWebsites?: boolean }) {
+export async function feedInitiativesFromDatabase(options?: {
+  onlyMissing?: boolean;
+  onlyWebsites?: boolean;
+  repositoriesUrls?: string[];
+  domainsNames?: string[];
+}) {
   // Note: Prisma does not implement yet locking table though it should help not messing with requesting the LLM system while replacing sensitive components of it
   // This race condition should remain rare and having error thrown should be fine since replayed on the next iteration
   const settings = await prisma.settings.findUniqueOrThrow({
@@ -793,6 +798,17 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
       update: true,
       ...(options?.onlyMissing ? { Initiative: { is: null } } : {}), // Each sheet is charged, so the existing ones can wait for a later run
       ...(options?.onlyWebsites ? { RawDomainsOnInitiativeMaps: { some: {} } } : {}), // Repositories alone are the longest and the less valuable ones
+      // Targeting allows recomputing a few sheets without the others waiting for an update (each sheet is charged)
+      ...(options?.repositoriesUrls || options?.domainsNames
+        ? {
+            OR: [
+              ...(options.repositoriesUrls
+                ? [{ RawRepositoriesOnInitiativeMaps: { some: { rawRepository: { repositoryUrl: { in: options.repositoriesUrls } } } } }]
+                : []),
+              ...(options.domainsNames ? [{ RawDomainsOnInitiativeMaps: { some: { rawDomain: { name: { in: options.domainsNames } } } } }] : []),
+            ],
+          }
+        : {}),
       AND: {
         OR: [
           {
@@ -1757,7 +1773,9 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
     // After computing the new or updated sheets, we make sure to delete the older ones that were kept to make the bridge
     // between the time new initiative maps were calculated, and the time to compute modified groups (otherwise in the meantime there is a risk the product is not indexed on the platform)
     // A partial run (limit per run, inventory not done yet, restricted to some initiative maps) would remove old sheets whose replacement does not exist yet
-    if (!options?.onlyMissing && !options?.onlyWebsites && initiativeMapsToProcess.length === initiativeMaps.length) {
+    const isTargetedRun = !!options?.repositoriesUrls || !!options?.domainsNames;
+
+    if (!options?.onlyMissing && !options?.onlyWebsites && !isTargetedRun && initiativeMapsToProcess.length === initiativeMaps.length) {
       await prisma.$transaction(
         async (tx) => {
           const oldInitiatives = await tx.initiative.findMany({

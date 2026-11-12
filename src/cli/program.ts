@@ -403,7 +403,12 @@ initiative
   .option('--only-missing', 'only compute the initiatives that have no sheet yet')
   .option('--only-websites', 'only compute the initiatives having at least a website')
   .action(async (options) => {
-    await feedInitiativesFromDatabase({ onlyMissing: !!options.onlyMissing, onlyWebsites: !!options.onlyWebsites });
+    await feedInitiativesFromDatabase({
+      onlyMissing: !!options.onlyMissing,
+      onlyWebsites: !!options.onlyWebsites,
+      repositoriesUrls: Array.isArray(options.repository) ? options.repository : undefined,
+      domainsNames: Array.isArray(options.domain) ? options.domain : undefined,
+    });
   });
 
 initiative

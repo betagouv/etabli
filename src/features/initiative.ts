@@ -24,7 +24,6 @@ import { toFile } from 'ts-graphviz/adapter';
 import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 
-import manifestsEndingPatterns from '@etabli/src/bibliothecary/manifests-patterns.json';
 import { redirectInitiativesBeforeRemoval } from '@etabli/src/features/initiative-redirection';
 import { ChunkEventEmitter, llmManagerInstance } from '@etabli/src/features/llm';
 import { buildOrganizationMatcher } from '@etabli/src/features/organization';
@@ -52,7 +51,7 @@ import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
 import { getMainDestinationByRemovedMap, getMergedInitiativeMapsIdentifiers, getMovedInitiativeMaps } from '@etabli/src/utils/initiative-map';
-import { languagesExtensions } from '@etabli/src/utils/languages';
+import { downloadRepositoryFilesToAnalyze } from '@etabli/src/utils/repository-files';
 import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond, maximumInitiativesPerRun } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
 import { isStateReservedDomain } from '@etabli/src/utils/state-domain';
@@ -89,18 +88,6 @@ async function withCloneSlotForHost<T>(repositoryUrl: string, clone: () => Promi
 // Switch it when testing locally to prevent multiplying network request whereas the remote content has probably no change since then
 // ... but be warned that for now if there is an error with Git, the cache will be misleading since it matches only the existence of folders (we could improve that by using try/catch/finally around git steps)
 const useLocalFileCache = false;
-
-const filesToKeepGitEndingPatterns: (string | RegExp)[] = [
-  // This is used to reduce size of the repository once downloaded
-  // Notes:
-  // - only keep programming files and manifests since that what we only use for now (in addition to README files)
-  // - with the current patterns we cannot rely on using leading `/` for the root, we should convert them to regexp otherwise
-  /readme$/i,
-  /readme\.txt$/i,
-  /readme\.md$/i,
-  ...manifestsEndingPatterns,
-  ...languagesExtensions,
-];
 
 const noImgAndSvgFilterPath = path.resolve(__root_dirname, './src/pandoc/no-img-and-svg.lua');
 const extractMetaDescriptionFilterPath = path.resolve(__root_dirname, './src/pandoc/extract-meta-description.lua');
@@ -1128,11 +1115,11 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
             });
 
             // We use `git clone` since there is no common pattern to download an archive between all forges (GitHub, GitLab...)
-            // We added some parameters to reduce a bit what needs to be downloaded:
-            // * `--single-branch`: do not look for information of other branches (it should use the default branch)
-            // * `--depth=1`: retrieve only information about the latest commit state (not having history will save space)
-            // * `--filter=blob:limit=${SIZE}`: should not download blob objects over $SIZE size (we estimated a size to get big text file for code, while excluding big assets). In fact, it seems not working well because I do see some images fetched... just keeping this parameter in case it may work
-            // The size is checked during the clone since some forges do not apply the blob filter, and some repositories are datasets of tens of gigabytes
+            // Only the files to analyze are downloaded, instead of downloading everything to remove most of it right after:
+            // * `--single-branch` and `--depth=1`: only the last state of the default branch, without its history
+            // * `--filter=blob:none` and `--no-checkout`: only the tree of paths is downloaded, the content of the kept files is fetched after
+            // Note: a forge not supporting partial clones ignores the filter and sends everything, it still works but relies on the size limit
+            // The size is checked during the downloads since some repositories are datasets of tens of gigabytes
             let cloneSizeLimitReached = false;
             const cloneSizeWatcher = setInterval(async () => {
               const cloneSize = await fastFolderSizeAsync(codeFolderPath).catch(() => undefined);
@@ -1143,20 +1130,31 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
               }
             }, secondsToMilliseconds(2)); // A datacenter connection downloads hundreds of megabytes per second, so it is checked often (while downloading it only measures a single pack file)
 
+            let filesToAnalyze: string[] = [];
+            let downloadedSize = 0;
+
             try {
-              await withCloneSlotForHost(rawRepository.repositoryUrl, () =>
-                projectGit
+              await withCloneSlotForHost(rawRepository.repositoryUrl, async () => {
+                await projectGit
                   .env({
                     GIT_TERMINAL_PROMPT: 0, // This is required so it fails when a repository expects credentials (and so the git CLI expects inputs)
                   })
                   .clone(rawRepository.repositoryUrl, '.', {
                     '--single-branch': null,
                     '--depth': 1,
-                    '--filter': `blob:limit=${gitFileSizeLimitInKb}k`,
+                    '--no-checkout': null,
+                    '--filter': 'blob:none',
                     // Git gives up when it receives less than 1 KB/s for 2 minutes, which stops the clones stuck on a forge that no longer answers (a big repository still downloading stays above this speed)
+                    // Note: it is written into the repository configuration so the fetch below uses it too
                     '--config': ['http.lowSpeedLimit=1000', `http.lowSpeedTime=${minutesToSeconds(2)}`],
-                  })
-              );
+                  });
+
+                ({ filesToAnalyze, downloadedSize } = await downloadRepositoryFilesToAnalyze(
+                  projectGit,
+                  codeFolderPath,
+                  cloneAbortController.signal
+                ));
+              });
             } catch (error) {
               try {
                 if (error instanceof Error) {
@@ -1204,74 +1202,15 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
             // Ref: https://github.com/orgs/community/discussions/44515#discussioncomment-4795475
             await sleep(50);
 
-            // Since Git does not allow using patterns to download only specific files, we just clean the folder after (to have a local disk cache for the next initiative compute before any erase of the data (container restart or manual delete))
-            // We remove all files not used during the analysis + `git` data since not used at all
-            // Note: the list of patterns must be updated each time new kinds of files to analyze are added
-            const folderSizeBeforeClean = await fastFolderSizeAsync(codeFolderPath);
-            assert(folderSizeBeforeClean !== undefined);
+            // The size of each file is only known once downloaded, so too big ones are removed now. Since the blob filter of the clone was not
+            // limiting it, they would be analyzed and it could take some time in case it's bundled files, minified files... and it would be meaningless
+            // to us (even if we may have bundled files with size lower than the limit we set)
+            for (const filePath of filesToAnalyze) {
+              const fullFilePath = path.resolve(codeFolderPath, filePath);
+              const fileStat = await fs.lstat(fullFilePath).catch(() => null); // On a case-insensitive filesystem two paths can be the same file, so it may be already removed
 
-            // `git ls-files` was returning non-UT8 encoding if it has the default config `core.quotePath = true` (for example `vidéo_48_bicolore.svg` was returned as `vid\303\251o_48_bicolore.svg`),
-            // and moreover some filenames were including carriage returns so it was easier to manage Git paths by the null separator
-            const lsResult = await projectGit.raw(['ls-files', '-z']);
-
-            if (lsResult !== '') {
-              const filesToRemove: string[] = [];
-
-              for (const filePath of lsResult.split('\0')) {
-                if (filePath.trim() === '') {
-                  // There is an empty line in the output result that cannot be used by `git rm`
-                  continue;
-                } else if (filePath === '.gitmodules') {
-                  // This file references all submodules used in the repository
-                  // But since the looped array is sorted alphabetically, the further `git rm xxx` could delete first one of the submodule
-                  // which automatically cleans the `.gitmodules`, and delete it if no more entry
-                  // This is a problem then if trying to remove `.gitmodules` since no longer existing, so leave it like that (if really containing submodules if will be deleted)
-                  continue;
-                }
-
-                // To ease future conditions
-                const fullFilePath = path.resolve(codeFolderPath, filePath);
-
-                // Keep files having an allowed pattern (since they should have meaningful content to analyze)
-                if (
-                  !filesToKeepGitEndingPatterns.some((endingPattern): boolean => {
-                    if (endingPattern instanceof RegExp) {
-                      return endingPattern.test(filePath);
-                    } else {
-                      return filePath.endsWith(endingPattern);
-                    }
-                  })
-                ) {
-                  filesToRemove.push(filePath);
-                  continue;
-                }
-
-                // Since the `git clone --filter=blob:limit=XXX` seems to only filter specific uploaded assets (not filtering all files over the size limit)
-                // we do a manual cleaning of files too big, otherwise since they have an allowed file pattern they would be analzyed and it could take some
-                // time in case it's bundled files, minified files... and it would be meaningless to us (even if we may have bundled files with size lower than the limit we set)
-                // Note: if the file is a symbolic link there is a high chance it points to nowhere (probably for libraries...), so skipping them to not break things
-                const fileStat = await fs.lstat(fullFilePath);
-                if (fileStat.isSymbolicLink()) {
-                  filesToRemove.push(filePath);
-                  continue;
-                } else if (fileStat.size > gitFileSizeLimitInKb * bitsFor.KiB) {
-                  filesToRemove.push(filePath);
-                  continue;
-                }
-
-                // After analyzing many repositories it seems programmatic files placed under a `public` or `assets` folder are always about third-party things, so we don't want to analyze them
-                // Note: we use the full file path to be sure having the leading "/" (our analyses are under `./data/initiatives/xxx/yyy/` so there is no conflicting folders)
-                if (fullFilePath.includes('/public/') || fullFilePath.includes('/assets/')) {
-                  filesToRemove.push(filePath);
-                  continue;
-                }
-              }
-
-              // Files are removed directly from the disk since the Git metadata is deleted right after: `git rm` compares each given path
-              // with each indexed file, which takes hours on repositories having hundreds of thousands of files
-              // Note: a path can be a submodule (an empty folder since they are not cloned), so the removal is recursive
-              for (const filePath of filesToRemove) {
-                await fs.rm(path.resolve(codeFolderPath, filePath), { recursive: true, force: true });
+              if (fileStat && fileStat.size > gitFileSizeLimitInKb * bitsFor.KiB) {
+                await fs.rm(fullFilePath, { force: true });
               }
             }
 
@@ -1281,9 +1220,9 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
             assert(folderSizeAfterClean !== undefined);
 
             console.log(
-              `[${initiativeMap.id}] the repository code has been cleaned (before ${prettyBytes(folderSizeBeforeClean)} | after ${prettyBytes(
-                folderSizeAfterClean
-              )})`
+              `[${initiativeMap.id}] the repository code has been retrieved (${filesToAnalyze.length} files to analyze, downloaded ${prettyBytes(
+                downloadedSize
+              )} | kept ${prettyBytes(folderSizeAfterClean)})`
             );
           }
 

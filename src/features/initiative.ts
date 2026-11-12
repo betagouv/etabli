@@ -1246,24 +1246,11 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
                 }
               }
 
-              if (filesToRemove.length > 0) {
-                // We cannot pass the array directly to `projectGit.rm` because if there are too many paths
-                // it will throw the error `spawn E2BIG`, meaning the command line is too long for the host system
-                // So instead we pass the list through a file (that will get deleted as the rest of unecessary files)
-                const filesToDeleteFilePath = path.resolve(codeFolderPath, `./.git/.filestodelete`);
-
-                // Paths are given as literal pathspecs since a file name can look like a pattern or a magic signature (`*.js`, `:`...)
-                await fs.writeFile(filesToDeleteFilePath, filesToRemove.map((filePath) => `:(literal)${filePath}`).join('\0'));
-                await projectGit.raw([
-                  'rm',
-                  '--pathspec-from-file',
-                  filesToDeleteFilePath,
-                  '--pathspec-file-nul', // This is the only way to deal with repositories having filenames with `\r` or `\n` (to do so we join paths on `\0`)
-                  // Some repositories have a diff on binary files (like PDFs) just after cloning which prevents deletion
-                  // We thought it came from CRLF or binary settings, but despite trying the config properties `core.autocrlf=false` and `core.fileMode=false` nothing has changed
-                  // So just forcing the deletion (example having this issue: https://github.com/mission-apprentissage/mission.apprentissage)
-                  '--force',
-                ]);
+              // Files are removed directly from the disk since the Git metadata is deleted right after: `git rm` compares each given path
+              // with each indexed file, which takes hours on repositories having hundreds of thousands of files
+              // Note: a path can be a submodule (an empty folder since they are not cloned), so the removal is recursive
+              for (const filePath of filesToRemove) {
+                await fs.rm(path.resolve(codeFolderPath, filePath), { recursive: true, force: true });
               }
             }
 

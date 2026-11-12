@@ -8,6 +8,7 @@ import { InitiativePage, InitiativePageProps } from '@etabli/src/app/(public)/in
 import { HydrateClient } from '@etabli/src/client/HydrateClient';
 import { getInitiativeRedirection } from '@etabli/src/features/initiative-redirection';
 import { retrieveInitiativesOrganizations } from '@etabli/src/features/organization-read';
+import { getRelatedInitiatives } from '@etabli/src/features/related-initiatives';
 import { getServerTranslation } from '@etabli/src/i18n';
 import { GetInitiativeSchema } from '@etabli/src/models/actions/initiative';
 import { prisma } from '@etabli/src/prisma';
@@ -161,20 +162,14 @@ export default async function Page(props: InitiativeRoutePageProps) {
         : closest,
     null
   );
-  const otherInitiatives = closestOrganization
-    ? await prisma.initiative.findMany({
-        where: {
-          id: { not: dbInitiative.id },
-          deletedAt: null,
-          OrganizationsOnInitiatives: { some: { organizationId: closestOrganization.id } },
-        },
-        select: { id: true, name: true, websites: true, repositories: true },
-        orderBy: [{ reputationRank: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }, { id: 'asc' }],
-        take: maximumRelatedInitiatives, // A single row of cards, the smaller screens hide some
-      })
+  const relatedInitiatives = closestOrganization
+    ? await getRelatedInitiatives(
+        prisma,
+        dbInitiative.id,
+        closestOrganization.id,
+        maximumRelatedInitiatives // A single row of cards, the smaller screens hide some
+      )
     : [];
-
-  const relatedInitiatives = otherInitiatives;
 
   // Structured data for search engines, now that the page content is rendered by the server it is given to everyone
   let initiativeJsonLd: WithContext<CreativeWork> | null = null;

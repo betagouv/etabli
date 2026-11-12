@@ -49,6 +49,7 @@ export function ExploreModal(props: ExploreModalProps) {
       fullWidth
       maxWidth="sm"
       aria-labelledby="explore-modal-title"
+      sx={{ '& .MuiDialog-paper': { mx: { xs: 2, sm: 4 }, width: { xs: 'calc(100% - 32px)', sm: 'calc(100% - 64px)' } } }}
       // MUI Dialog focus-traps to the close button (rendered first in the DOM) on open, so the TextField's
       // `autoFocus` prop loses. Focus it manually after the enter transition completes.
       TransitionProps={{ onEntered: () => inputRef.current?.focus() }}
@@ -58,7 +59,7 @@ export function ExploreModal(props: ExploreModalProps) {
           <CloseIcon />
         </IconButton>
       </Box>
-      <DialogContent>
+      <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
         <Typography id="explore-modal-title" component="h2" variant="h4" sx={{ textAlign: 'center', mt: 1, mb: { xs: 3, sm: 4 }, pr: 4 }}>
           Que cherchez-vous&nbsp;?
         </Typography>
@@ -90,11 +91,18 @@ export function ExploreModal(props: ExploreModalProps) {
               href={`${initiativesPath}?view=map`}
               rel="nofollow" // An interactive view not worth being crawled, and it is costly to compute
               onClick={props.onClose}
-              sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, backgroundImage: 'none !important' }} // DSFR paints a link underline as a background
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: { xs: '0.75rem', sm: 2 },
+                p: { xs: '0.75rem', sm: 2 },
+                backgroundImage: 'none !important',
+              }} // DSFR paints a link underline as a background
             >
-              <Box sx={{ flexShrink: 0, width: 88, height: 88 }} aria-hidden="true">
+              {/* Smaller on phones so the text keeps enough width */}
+              <Box sx={{ flexShrink: 0, width: { xs: 48, sm: 88 }, height: { xs: 48, sm: 88 } }} aria-hidden="true">
                 {/* A glimpse of the map: colors are those of what initiatives are made of */}
-                <svg viewBox="0 0 88 88" width="88" height="88">
+                <svg viewBox="0 0 88 88" width="100%" height="100%">
                   <circle cx="44" cy="44" r="43" fill="var(--background-alt-grey)" stroke="var(--border-default-grey)" />
                   <circle cx="33" cy="52" r="22" fill="#c94c84" />
                   <circle cx="63" cy="32" r="14" fill="#6250d6" />

@@ -17,8 +17,17 @@ export const { MuiDsfrThemeProvider } = createMuiDsfrThemeProvider({
         ...coreFrFR.components,
         // A light tooltip is more readable than the default dark one, and it stays the same everywhere
         MuiTooltip: {
-          defaultProps: { arrow: true },
+          defaultProps: {
+            arrow: true,
+            // On phones a wide tooltip was stuck to both edges of the screen, the positioning keeps it a bit away from them
+            slotProps: { popper: { modifiers: [{ name: 'preventOverflow', options: { padding: 8 } }] } },
+          },
           styleOverrides: {
+            // Its percentages are taken from the visible width of the page, without the scrollbar unlike `100vw` (the tooltip ended under it).
+            // It is the margin kept from the edges of the screen
+            popper: {
+              maxWidth: 'calc(100% - 16px)',
+            },
             // Most pages are as white as the tooltip, so the frame and the shadow are what detach it from the content below
             tooltip: {
               backgroundColor: 'var(--background-overlap-grey)',

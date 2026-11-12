@@ -45,39 +45,6 @@ i18next.use(LanguageDetector).init(
     returnNull: false,
     interpolation: {
       escapeValue: false, // React already safes from xss
-      format: (value, format, lng, options) => {
-        if (!!format && !!lng) {
-          if (isDate(value)) {
-            if (options) {
-              // TODO: `date-fns-tz/utcToZonedTime` is not compatible for now with `date-fns` v3
-              // // If specified we shift the date from UTC (with its offset marker)
-              // // to the right time without any offset marker (useful to format on server-side)
-              // if (options.timezone) {
-              //   value = utcToZonedTime(value, options.timezone);
-              // }
-            }
-
-            const locale = dateFnsLocales[lng];
-
-            if (format === 'short') return formatDate(value, 'P', { locale });
-            if (format === 'long') return formatDate(value, 'PPPP', { locale });
-            if (format === 'longWithTime') return formatDate(value, 'PPPPpp', { locale });
-            if (format === 'relative') return formatRelative(value, new Date(), { locale });
-            if (format === 'ago') {
-              return formatDistance(value, new Date(), {
-                locale,
-                addSuffix: true,
-              });
-            }
-            if (format === 'spreadsheetDate') return formatDate(value, 'yyyy-MM-dd', { locale });
-            if (format === 'spreadsheetDateTime') return formatDate(value, 'yyyy-MM-dd HH:mm:ss', { locale });
-
-            return formatDate(value, format, { locale });
-          }
-        }
-
-        return value;
-      },
     },
     resources: resources,
     debug: false,
@@ -87,6 +54,24 @@ i18next.use(LanguageDetector).init(
     const detectedLocale = i18next.language;
   }
 );
+
+const dateFormatters: Record<string, (value: Date, locale: Locale) => string> = {
+  short: (value, locale) => formatDate(value, 'P', { locale }),
+  long: (value, locale) => formatDate(value, 'PPPP', { locale }),
+  longWithTime: (value, locale) => formatDate(value, 'PPPPpp', { locale }),
+  relative: (value, locale) => formatRelative(value, new Date(), { locale }),
+  ago: (value, locale) => formatDistance(value, new Date(), { locale, addSuffix: true }),
+  spreadsheetDate: (value, locale) => formatDate(value, 'yyyy-MM-dd', { locale }),
+  spreadsheetDateTime: (value, locale) => formatDate(value, 'yyyy-MM-dd HH:mm:ss', { locale }),
+};
+
+for (const [name, formatter] of Object.entries(dateFormatters)) {
+  i18next.services.formatter?.add(name, (value, lng) => {
+    const locale = lng ? dateFnsLocales[lng] : undefined;
+
+    return isDate(value) && locale ? formatter(value, locale) : value;
+  });
+}
 
 export const i18n = i18next;
 

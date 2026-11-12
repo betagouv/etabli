@@ -91,6 +91,7 @@ const moduleExports = async () => {
       // also not covered by our Node.js heap cap. Static images must be compressed before being committed
       unoptimized: true,
     },
+    // Turbopack (the default bundler since Next.js 16) ignores this function, so `next dev` and `next build` are given `--webpack` in `package.json`
     webpack: (config, { buildId, dev, isServer, defaultLoaders, nextRuntime, webpack }) => {
       // Expose all DSFR fonts as static at the root
       config.plugins.push(

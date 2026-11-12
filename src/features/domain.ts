@@ -883,7 +883,7 @@ export async function updateWebsiteDataOnDomains(options?: { stealth?: boolean }
   // parsing CSS from websites, and since we do not care about this we just want to silent this kind of error
   // Ref: https://github.com/jsdom/jsdom/issues/2177#issuecomment-772815161
   const virtualConsole = new VirtualConsole();
-  virtualConsole.sendTo(console, { omitJSDOMErrors: true });
+  virtualConsole.forwardTo(console, { jsdomErrors: 'none' });
   virtualConsole.on('jsdomError', (err) => {
     if (err.message !== 'Could not parse CSS stylesheet') {
       console.error(err);

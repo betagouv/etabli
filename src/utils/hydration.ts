@@ -2,8 +2,7 @@
  * Helper to properly serialize and deserialize data from RSC to client and keeping the types
  */
 import { useMemo } from 'react';
-import superjson from 'superjson';
-import { SuperJSONResult } from 'superjson/dist/types';
+import superjson, { SuperJSONResult } from 'superjson';
 
 const symbol = Symbol('__RSC_DATA__');
 

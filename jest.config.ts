@@ -1,3 +1,10 @@
+/**
+ * Since Jest v30 the native TypeScript support of Node.js is used by default, but it loads this file as an ES module (no `__dirname`,
+ * extensions required in imports), so the former loader is kept. It compiles to CommonJS, which needs the former module resolution
+ *
+ * @jest-config-loader ts-node
+ * @jest-config-loader-options {"transpileOnly": true, "compilerOptions": {"moduleResolution": "node10"}}
+ */
 import dotenv from 'dotenv';
 import { getTsconfig } from 'get-tsconfig';
 import nextJest from 'next/jest';

@@ -1,4 +1,3 @@
-import type { Integration } from '@sentry/core';
 import * as Sentry from '@sentry/nextjs';
 
 import { beforeSend, dsn, environment, release } from '@etabli/src/utils/sentry';
@@ -6,6 +5,8 @@ import { beforeSend, dsn, environment, release } from '@etabli/src/utils/sentry'
 // Loaded by Next.js in the browser before the application (it replaces the former `sentry.client.config.ts`)
 
 const hasReplays = true;
+type Integration = Extract<NonNullable<Parameters<typeof Sentry.init>[0]>['integrations'], unknown[]>[number];
+
 const integrations: Integration[] = [];
 
 if (hasReplays) {

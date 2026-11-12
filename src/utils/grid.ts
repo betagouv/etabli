@@ -8,6 +8,15 @@ export const wideContainerGridProps: GridProps = {
   },
 };
 
+// Same width as the content of the DSFR header and footer (`fr-container`: 78rem, the `xl` breakpoint of the theme, with gutters of 1rem
+// then 1.5rem), so the page content is aligned with them
+export const dsfrContainerSx = {
+  mx: 'auto',
+  width: '100%',
+  maxWidth: 'xl',
+  px: { xs: 2, md: 3 },
+} as const;
+
 export const centeredContainerGridProps: GridProps = {
   sx: {
     ...wideContainerGridProps.sx,

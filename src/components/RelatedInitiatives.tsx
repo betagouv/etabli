@@ -11,7 +11,7 @@ import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import NextLink from 'next/link';
 
-import { ulComponentResetStyles } from '@etabli/src/utils/grid';
+import { dsfrContainerSx, ulComponentResetStyles } from '@etabli/src/utils/grid';
 import { getInitiativePathname } from '@etabli/src/utils/initiative-link';
 import { RelatedInitiative, getRelatedInitiativeMainAddress, relatedInitiativesColumnsByBreakpoint } from '@etabli/src/utils/related-initiatives';
 
@@ -32,7 +32,7 @@ export function RelatedInitiatives(props: RelatedInitiativesProps) {
       sx={{ bgcolor: fr.colors.decisions.background.alt.blueFrance.default, py: { xs: 3, md: 4 } }}
     >
       {/* Aligned on the sheet above */}
-      <Box sx={(theme) => ({ mx: 'auto', px: 3, maxWidth: 'lg', [theme.breakpoints.up('xl')]: { maxWidth: 1440 } })}>
+      <Box sx={dsfrContainerSx}>
         <Typography component="h2" variant="h6" sx={{ mt: 0, mb: 2 }}>
           D&apos;autres initiatives de la même organisation
         </Typography>

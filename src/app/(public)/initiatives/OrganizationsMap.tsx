@@ -18,7 +18,7 @@ import { trpc } from '@etabli/src/client/trpcClient';
 import { ErrorAlert } from '@etabli/src/components/ErrorAlert';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
 import { ListInitiativesSchemaType } from '@etabli/src/models/actions/initiative';
-import { centeredAlertContainerGridProps } from '@etabli/src/utils/grid';
+import { centeredAlertContainerGridProps, dsfrContainerSx } from '@etabli/src/utils/grid';
 import {
   MapColorMode,
   MapNode,
@@ -173,7 +173,7 @@ export function OrganizationsMap(props: OrganizationsMapProps) {
   } else if (focus.data.initiativesCount === 0) {
     return (
       // Same width as the controls of the page, only the map itself goes from edge to edge
-      <Box sx={{ maxWidth: 'lg', mx: 'auto', px: 3, py: 2 }}>
+      <Box sx={{ ...dsfrContainerSx, py: 2 }}>
         <Alert severity="info">Aucune initiative ne correspond à votre recherche ou à vos filtres.</Alert>
       </Box>
     );

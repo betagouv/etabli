@@ -59,7 +59,7 @@ import { FunctionalUseCaseSchema, GradeLetterSchema, LegalLinkPresenceSchema } f
 import { ListDisplay } from '@etabli/src/utils/display';
 import { getIssueLevelFilterLabel, issueLevels } from '@etabli/src/utils/domain-security-issues';
 import { getForeignDependencyLevelLabel } from '@etabli/src/utils/foreign-dependencies';
-import { centeredAlertContainerGridProps, wideContainerGridProps } from '@etabli/src/utils/grid';
+import { centeredAlertContainerGridProps, dsfrContainerSx, wideContainerGridProps } from '@etabli/src/utils/grid';
 import {
   buildDirectoryFilterBy,
   buildListInitiativesInput,
@@ -88,9 +88,8 @@ const refreshIndicatorDelayInMilliseconds = 300;
 
 const reusableCentering: GridProps['sx'] = {
   ...wideContainerGridProps.sx,
+  ...dsfrContainerSx,
   py: 0,
-  maxWidth: 'lg',
-  mx: 'auto',
 };
 
 export const InitiativeListPageContext = createContext({

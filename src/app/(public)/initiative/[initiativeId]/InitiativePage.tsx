@@ -27,7 +27,7 @@ import { RelatedInitiatives } from '@etabli/src/components/RelatedInitiatives';
 import { InitiativeRankingChips } from '@etabli/src/components/ReputationChip';
 import { ToolChip } from '@etabli/src/components/ToolChip';
 import { initiativeNotFoundError } from '@etabli/src/models/entities/errors';
-import { centeredAlertContainerGridProps, ulComponentResetStyles } from '@etabli/src/utils/grid';
+import { centeredAlertContainerGridProps, dsfrContainerSx, ulComponentResetStyles } from '@etabli/src/utils/grid';
 import { getOrganizationPath } from '@etabli/src/utils/organization';
 import { serverPrefetchedQueryStaleTime } from '@etabli/src/utils/query';
 import { RelatedInitiative } from '@etabli/src/utils/related-initiatives';
@@ -43,19 +43,16 @@ function formatGenerationDate(date: Date): string {
   return `${generationDayFormatter.format(date)} à ${generationTimeFormatter.format(date)}`;
 }
 
-// On a wide screen what is secondary moves to the right, otherwise it follows the main content. A sheet without it stays centered
+// On a wide screen what is secondary moves to the right, otherwise it follows the main content. Whether there is some or not, the sheet
+// keeps the width of the header and the footer
 const pageLayoutSx = (theme: Theme) => ({
+  ...dsfrContainerSx,
   display: 'grid',
   gridTemplateColumns: 'minmax(0, 1fr)',
   gridTemplateAreas: '"main" "secondary" "footer"',
-  px: 3,
   py: 6,
-  mx: 'auto',
-  width: '100%',
-  maxWidth: 'lg',
   [theme.breakpoints.up('xl')]: {
     [`&:has([${initiativeSecondaryContentAttribute}])`]: {
-      maxWidth: 1440,
       gridTemplateColumns: 'minmax(0, 1fr) 520px',
       gridTemplateRows: 'auto 1fr',
       gridTemplateAreas: '"main secondary" "footer secondary"',

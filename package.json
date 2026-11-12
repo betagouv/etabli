@@ -32,7 +32,7 @@
     "cli:unsecure": "tsx src/cli/index.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint:prepare": "npm run db:schema:compile",
+    "lint:prepare": "npm run db:schema:compile && next typegen",
     "lint": "npm run lint:es && npm run lint:ts",
     "lint:es": "TIMING=1 eslint .",
     "lint:ts": "tsc --noEmit --incremental false",

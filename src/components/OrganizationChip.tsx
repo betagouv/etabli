@@ -67,7 +67,7 @@ export function OrganizationChip(props: OrganizationChipProps) {
       describeChild // The tooltip describes the chip instead of replacing its accessible name
       title={
         <>
-          <Typography variant="caption" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
+          <Typography variant="caption" component="div" sx={{ fontWeight: 700, mb: '0.25rem' }}>
             {paths.length > 1 ? 'Organisations rattachées' : 'Organisation rattachée'}
           </Typography>
           {/* The binding being automatic is explained on the sheet and in the questions, repeating it in every tooltip was noise */}
@@ -154,7 +154,7 @@ export function OrganizationChips(props: OrganizationChipsProps) {
           display: 'flex',
           flexWrap: 'wrap',
           columnGap: 2,
-          rowGap: 0.5,
+          rowGap: '0.25rem',
           listStyle: 'none',
           minWidth: 0,
           maxWidth: '100%',

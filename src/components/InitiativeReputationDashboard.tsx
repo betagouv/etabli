@@ -148,7 +148,7 @@ function InfoBubble(props: { label: string; description: string; details?: strin
       <IconButton
         size="small"
         aria-label={`À propos de « ${props.label} » : ${props.description}${hasDetails ? ` ${props.details?.join(' ; ')}.` : ''}`}
-        sx={{ p: 0.25, flexShrink: 0 }}
+        sx={{ p: '0.125rem', flexShrink: 0 }}
       >
         <InfoOutlinedIcon sx={{ fontSize: 16 }} />
       </IconButton>
@@ -209,7 +209,7 @@ function Distribution(props: { title: string; values: Record<string, number> | n
 
   return (
     <Box sx={{ ...panelSx, p: '20px !important' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: '0.75rem' }}>
         <Typography component="h3" sx={{ fontSize: '1rem', fontWeight: 700, m: 0 }}>
           {props.title}
         </Typography>
@@ -245,7 +245,7 @@ function Distribution(props: { title: string; values: Record<string, number> | n
                       <span className="fr-sr-only">{` (${numberFormatter.format(value)} lien${value > 1 ? 's' : ''})`}</span>
                     </Typography>
                   </Box>
-                  <Box aria-hidden="true" sx={{ height: 8, mt: 0.75, borderRadius: '4px', bgcolor: 'var(--background-contrast-grey)' }}>
+                  <Box aria-hidden="true" sx={{ height: 8, mt: '0.375rem', borderRadius: '4px', bgcolor: 'var(--background-contrast-grey)' }}>
                     <Box
                       sx={{
                         height: '100%',

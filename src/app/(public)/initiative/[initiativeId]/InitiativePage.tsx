@@ -268,7 +268,7 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
                 >
                   {t('model.initiative.organization', { count: initiative.organizations.length })} <AccountBalanceIcon sx={{ ml: 1 }} />
                   <Tooltip title={organizationsBindingDisclaimer}>
-                    <IconButton size="small" aria-label={`À propos du rattachement : ${organizationsBindingDisclaimer}`} sx={{ ml: 0.5 }}>
+                    <IconButton size="small" aria-label={`À propos du rattachement : ${organizationsBindingDisclaimer}`} sx={{ ml: '0.25rem' }}>
                       <InfoOutlinedIcon sx={{ fontSize: 18 }} />
                     </IconButton>
                   </Tooltip>

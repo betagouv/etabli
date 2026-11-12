@@ -24,7 +24,7 @@ function formatPercentage(percentage: number): string {
 
 function BreakdownRow(props: { label: string; percentage: number; color: string; muted?: boolean }) {
   return (
-    <Box component="li" sx={{ py: 0.5 }}>
+    <Box component="li" sx={{ py: '0.25rem' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
         <Typography variant="caption" color={props.muted ? 'text.secondary' : 'text.primary'}>
           {props.label}
@@ -92,7 +92,7 @@ export function ToolsBreakdown(props: ToolsBreakdownProps) {
           <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1, mb: 0 }}>
             Part des initiatives utilisant chaque outil
           </Typography>
-          <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0, mt: 0.5 }} aria-label="répartition des outils">
+          <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0, mt: '0.25rem' }} aria-label="répartition des outils">
             {data.tools.map((tool) => (
               <BreakdownRow key={tool.name} label={tool.name} percentage={tool.percentage} color="var(--text-action-high-blue-france)" />
             ))}

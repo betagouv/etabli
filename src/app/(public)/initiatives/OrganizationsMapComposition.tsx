@@ -36,7 +36,7 @@ export function CompositionBar(props: { composition: InitiativesCompositionSchem
   );
 
   if (!props.withDetails) {
-    return <Box sx={{ mt: 0.5 }}>{bar}</Box>;
+    return <Box sx={{ mt: '0.25rem' }}>{bar}</Box>;
   }
 
   return (
@@ -50,7 +50,7 @@ export function CompositionBar(props: { composition: InitiativesCompositionSchem
         tabIndex={0}
         role="img"
         aria-label={compositionKinds.map(({ kind, label }) => `${label} : ${props.composition[kind].toLocaleString('fr-FR')}`).join(', ')}
-        sx={{ py: 0.5, cursor: 'help' }} // A bigger area to hover
+        sx={{ py: '0.25rem', cursor: 'help' }} // A bigger area to hover
       >
         {bar}
       </Box>
@@ -85,7 +85,7 @@ export function MapNodeBreakdown(props: { node: MapNodeData; colorMode: MapColor
   const details = (
     <>
       {typeof median === 'number' && (
-        <Typography variant="caption" component="div" sx={{ fontWeight: 600, mb: 0.5 }}>
+        <Typography variant="caption" component="div" sx={{ fontWeight: 600, mb: '0.25rem' }}>
           Notoriété médiane : {median} %
         </Typography>
       )}
@@ -124,12 +124,12 @@ export function MapNodeBreakdown(props: { node: MapNodeData; colorMode: MapColor
   if (props.alwaysDetailed) {
     return (
       <>
-        <Box sx={{ mt: 0.5 }}>{bar}</Box>
+        <Box sx={{ mt: '0.25rem' }}>{bar}</Box>
         <Box sx={{ mt: 1 }}>{details}</Box>
       </>
     );
   } else if (!props.withDetails) {
-    return <Box sx={{ mt: 0.5 }}>{bar}</Box>;
+    return <Box sx={{ mt: '0.25rem' }}>{bar}</Box>;
   }
 
   return (
@@ -141,7 +141,7 @@ export function MapNodeBreakdown(props: { node: MapNodeData; colorMode: MapColor
           .map(([step, label]) => `${label} : ${counts[step - 1].toLocaleString('fr-FR')}`)
           .concat(`Sans valeur : ${counts[5].toLocaleString('fr-FR')}`)
           .join(', ')}
-        sx={{ py: 0.5, cursor: 'help' }}
+        sx={{ py: '0.25rem', cursor: 'help' }}
       >
         {bar}
       </Box>

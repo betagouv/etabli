@@ -219,7 +219,7 @@ export function OrganizationsMapSurface(props: OrganizationsMapSurfaceProps) {
           }}
         >
           {hoveredParentName && hovered.node.depth > 1 && (
-            <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 0.25 }}>
+            <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: '0.125rem' }}>
               {hoveredParentName}
             </Typography>
           )}
@@ -230,7 +230,7 @@ export function OrganizationsMapSurface(props: OrganizationsMapSurfaceProps) {
               </Typography>
               <MapNodeBreakdown node={hovered.node.data} colorMode={props.colorMode ?? 'composition'} alwaysDetailed />
               {props.opensList(hovered.node) && (
-                <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+                <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: '0.25rem' }}>
                   Cliquez pour voir la liste
                 </Typography>
               )}

@@ -62,12 +62,12 @@ function BestResults(props: { filterBy: ListInitiativesSchemaType['filterBy'] })
 
   return (
     <Box sx={{ mt: 3 }}>
-      <Typography component="h4" variant="subtitle2" sx={{ mb: 0.5 }}>
+      <Typography component="h4" variant="subtitle2" sx={{ mb: '0.25rem' }}>
         Meilleurs résultats
       </Typography>
       <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }}>
         {data.initiatives.slice(0, maximumResults).map((initiative) => (
-          <Box component="li" key={initiative.id} sx={{ py: 0.25 }}>
+          <Box component="li" key={initiative.id} sx={{ py: '0.125rem' }}>
             <Link
               component={NextLink}
               href={withInitiativeSlug(linkRegistry.get('initiative', { initiativeId: initiative.id }), initiative.name)}
@@ -180,7 +180,7 @@ export function OrganizationsMapPanel(props: OrganizationsMapPanelProps) {
               : 'Organisations'}
           </Typography>
           <Tooltip title={mapReadingHelp} enterTouchDelay={0}>
-            <IconButton size="small" aria-label={`Comment lire la carte : ${mapReadingHelp}`} sx={{ ml: 0.5 }}>
+            <IconButton size="small" aria-label={`Comment lire la carte : ${mapReadingHelp}`} sx={{ ml: '0.25rem' }}>
               <InfoOutlinedIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
@@ -223,7 +223,7 @@ export function OrganizationsMapPanel(props: OrganizationsMapPanelProps) {
                     underline="hover"
                     onClick={() => props.onZoom(focusParent)}
                     title={focusParent.data.name}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 0.25, minWidth: 0 }}
+                    sx={{ display: 'flex', alignItems: 'center', gap: '0.125rem', minWidth: 0 }}
                   >
                     <ChevronLeftIcon sx={{ fontSize: 16, flexShrink: 0 }} aria-hidden="true" />
                     <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -294,12 +294,17 @@ export function OrganizationsMapPanel(props: OrganizationsMapPanelProps) {
             {props.filterBy.query && focusKind !== 'group' && <BestResults filterBy={bestResultsFilterBy} />}
           </Box>
           <Box
-            sx={{ gridArea: 'tools', minWidth: 0, minHeight: 0, [widePanelMedia]: { overflowY: 'auto', pr: 1.5, '& > :first-of-type': { mt: 0 } } }}
+            sx={{
+              gridArea: 'tools',
+              minWidth: 0,
+              minHeight: 0,
+              [widePanelMedia]: { overflowY: 'auto', pr: '0.75rem', '& > :first-of-type': { mt: 0 } },
+            }}
           >
             <ToolsBreakdown nodeId={focus.data.id} filterBy={props.filterBy} />
           </Box>
           {focusChildren.length > 0 && (
-            <Box key={focus.data.id} sx={{ gridArea: 'children', minWidth: 0, minHeight: 0, [widePanelMedia]: { overflowY: 'auto', pr: 1.5 } }}>
+            <Box key={focus.data.id} sx={{ gridArea: 'children', minWidth: 0, minHeight: 0, [widePanelMedia]: { overflowY: 'auto', pr: '0.75rem' } }}>
               <Typography component="h3" variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
                 {focusChildren.length.toLocaleString('fr-FR')} {focusKind === 'root' ? 'ensemble' : 'organisation'}
                 {focusChildren.length > 1 ? 's' : ''} {focusKind === 'root' ? '' : isTerritory ? 'sur ce territoire' : 'rattachée'}

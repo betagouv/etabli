@@ -89,7 +89,7 @@ function PickerRow(props: PickerRowProps) {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 0.5,
+          gap: '0.25rem',
           pl: `${8 + props.depth * indentationStep}px`,
           pr: 2,
           py: 1,
@@ -115,7 +115,7 @@ function PickerRow(props: PickerRowProps) {
             disabled={isIncluded}
             onChange={(event) => props.onCheck?.(event.target.checked)}
             inputProps={{ 'aria-labelledby': labelId }}
-            sx={{ p: 0.75, flexShrink: 0 }} // A long explanation next to it must not squeeze it
+            sx={{ p: '0.375rem', flexShrink: 0 }} // A long explanation next to it must not squeeze it
           />
         )}
         <Box
@@ -136,7 +136,7 @@ function PickerRow(props: PickerRowProps) {
               variant="caption"
               component="div"
               // A different color since it is the exception that needs to be noticed, direct results do not have one
-              sx={{ display: 'flex', alignItems: 'flex-start', gap: '6px', mt: 0.25, lineHeight: 1.35, color: 'var(--text-default-info)' }}
+              sx={{ display: 'flex', alignItems: 'flex-start', gap: '6px', mt: '0.125rem', lineHeight: 1.35, color: 'var(--text-default-info)' }}
             >
               <InfoOutlinedIcon aria-hidden="true" sx={{ fontSize: 14, mt: '1px', flexShrink: 0 }} />
               <span>{props.explanation}</span>
@@ -192,7 +192,7 @@ function OrganizationChildrenPage(
 
   if (isPending || !data) {
     return (
-      <Box component="li" sx={{ pl: `${44 + props.depth * indentationStep}px`, py: 1.5 }}>
+      <Box component="li" sx={{ pl: `${44 + props.depth * indentationStep}px`, py: '0.75rem' }}>
         <CircularProgress size={16} aria-label="chargement des organisations" />
       </Box>
     );
@@ -209,7 +209,7 @@ function OrganizationChildrenPage(
         <StandaloneOrganizationsNode {...props} count={data.standaloneOrganizationsCount} />
       )}
       {props.isLastPage && remaining > 0 && (
-        <Box component="li" sx={{ pl: `${44 + props.depth * indentationStep}px`, py: 0.5 }}>
+        <Box component="li" sx={{ pl: `${44 + props.depth * indentationStep}px`, py: '0.25rem' }}>
           <Button size="small" onClick={props.onLoadMore}>
             Afficher {Math.min(remaining, data.pageSize)} de plus ({remaining.toLocaleString('fr-FR')} restantes)
           </Button>
@@ -372,7 +372,7 @@ export function OrganizationPicker(props: OrganizationPickerProps) {
         }}
       />
       {props.value.organizationIds.length >= maximumFilteredOrganizations && (
-        <Typography role="status" variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5, mb: 0 }}>
+        <Typography role="status" variant="caption" color="text.secondary" component="p" sx={{ mt: '0.25rem', mb: 0 }}>
           Vous avez atteint la limite de {maximumFilteredOrganizations} organisations, retirez-en une pour en ajouter une autre.
         </Typography>
       )}
@@ -386,12 +386,12 @@ export function OrganizationPicker(props: OrganizationPickerProps) {
           overflowY: 'auto',
           border: '1px solid var(--border-default-grey)',
           borderRadius: '4px',
-          py: 0.5,
+          py: '0.25rem',
         }}
       >
         {isSearching ? (
           searchOrganizations.data && searchOrganizations.data.organizations.length === 0 ? (
-            <Typography component="li" variant="body2" color="text.secondary" sx={{ px: 2, py: 1.5 }}>
+            <Typography component="li" variant="body2" color="text.secondary" sx={{ px: 2, py: '0.75rem' }}>
               Aucune organisation avec des initiatives ne correspond.
             </Typography>
           ) : (

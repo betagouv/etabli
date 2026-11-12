@@ -101,7 +101,7 @@ function OrganizationsMapColorControl(props: { mode: MapColorMode; onChange: (mo
               <Box key={step} sx={{ flex: 1, bgcolor: `var(${getMapScaleVariable(props.mode as MapScaleMode, step)})` }} />
             ))}
           </Box>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: '0.25rem' }}>
             <Typography variant="caption">{option.legendStart}</Typography>
             <Typography variant="caption">{option.legendEnd}</Typography>
           </Box>

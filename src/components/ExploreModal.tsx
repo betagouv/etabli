@@ -12,6 +12,7 @@ import Card from '@mui/material/Card';
 import CardActionArea from '@mui/material/CardActionArea';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Link from '@mui/material/Link';
@@ -54,15 +55,15 @@ export function ExploreModal(props: ExploreModalProps) {
       // `autoFocus` prop loses. Focus it manually after the enter transition completes.
       TransitionProps={{ onEntered: () => inputRef.current?.focus() }}
     >
-      <Box sx={{ position: 'absolute', right: 8, top: 8 }}>
-        <IconButton aria-label="fermer" onClick={props.onClose}>
-          <CloseIcon />
-        </IconButton>
-      </Box>
-      <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
-        <Typography id="explore-modal-title" component="h2" variant="h4" sx={{ textAlign: 'center', mt: 1, mb: { xs: 3, sm: 4 }, pr: 4 }}>
+      <DialogTitle component="div" sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, px: { xs: 2, sm: 3 }, pt: 2, pb: { xs: 1, sm: 2 } }}>
+        <Typography id="explore-modal-title" component="h2" variant="h4" sx={{ flex: 1, textAlign: 'center', m: 0, pl: '40px' }}>
           Que cherchez-vous&nbsp;?
         </Typography>
+        <IconButton aria-label="fermer" onClick={props.onClose} sx={{ flexShrink: 0, mt: '-0.25rem', mr: '-0.5rem' }}>
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
         <Box component="form" onSubmit={submit}>
           <Stack direction="row" spacing={2} alignItems="stretch">
             <TextField inputRef={inputRef} type="search" name="q" fullWidth placeholder="Un nom, un outil, un cas d'utilisation…" />

@@ -4,7 +4,6 @@ import * as math from 'mathjs';
 
 import { LangchainWithLocalVectorStoreLlmManager } from '@etabli/src/features/llm-langchain';
 import { MockVectorStoreLlmManager } from '@etabli/src/features/llm-mock';
-import { OpenaiWithAssistantApiLlmManager } from '@etabli/src/features/llm-openai';
 import { initSettingsIfNeeded } from '@etabli/src/features/settings';
 import { Settings } from '@etabli/src/generated/prisma/client';
 import { ResultSchemaType } from '@etabli/src/gpt/template';
@@ -28,7 +27,6 @@ export type ChunkEventEmitter = EventEmitter<'chunk'>;
 
 export const llmManagerInstance =
   process.env.LLM_MANAGER_MOCK === 'true' ? new MockVectorStoreLlmManager() : new LangchainWithLocalVectorStoreLlmManager();
-// export const llmManagerInstance = new OpenaiWithAssistantApiLlmManager();
 
 // `D` generic cannot be more precise because langchain does not export the `SimilarityModel` type
 export function filterWithScoreThreshold<D extends Record<string, any>, T extends [Document<D>, number]>(documentsWrappers: T[]): T[] {

@@ -215,8 +215,6 @@ For each build and runtime (since they are shared), you should have set some env
 
 **IMPORTANT: When building Next.js in a standalone mode the frontend `NEXT_PUBLIC_*` environement variables are hardcoded. It means you have to set them into the build environment too. For more information have a look at the build step comment into `.github/workflows/ci.yml`.**
 
-_Note: `OPENAI_API_KEY` variable can be found in the code even if not used in production. It remains for comparing purposes, but also as a legacy since the proof of concept of Établi was based on GPT models._
-
 #### Monitoring
 
 It's important to be aware of some events, for this we decided to monitor:

@@ -7,7 +7,6 @@ import fsSync from 'fs';
 import fs from 'fs/promises';
 import https from 'https';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { FetchError } from 'node-fetch';
 import { ParseResultType, parseDomain } from 'parse-domain';
 import { chromium as stealthChromium } from 'patchright';
 import path from 'path';

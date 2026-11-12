@@ -15,7 +15,6 @@ import fs from 'fs/promises';
 import { glob } from 'glob';
 import graphlib, { Graph } from 'graphlib';
 import handlebars from 'handlebars';
-import OpenAI from 'openai';
 import path from 'path';
 import prettyBytes from 'pretty-bytes';
 import { SimpleGit, SimpleGitProgressEvent, simpleGit } from 'simple-git';
@@ -1800,17 +1799,9 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
     }
   } catch (error) {
     console.error(`error while feeding initiatives`);
+    console.error(error);
 
-    if (error instanceof OpenAI.APIError) {
-      console.error(error.status);
-      console.error(error.name);
-
-      throw error;
-    } else {
-      console.error(error);
-
-      throw error;
-    }
+    throw error;
   }
 }
 

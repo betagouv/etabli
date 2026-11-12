@@ -27,7 +27,7 @@ import { MapColorMode, MapNode, MapNodeType, formatInitiatives } from '@etabli/s
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
 
 const mapReadingHelp =
-  "La taille des cercles dépend du nombre d'initiatives. Leurs couleurs indiquent ce qui les compose : bleu pour les sites internet, orange pour les dépôts de code, vert pour les deux. Cliquez sur un cercle pour y entrer, sur le fond pour remonter. Une teinte claire résume une organisation et ses sous-organisations.";
+  "La taille des cercles dépend du nombre d'initiatives. Par défaut, leurs couleurs indiquent ce qui les compose : violet pour les sites internet, rose pour les dépôts de code, olive pour les deux (le menu « Couleur des bulles » montre d'autres indicateurs). Cliquez sur un cercle pour y entrer, sur le fond pour remonter. Une teinte claire résume une organisation et ses sous-organisations.";
 
 // With enough room the panel is doubled so its content is displayed without scrolling
 export const widePanelMedia = '@media (min-width:1400px)';

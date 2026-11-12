@@ -7,7 +7,6 @@ import { PropsWithChildren } from 'react';
 import '@etabli/src/app/(public)/layout.scss';
 import { ContentWrapper } from '@etabli/src/components/ContentWrapper';
 import { useSingletonExploreModal } from '@etabli/src/components/ExploreModal';
-import { FlashMessage } from '@etabli/src/components/FlashMessage';
 import { useLiveChat } from '@etabli/src/components/live-chat/useLiveChat';
 import { commonFooterAttributes, commonHeaderAttributes } from '@etabli/src/utils/dsfr';
 import { linkRegistry } from '@etabli/src/utils/routes/registry';
@@ -47,7 +46,6 @@ export function PublicLayout(props: PropsWithChildren) {
   return (
     <>
       <Header {...commonHeaderAttributes} quickAccessItems={quickAccessItems} navigation={[]} />
-      <FlashMessage appMode={process.env.NEXT_PUBLIC_APP_MODE} nodeEnv={process.env.NODE_ENV} />
       <ContentWrapper>{props.children}</ContentWrapper>
       <Footer {...commonFooterAttributes} />
     </>

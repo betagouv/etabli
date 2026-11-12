@@ -59,6 +59,27 @@ const __root_dirname = process.cwd();
 
 const fastFolderSizeAsync = promisify(fastFolderSize);
 
+// Many repositories of a run can be on the same forge (a university GitLab...), so whatever the global concurrency only a few clones
+// target the same host at once, otherwise small forges answer with "too many requests"
+const maximumConcurrentClonesPerHost = 3;
+const ongoingClonesPerHost = new Map<string, number>();
+
+async function withCloneSlotForHost<T>(repositoryUrl: string, clone: () => Promise<T>): Promise<T> {
+  const host = new URL(repositoryUrl).host;
+
+  while ((ongoingClonesPerHost.get(host) ?? 0) >= maximumConcurrentClonesPerHost) {
+    await sleep(500);
+  }
+
+  ongoingClonesPerHost.set(host, (ongoingClonesPerHost.get(host) ?? 0) + 1);
+
+  try {
+    return await clone();
+  } finally {
+    ongoingClonesPerHost.set(host, (ongoingClonesPerHost.get(host) ?? 1) - 1);
+  }
+}
+
 // Switch it when testing locally to prevent multiplying network request whereas the remote content has probably no change since then
 // ... but be warned that for now if there is an error with Git, the cache will be misleading since it matches only the existence of folders (we could improve that by using try/catch/finally around git steps)
 const useLocalFileCache = false;
@@ -1098,15 +1119,17 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
             // * `--depth=1`: retrieve only information about the latest commit state (not having history will save space)
             // * `--filter=blob:limit=${SIZE}`: should not download blob objects over $SIZE size (we estimated a size to get big text file for code, while excluding big assets). In fact, it seems not working well because I do see some images fetched... just keeping this parameter in case it may work
             try {
-              await projectGit
-                .env({
-                  GIT_TERMINAL_PROMPT: 0, // This is required so it fails when a repository expects credentials (and so the git CLI expects inputs)
-                })
-                .clone(rawRepository.repositoryUrl, '.', {
-                  '--single-branch': null,
-                  '--depth': 1,
-                  '--filter': `blob:limit=${gitFileSizeLimitInKb}k`,
-                });
+              await withCloneSlotForHost(rawRepository.repositoryUrl, () =>
+                projectGit
+                  .env({
+                    GIT_TERMINAL_PROMPT: 0, // This is required so it fails when a repository expects credentials (and so the git CLI expects inputs)
+                  })
+                  .clone(rawRepository.repositoryUrl, '.', {
+                    '--single-branch': null,
+                    '--depth': 1,
+                    '--filter': `blob:limit=${gitFileSizeLimitInKb}k`,
+                  })
+              );
             } catch (error) {
               try {
                 if (error instanceof Error) {

@@ -285,6 +285,52 @@ function lastInventoryRepositoryToEcosystem(repository: LastInventoryRepositoryS
   };
 }
 
+export interface RepositoryRename {
+  fromUrl: string;
+  toKey: string;
+}
+
+// The frozen list still has the former address of repositories renamed or transferred since, while the refreshed list only has the new one.
+// Both keep the creation date to the second, so a repository only known by the frozen list with a single refreshed one created at the exact
+// same time on the same forge is the same. Only GitHub is considered because other forges can give dates rounded to the day
+export function findRenamedRepositories(
+  jsonRepositories: JsonRepositorySchemaType[],
+  ecosystemRepositories: EcosystemRepositorySchemaType[]
+): RepositoryRename[] {
+  const ecosystemKeys = new Set(ecosystemRepositories.map((repository) => getRepositoryKey(repository.html_url)));
+  const ecosystemRepositoriesByCreation = new Map<string, EcosystemRepositorySchemaType[]>();
+
+  for (const repository of ecosystemRepositories) {
+    if (repository.kind !== 'github' || repository.default_branch === null) {
+      continue;
+    }
+
+    const creationKey = repository.created_at.toISOString();
+    const sameCreationRepositories = ecosystemRepositoriesByCreation.get(creationKey) ?? [];
+
+    sameCreationRepositories.push(repository);
+    ecosystemRepositoriesByCreation.set(creationKey, sameCreationRepositories);
+  }
+
+  const renames: RepositoryRename[] = [];
+
+  for (const repository of jsonRepositories) {
+    const key = getRepositoryKey(repository.repository_url);
+
+    if (repository.platform !== 'GitHub' || ecosystemKeys.has(key)) {
+      continue;
+    }
+
+    const sameCreationRepositories = ecosystemRepositoriesByCreation.get(repository.creation_date.toISOString()) ?? [];
+
+    if (sameCreationRepositories.length === 1) {
+      renames.push({ fromUrl: repository.repository_url, toKey: getRepositoryKey(sameCreationRepositories[0].html_url) });
+    }
+  }
+
+  return renames;
+}
+
 // None of the 2 main lists is enough: the frozen one misses recent repositories, and the other one misses some forges while being older on most of the
 // others (only GitHub is really refreshed). So all repositories are kept, using for each one the most recent information
 export function mergeRepositoryLists(
@@ -292,7 +338,14 @@ export function mergeRepositoryLists(
   ecosystemRepositories: EcosystemRepositorySchemaType[],
   lastInventoryRepositories: LastInventoryRepositorySchemaType[] = []
 ): JsonRepositorySchemaType[] {
-  const knownRepositories = new Map(jsonRepositories.map((repository) => [getRepositoryKey(repository.repository_url), repository]));
+  const formerRepositoriesKeys = new Set(
+    findRenamedRepositories(jsonRepositories, ecosystemRepositories).map((rename) => getRepositoryKey(rename.fromUrl))
+  );
+  const knownRepositories = new Map(
+    jsonRepositories
+      .filter((repository) => !formerRepositoriesKeys.has(getRepositoryKey(repository.repository_url)))
+      .map((repository) => [getRepositoryKey(repository.repository_url), repository])
+  );
   const emptyRepositoriesKeys = new Set<string>();
   let invalidEcosystemRepositoriesCount = 0;
   let invalidLastInventoryRepositoriesCount = 0;
@@ -333,7 +386,7 @@ export function mergeRepositoryLists(
   lastInventoryRepositories.forEach((repository, index) => {
     const key = getRepositoryKey(repository.id);
 
-    if (!knownRepositories.has(key) && !emptyRepositoriesKeys.has(key)) {
+    if (!knownRepositories.has(key) && !emptyRepositoriesKeys.has(key) && !formerRepositoriesKeys.has(key)) {
       let jsonRepository: JsonRepositorySchemaType | null = null;
 
       try {
@@ -370,6 +423,152 @@ export function isMeaningfulRepositoryChange(
   const isSheetOld = !sheetComputedAt || sheetComputedAt < subMonths(new Date(), minimumMonthsBetweenSheetsForNewCode);
 
   return before.name !== after.name || before.description !== after.description || before.homepage !== after.homepage || (hasNewCode && isSheetOld);
+}
+
+async function deleteRawRepository(
+  tx: Prisma.TransactionClient,
+  rawRepository: Pick<LiteRawRepositorySchemaType, 'platform' | 'organizationName' | 'name' | 'repositoryUrl'>
+) {
+  // If it was considered as a main raw domain for some others, we mark those ones to be reprocessed
+  await tx.rawRepository.updateMany({
+    where: {
+      AND: [
+        {
+          platform: {
+            not: rawRepository.platform,
+          },
+        },
+        {
+          organizationName: {
+            not: rawRepository.organizationName,
+          },
+        },
+        {
+          name: {
+            not: rawRepository.name,
+          },
+        },
+      ],
+      mainSimilarRepository: {
+        is: {
+          name: rawRepository.name,
+        },
+      },
+    },
+    data: {
+      mainSimilarRepositoryId: null,
+      updateMainSimilarRepository: true,
+    },
+  });
+
+  const deletedRawRepository = await tx.rawRepository.delete({
+    where: {
+      repositoryUrl: rawRepository.repositoryUrl,
+    },
+    select: {
+      RawRepositoriesOnInitiativeMaps: {
+        select: {
+          initiativeMapId: true,
+        },
+      },
+    },
+  });
+
+  if (deletedRawRepository.RawRepositoriesOnInitiativeMaps) {
+    await tx.initiativeMap.update({
+      where: {
+        id: deletedRawRepository.RawRepositoriesOnInitiativeMaps.initiativeMapId,
+      },
+      data: {
+        update: true,
+      },
+      select: {
+        id: true, // Ref: https://github.com/prisma/prisma/issues/6252
+      },
+    });
+  }
+}
+
+// A renamed repository would otherwise be removed and added again, and its sheet replaced by a new one at another address. So the stored
+// record takes the new address when it is the one described by a sheet (the record of the new address, already added by a previous
+// synchronization without having a sheet, is removed). In the other cases the former record is simply removed like any missing repository
+async function renameRawRepositoriesHavingSheet(tx: Prisma.TransactionClient, renames: { fromUrl: string; toUrl: string }[]): Promise<number> {
+  const sheetSelect = {
+    platform: true,
+    organizationName: true,
+    name: true,
+    repositoryUrl: true,
+    RawRepositoriesOnInitiativeMaps: {
+      select: {
+        initiativeMapId: true,
+        initiative: {
+          select: {
+            Initiative: {
+              select: {
+                id: true,
+              },
+            },
+          },
+        },
+      },
+    },
+  } satisfies Prisma.RawRepositorySelect;
+
+  const renamedTargets = new Set<string>();
+
+  for (const rename of renames) {
+    watchGracefulExitInLoop();
+
+    // A repository renamed several times can have more than one former address in the frozen list
+    if (renamedTargets.has(rename.toUrl)) {
+      continue;
+    }
+
+    const [formerRawRepository, newRawRepository] = await Promise.all([
+      tx.rawRepository.findUnique({ where: { repositoryUrl: rename.fromUrl }, select: sheetSelect }),
+      tx.rawRepository.findUnique({ where: { repositoryUrl: rename.toUrl }, select: sheetSelect }),
+    ]);
+
+    if (
+      !formerRawRepository?.RawRepositoriesOnInitiativeMaps?.initiative.Initiative ||
+      newRawRepository?.RawRepositoriesOnInitiativeMaps?.initiative.Initiative
+    ) {
+      continue;
+    }
+
+    if (newRawRepository) {
+      await deleteRawRepository(tx, newRawRepository);
+    }
+
+    // The other properties are refreshed by the synchronization right after, it also marks the map to be computed again
+    await tx.rawRepository.update({
+      where: {
+        repositoryUrl: rename.fromUrl,
+      },
+      data: {
+        repositoryUrl: rename.toUrl,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.initiativeMap.update({
+      where: {
+        id: formerRawRepository.RawRepositoriesOnInitiativeMaps.initiativeMapId,
+      },
+      data: {
+        update: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    renamedTargets.add(rename.toUrl);
+  }
+
+  return renamedTargets.size;
 }
 
 export async function formatRepositoriesIntoDatabase() {
@@ -417,8 +616,22 @@ export async function formatRepositoriesIntoDatabase() {
     }
   );
 
+  // Only a rename toward a kept repository is applied, otherwise the record would be removed right after
+  const keptRepositoriesUrls = new Map(
+    jsonRepositories.map((jsonRepository) => [getRepositoryKey(jsonRepository.repository_url), new URL(jsonRepository.repository_url).toString()])
+  );
+  const renames = findRenamedRepositories(frozenJsonRepositories, ecosystemRepositories).flatMap((rename) => {
+    const toUrl = keptRepositoriesUrls.get(rename.toKey);
+
+    return toUrl ? [{ fromUrl: new URL(rename.fromUrl).toString(), toUrl: toUrl }] : [];
+  });
+
   await prisma.$transaction(
     async (tx) => {
+      const renamedCount = await renameRawRepositoriesHavingSheet(tx, renames);
+
+      console.log(`${renamedCount}/${renames.length} renamed repositories keep their record since having an initiative sheet`);
+
       const storedRawRepositories = await tx.rawRepository.findMany({
         select: {
           name: true,
@@ -550,64 +763,7 @@ export async function formatRepositoriesIntoDatabase() {
       for (const deletedLiteRawRepository of diffResult.removed) {
         watchGracefulExitInLoop();
 
-        // If it was considered as a main raw domain for some others, we mark those ones to be reprocessed
-        await tx.rawRepository.updateMany({
-          where: {
-            AND: [
-              {
-                platform: {
-                  not: deletedLiteRawRepository.platform,
-                },
-              },
-              {
-                organizationName: {
-                  not: deletedLiteRawRepository.organizationName,
-                },
-              },
-              {
-                name: {
-                  not: deletedLiteRawRepository.name,
-                },
-              },
-            ],
-            mainSimilarRepository: {
-              is: {
-                name: deletedLiteRawRepository.name,
-              },
-            },
-          },
-          data: {
-            mainSimilarRepositoryId: null,
-            updateMainSimilarRepository: true,
-          },
-        });
-
-        const deletedRawDomain = await tx.rawRepository.delete({
-          where: {
-            repositoryUrl: deletedLiteRawRepository.repositoryUrl,
-          },
-          select: {
-            RawRepositoriesOnInitiativeMaps: {
-              select: {
-                initiativeMapId: true,
-              },
-            },
-          },
-        });
-
-        if (deletedRawDomain.RawRepositoriesOnInitiativeMaps) {
-          await tx.initiativeMap.update({
-            where: {
-              id: deletedRawDomain.RawRepositoriesOnInitiativeMaps.initiativeMapId,
-            },
-            data: {
-              update: true,
-            },
-            select: {
-              id: true, // Ref: https://github.com/prisma/prisma/issues/6252
-            },
-          });
-        }
+        await deleteRawRepository(tx, deletedLiteRawRepository);
       }
 
       for (const updatedLiteRawRepository of diffResult.updated) {

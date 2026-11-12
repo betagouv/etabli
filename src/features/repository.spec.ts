@@ -4,6 +4,7 @@
 import {
   EcosystemRepositorySchemaType,
   JsonRepositorySchemaType,
+  findRenamedRepositories,
   getRepositoryNameWithSubgroups,
   isLikelyStudentRepository,
   isMeaningfulRepositoryChange,
@@ -158,6 +159,89 @@ describe('mergeRepositoryLists()', () => {
 
     expect(mergeRepositoryLists([], [...validRepositories, malformedRepository])).toHaveLength(200);
     expect(() => mergeRepositoryLists([], [ecosystem, malformedRepository])).toThrow('cannot be trusted');
+  });
+});
+
+describe('findRenamedRepositories()', () => {
+  const former: JsonRepositorySchemaType = {
+    id: 1,
+    name: 'impress',
+    organization_name: 'numerique-gouv',
+    platform: 'GitHub',
+    repository_url: 'https://github.com/numerique-gouv/impress',
+    description: null,
+    default_branch: 'main',
+    is_fork: false,
+    is_archived: false,
+    creation_date: new Date('2024-01-09T14:17:32Z'),
+    last_update: new Date('2024-11-01'),
+    last_modification: new Date('2024-11-01'),
+    homepage: null,
+    stars_count: 0,
+    forks_count: 0,
+    license: null,
+    open_issues_count: 0,
+    language: null,
+    topics: null,
+    software_heritage_exists: null,
+    software_heritage_url: null,
+  };
+  const renamed: EcosystemRepositorySchemaType = {
+    id: 2,
+    html_url: 'https://github.com/suitenumerique/docs',
+    owner: 'suitenumerique',
+    kind: 'github',
+    description: null,
+    default_branch: 'main',
+    fork: false,
+    archived: false,
+    created_at: new Date('2024-01-09T14:17:32Z'),
+    updated_at: new Date('2026-11-01'),
+    pushed_at: null,
+    homepage: null,
+    stargazers_count: null,
+    forks_count: null,
+    license: null,
+    open_issues_count: null,
+    language: null,
+    topics: [],
+  };
+
+  it('should match a former address with the repository created at the same time', async () => {
+    expect(findRenamedRepositories([former], [renamed])).toEqual([
+      { fromUrl: 'https://github.com/numerique-gouv/impress', toKey: 'https://github.com/suitenumerique/docs' },
+    ]);
+    expect(mergeRepositoryLists([former], [renamed]).map((repository) => repository.repository_url)).toEqual([renamed.html_url]);
+  });
+
+  it('should not match when unsure', async () => {
+    const otherTime = { ...renamed, created_at: new Date('2024-01-09T14:17:33Z') };
+    const sameTime = { ...renamed, id: 3, html_url: 'https://github.com/suitenumerique/other' };
+
+    expect(findRenamedRepositories([former], [otherTime])).toEqual([]);
+    expect(findRenamedRepositories([former], [renamed, sameTime])).toEqual([]);
+    expect(findRenamedRepositories([former], [renamed, { ...renamed, html_url: former.repository_url }])).toEqual([]);
+    expect(findRenamedRepositories([{ ...former, platform: 'GitLab' }], [{ ...renamed, kind: 'gitlab' }])).toEqual([]);
+    expect(mergeRepositoryLists([former], [sameTime, renamed])).toHaveLength(3);
+  });
+
+  it('should not bring back the former address from the last inventory', async () => {
+    const inventoryRepository = {
+      id: former.repository_url,
+      owner: 'https://github.com/numerique-gouv',
+      platform: 'github.com',
+      description: null,
+      fork: false,
+      archived: false,
+      updated_at: new Date('2025-09-01'),
+      forks_count: 1,
+      license: '',
+      language: '',
+    };
+
+    expect(mergeRepositoryLists([former], [renamed], [inventoryRepository]).map((repository) => repository.repository_url)).toEqual([
+      renamed.html_url,
+    ]);
   });
 });
 

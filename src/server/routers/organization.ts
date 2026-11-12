@@ -589,31 +589,31 @@ async function computeToolsBreakdownForNode(input: GetToolsBreakdownSchemaType) 
         SELECT i."id" FROM "Initiative" i WHERE i."deletedAt" IS NULL AND ${filterCondition} AND ${scope}
       ),
       used AS (
-        SELECT t."name", ti."initiativeId"
+        SELECT t."id", t."name", ti."initiativeId"
         FROM "ToolsOnInitiatives" ti
         JOIN "Tool" t ON t."id" = ti."toolId"
         JOIN scoped s ON s."id" = ti."initiativeId"
         WHERE t."category" = ${input.category}::"ToolCategory"
       ),
       listed AS (
-        SELECT u."name", COUNT(DISTINCT u."initiativeId")::int AS "initiativesCount"
+        SELECT u."id", u."name", COUNT(DISTINCT u."initiativeId")::int AS "initiativesCount"
         FROM used u
-        GROUP BY u."name"
+        GROUP BY u."id", u."name"
         ORDER BY "initiativesCount" DESC, u."name" ASC
         LIMIT ${maximumTools}
       )
     `;
 
   const [rows, usages, counts] = await Promise.all([
-    prisma.$queryRaw<{ name: string; initiativesCount: number }[]>`
+    prisma.$queryRaw<{ id: string; name: string; initiativesCount: number }[]>`
         ${scopedTools}
-        SELECT l."name", l."initiativesCount" FROM listed l ORDER BY l."initiativesCount" DESC, l."name" ASC
+        SELECT l."id", l."name", l."initiativesCount" FROM listed l ORDER BY l."initiativesCount" DESC, l."name" ASC
       `,
     prisma.$queryRaw<{ covered: number; others: number }[]>`
         ${scopedTools}
         SELECT
           COUNT(DISTINCT u."initiativeId")::int AS "covered",
-          COUNT(DISTINCT u."initiativeId") FILTER (WHERE u."name" NOT IN (SELECT l."name" FROM listed l))::int AS "others"
+          COUNT(DISTINCT u."initiativeId") FILTER (WHERE u."id" NOT IN (SELECT l."id" FROM listed l))::int AS "others"
         FROM used u
       `,
     prisma.$queryRaw<{ total: number }[]>`

@@ -16,7 +16,7 @@ import NextLink from 'next/link';
 import { MouseEvent, useEffect, useRef } from 'react';
 
 import { MapNodeBreakdown, MapNodeBreakdowns } from '@etabli/src/app/(public)/initiatives/OrganizationsMapComposition';
-import { ToolsBreakdown } from '@etabli/src/app/(public)/initiatives/ToolsBreakdown';
+import { ToolListLink, ToolsBreakdown } from '@etabli/src/app/(public)/initiatives/ToolsBreakdown';
 import { trpc } from '@etabli/src/client/trpcClient';
 import { OrganizationTree } from '@etabli/src/components/OrganizationTree';
 import { PaginationSize } from '@etabli/src/models/actions/common';
@@ -97,6 +97,7 @@ export interface OrganizationsMapPanelProps {
   onZoom: (node: MapNode | null | undefined) => void;
   listHref: string;
   onShowList: () => void;
+  toolListLink: ToolListLink; // Same as the list, narrowed to a tool
 }
 
 export function OrganizationsMapPanel(props: OrganizationsMapPanelProps) {
@@ -301,7 +302,8 @@ export function OrganizationsMapPanel(props: OrganizationsMapPanelProps) {
               [widePanelMedia]: { overflowY: 'auto', pr: '0.75rem', '& > :first-of-type': { mt: 0 } },
             }}
           >
-            <ToolsBreakdown nodeId={focus.data.id} filterBy={props.filterBy} />
+            {/* Like the button to the list, a group of the map is not something the directory can be narrowed to */}
+            <ToolsBreakdown nodeId={focus.data.id} filterBy={props.filterBy} toolListLink={focusKind !== 'group' ? props.toolListLink : undefined} />
           </Box>
           {focusChildren.length > 0 && (
             <Box key={focus.data.id} sx={{ gridArea: 'children', minWidth: 0, minHeight: 0, [widePanelMedia]: { overflowY: 'auto', pr: '0.75rem' } }}>

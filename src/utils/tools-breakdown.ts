@@ -1,9 +1,11 @@
 export interface ToolUsageRow {
+  id: string;
   name: string;
   initiativesCount: number;
 }
 
 export interface ToolsBreakdownItem {
+  id: string; // To filter the directory on it
   name: string;
   percentage: number;
 }
@@ -29,7 +31,7 @@ export function computeToolsBreakdown(rows: ToolUsageRow[], counts: ToolsBreakdo
   const toPercentage = (initiativesCount: number) => (initiativesCount / counts.initiativesCount) * 100;
 
   return {
-    tools: rows.map((row) => ({ name: row.name, percentage: toPercentage(row.initiativesCount) })),
+    tools: rows.map((row) => ({ id: row.id, name: row.name, percentage: toPercentage(row.initiativesCount) })),
     othersPercentage: toPercentage(counts.initiativesWithOtherToolCount),
     notSpecifiedPercentage: toPercentage(counts.initiativesCount - counts.initiativesWithToolCount),
   };

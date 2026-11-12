@@ -45,6 +45,15 @@ export const { MuiDsfrThemeProvider } = createMuiDsfrThemeProvider({
             },
           },
         },
+        // The DSFR draws its own underline on any link (as a background image), so a link only underlined when pointed got a second one
+        // added by MUI on hover. It now behaves like the ones rendered as buttons (where the DSFR draws nothing): one underline, on hover
+        MuiLink: {
+          styleOverrides: {
+            underlineHover: {
+              backgroundImage: 'none !important',
+            },
+          },
+        },
         // MUI derives the background by darkening the color a lot in dark mode, it ended darker than the page (a black hole on a grey
         // dialog). The DSFR contrast backgrounds are made for both modes
         MuiAlert: {

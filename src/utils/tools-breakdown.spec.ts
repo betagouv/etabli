@@ -5,13 +5,13 @@ import { computeToolsBreakdown } from '@etabli/src/utils/tools-breakdown';
 
 describe('computeToolsBreakdown()', () => {
   it('should count initiatives without tools as not specified', () => {
-    const breakdown = computeToolsBreakdown([{ name: 'PHP', initiativesCount: 3 }], {
+    const breakdown = computeToolsBreakdown([{ id: 'php', name: 'PHP', initiativesCount: 3 }], {
       initiativesCount: 4,
       initiativesWithToolCount: 3,
       initiativesWithOtherToolCount: 0,
     });
 
-    expect(breakdown.tools).toStrictEqual([{ name: 'PHP', percentage: 75 }]);
+    expect(breakdown.tools).toStrictEqual([{ id: 'php', name: 'PHP', percentage: 75 }]);
     expect(breakdown.notSpecifiedPercentage).toBe(25);
     expect(breakdown.othersPercentage).toBe(0);
   });
@@ -20,8 +20,8 @@ describe('computeToolsBreakdown()', () => {
     // 2 initiatives with both tools, 1 with only CakePHP, 1 without any
     const breakdown = computeToolsBreakdown(
       [
-        { name: 'CakePHP', initiativesCount: 3 },
-        { name: 'Bootstrap', initiativesCount: 2 },
+        { id: 'cakephp', name: 'CakePHP', initiativesCount: 3 },
+        { id: 'bootstrap', name: 'Bootstrap', initiativesCount: 2 },
       ],
       { initiativesCount: 4, initiativesWithToolCount: 3, initiativesWithOtherToolCount: 0 }
     );
@@ -31,7 +31,7 @@ describe('computeToolsBreakdown()', () => {
   });
 
   it('should tell how many initiatives use tools not listed', () => {
-    const breakdown = computeToolsBreakdown([{ name: 'A', initiativesCount: 2 }], {
+    const breakdown = computeToolsBreakdown([{ id: 'a', name: 'A', initiativesCount: 2 }], {
       initiativesCount: 4,
       initiativesWithToolCount: 4,
       initiativesWithOtherToolCount: 1,

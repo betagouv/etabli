@@ -2,11 +2,13 @@
 
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
+import Link from '@mui/material/Link';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { keepPreviousData } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import NextLink from 'next/link';
+import { MouseEvent, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { trpc } from '@etabli/src/client/trpcClient';
@@ -22,13 +24,39 @@ function formatPercentage(percentage: number): string {
   return `${percentage.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
 }
 
-function BreakdownRow(props: { label: string; percentage: number; color: string; muted?: boolean }) {
+export interface ToolListLink {
+  getHref: (toolId: string) => string; // For browser features (e.g. open in a new tab)
+  onShow: (toolId: string) => void; // Staying in the page keeps it instant
+}
+
+function BreakdownRow(props: { label: string; percentage: number; color: string; muted?: boolean; toolId?: string; toolListLink?: ToolListLink }) {
+  const { toolId, toolListLink } = props;
+
   return (
     <Box component="li" sx={{ py: '0.25rem' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
-        <Typography variant="caption" color={props.muted ? 'text.secondary' : 'text.primary'}>
-          {props.label}
-        </Typography>
+        {toolId && toolListLink ? (
+          <Link
+            component={NextLink}
+            href={toolListLink.getHref(toolId)}
+            variant="caption"
+            underline="hover"
+            onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+              if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+                event.preventDefault();
+                toolListLink.onShow(toolId);
+              }
+            }}
+            sx={{ minWidth: 0 }}
+          >
+            {props.label}
+            <span className="fr-sr-only"> : voir les initiatives qui l&apos;utilisent</span>
+          </Link>
+        ) : (
+          <Typography variant="caption" color={props.muted ? 'text.secondary' : 'text.primary'}>
+            {props.label}
+          </Typography>
+        )}
         <Typography variant="caption" color={props.muted ? 'text.secondary' : 'text.primary'} sx={{ fontWeight: 600, flexShrink: 0 }}>
           {formatPercentage(props.percentage)}
         </Typography>
@@ -45,6 +73,7 @@ function BreakdownRow(props: { label: string; percentage: number; color: string;
 export interface ToolsBreakdownProps {
   nodeId: string; // An organization, or a virtual node of the map
   filterBy: GetToolsBreakdownSchemaType['filterBy'];
+  toolListLink?: ToolListLink; // Each tool then leads to the initiatives using it, only when the directory can be narrowed to the node
 }
 
 export function ToolsBreakdown(props: ToolsBreakdownProps) {
@@ -94,7 +123,14 @@ export function ToolsBreakdown(props: ToolsBreakdownProps) {
           </Typography>
           <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0, mt: '0.25rem' }} aria-label="répartition des outils">
             {data.tools.map((tool) => (
-              <BreakdownRow key={tool.name} label={tool.name} percentage={tool.percentage} color="var(--text-action-high-blue-france)" />
+              <BreakdownRow
+                key={tool.id}
+                label={tool.name}
+                percentage={tool.percentage}
+                color="var(--text-action-high-blue-france)"
+                toolId={tool.id}
+                toolListLink={props.toolListLink}
+              />
             ))}
             {data.othersPercentage > 0 && <BreakdownRow label="Autres" percentage={data.othersPercentage} color="var(--text-mention-grey)" />}
             <BreakdownRow label="Non renseigné" percentage={data.notSpecifiedPercentage} color="var(--border-plain-grey)" muted />

@@ -622,6 +622,17 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                   onColorModeChange={(mode) => setParams({ color: mode })}
                   listHref={`${linkRegistry.get('initiatives', undefined)}${serializeDirectoryParams({ ...params, ...listViewParams, page: null })}`}
                   onShowList={() => setParams({ ...listViewParams, page: 1 })}
+                  // The tool replaces those filtered on (they are combined with "or", adding it would widen the list instead of narrowing it)
+                  toolListLink={{
+                    getHref: (toolId) =>
+                      `${linkRegistry.get('initiatives', undefined)}${serializeDirectoryParams({
+                        ...params,
+                        ...listViewParams,
+                        tools: [toolId],
+                        page: null,
+                      })}`,
+                    onShow: (toolId) => setParams({ ...listViewParams, tools: [toolId], page: 1 }),
+                  }}
                 />
               </Grid>
             ) : hasResults ? (

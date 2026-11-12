@@ -36,8 +36,8 @@ const defaultMswParameters = {
         response: {
           initiativesCount: 1520,
           tools: [
-            { name: 'PHP', percentage: 42.5 },
-            { name: 'TypeScript', percentage: 18.2 },
+            { id: 'a7f1c2d3-0000-4000-8000-000000000001', name: 'PHP', percentage: 42.5 },
+            { id: 'a7f1c2d3-0000-4000-8000-000000000002', name: 'TypeScript', percentage: 18.2 },
           ],
           othersPercentage: 12.3,
           notSpecifiedPercentage: 27,
@@ -64,6 +64,7 @@ const commonArgs = {
   onFocus: () => {},
   listHref: '/initiatives',
   onShowList: () => {},
+  toolListLink: { getHref: (toolId: string) => `/initiatives?tools=${toolId}`, onShow: () => {} },
 };
 
 const NormalStory = Template.bind({});

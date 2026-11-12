@@ -14,6 +14,7 @@ import { useIsomorphicLayoutEffect } from 'react-use';
 
 import { OrganizationsMapPanel, panelWidth, widePanelMedia } from '@etabli/src/app/(public)/initiatives/OrganizationsMapPanel';
 import { OrganizationsMapSurface } from '@etabli/src/app/(public)/initiatives/OrganizationsMapSurface';
+import { ToolListLink } from '@etabli/src/app/(public)/initiatives/ToolsBreakdown';
 import { trpc } from '@etabli/src/client/trpcClient';
 import { ErrorAlert } from '@etabli/src/components/ErrorAlert';
 import { LoadingArea } from '@etabli/src/components/LoadingArea';
@@ -42,6 +43,7 @@ export interface OrganizationsMapProps {
   onFocus: (nodeId: string | null) => void;
   listHref: string; // Same as `onShowList`, for browser features (e.g. open in a new tab)
   onShowList: () => void;
+  toolListLink: ToolListLink; // Same as the list, narrowed to a tool of the breakdown
   colorMode: MapColorMode;
   onColorModeChange: (mode: MapColorMode) => void;
 }
@@ -283,6 +285,7 @@ export function OrganizationsMap(props: OrganizationsMapProps) {
         onZoom={zoomTo}
         listHref={props.listHref}
         onShowList={props.onShowList}
+        toolListLink={props.toolListLink}
       />
     </Box>
   );

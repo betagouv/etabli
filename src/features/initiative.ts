@@ -5,6 +5,7 @@ import { eachOfLimit } from 'async';
 import chalk from 'chalk';
 import { differenceInDays } from 'date-fns/differenceInDays';
 import { minutesToMilliseconds } from 'date-fns/minutesToMilliseconds';
+import { minutesToSeconds } from 'date-fns/minutesToSeconds';
 import { secondsToMilliseconds } from 'date-fns/secondsToMilliseconds';
 import { subDays } from 'date-fns/subDays';
 import { EventEmitter } from 'eventemitter3';
@@ -1107,6 +1108,9 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
             const projectGit: SimpleGit = simpleGit({
               baseDir: codeFolderPath,
               allowEnvironment: ['GIT_TERMINAL_PROMPT'], // Variables given to git are refused unless listed, the inherited ones (like `GIT_ASKPASS` set by IDEs such as `vscode`) are removed
+              timeout: {
+                block: minutesToMilliseconds(5), // Last resort if git itself does not give up (below), it only stops git and not its own subprocesses
+              },
               progress: (event: SimpleGitProgressEvent) => {
                 // To not flood we only log a few to notice some progress
                 if (event.progress % 20 === 0) {
@@ -1132,6 +1136,8 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
                     '--single-branch': null,
                     '--depth': 1,
                     '--filter': `blob:limit=${gitFileSizeLimitInKb}k`,
+                    // Git gives up when it receives less than 1 KB/s for 2 minutes, which stops the clones stuck on a forge that no longer answers (a big repository still downloading stays above this speed)
+                    '--config': ['http.lowSpeedLimit=1000', `http.lowSpeedTime=${minutesToSeconds(2)}`],
                   })
               );
             } catch (error) {

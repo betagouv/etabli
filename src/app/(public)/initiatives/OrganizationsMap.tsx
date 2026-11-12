@@ -1,8 +1,10 @@
 'use client';
 
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -26,6 +28,7 @@ import {
   computeCircles,
   countInitiatives,
   findHighlightedCircles,
+  formatInitiatives,
   getMapScaleVariable,
   layoutOrganizationsMap,
   mapColorModeOptions,
@@ -209,6 +212,29 @@ export function OrganizationsMap(props: OrganizationsMapProps) {
         overflow: 'hidden',
       }}
     >
+      {/* On phones the panel is below the map, the place being looked at must still be told above the circle filling the screen */}
+      {focus !== root && (
+        <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1, mx: 2, mt: 1 }}>
+          {focusParent && (
+            <IconButton
+              aria-label={`Revenir à ${focusParent.data.name}`}
+              title={focusParent.data.name}
+              onClick={() => zoomTo(focusParent)}
+              sx={{ flexShrink: 0 }}
+            >
+              <ArrowBackIcon />
+            </IconButton>
+          )}
+          <Box sx={{ minWidth: 0 }}>
+            <Typography component="p" variant="subtitle1" sx={{ fontWeight: 700, mb: 0, lineHeight: 1.3 }}>
+              {focus.data.name}
+            </Typography>
+            <Typography component="p" variant="caption" color="text.secondary" sx={{ mb: 0 }}>
+              {formatInitiatives(focus.data.initiativesCount)}
+            </Typography>
+          </Box>
+        </Box>
+      )}
       {/* The whole area goes back up, not only the square of the map */}
       <Box
         onClick={() => zoomTo(focusParent)}

@@ -19,6 +19,8 @@ export const { MuiDsfrThemeProvider } = createMuiDsfrThemeProvider({
         MuiTooltip: {
           defaultProps: {
             arrow: true,
+            enterDelay: 400,
+            enterNextDelay: 400,
             // On phones a wide tooltip was stuck to both edges of the screen, the positioning keeps it a bit away from them
             slotProps: { popper: { modifiers: [{ name: 'preventOverflow', options: { padding: 8 } }] } },
           },

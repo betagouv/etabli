@@ -66,7 +66,7 @@ export function RelatedInitiatives(props: RelatedInitiativesProps) {
               >
                 {/* What it is about when pointing or focusing it, the name alone is often a technical one (a repository). It describes the
                     link instead of replacing its name for screen readers */}
-                <Tooltip title={initiative.description} describeChild enterDelay={300} enterNextDelay={300} placement="top">
+                <Tooltip title={initiative.description} describeChild placement="top">
                   <Card
                     variant="outlined"
                     sx={{

@@ -28,6 +28,7 @@ import { InitiativeRankingChips } from '@etabli/src/components/ReputationChip';
 import { ToolChip } from '@etabli/src/components/ToolChip';
 import { initiativeNotFoundError } from '@etabli/src/models/entities/errors';
 import { centeredAlertContainerGridProps, dsfrContainerSx, ulComponentResetStyles } from '@etabli/src/utils/grid';
+import { getDirectoryLink } from '@etabli/src/utils/initiatives-directory';
 import { getOrganizationPath } from '@etabli/src/utils/organization';
 import { serverPrefetchedQueryStaleTime } from '@etabli/src/utils/query';
 import { RelatedInitiative } from '@etabli/src/utils/related-initiatives';
@@ -42,6 +43,10 @@ const generationTimeFormatter = new Intl.DateTimeFormat('fr-FR', { timeStyle: 'm
 function formatGenerationDate(date: Date): string {
   return `${generationDayFormatter.format(date)} à ${generationTimeFormatter.format(date)}`;
 }
+
+// Written by the LLM for each sheet, they are not shared with others so there is no filter on them: a click only searches for close ones
+const businessUseCasesDisclaimer =
+  "Décrits automatiquement pour cette initiative, ils ne sont pas communs à plusieurs initiatives et ne servent donc pas de filtre. Un clic lance une recherche d'initiatives proches.";
 
 // Long lines are hard to read when the sheet takes the whole width (without secondary content): the text and the lists of chips stop at
 // two thirds of it (like a DSFR `fr-col-lg-8`), other parts are short anyway
@@ -102,6 +107,12 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
   }
 
   const initiative = data.initiative;
+
+  // A technical use case or a tool leads to the other initiatives of the same organizations having it (removing the organizations from
+  // the filters of the directory widens it to all of them)
+  const organizationsIds = initiative.organizations.map((organization) => organization.id);
+  const criterionLinkDescription =
+    organizationsIds.length > 0 ? "voir les initiatives de ses organisations qui l'ont aussi" : "voir les initiatives qui l'ont aussi";
 
   return (
     <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -228,14 +239,27 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
             )}
             {initiative.businessUseCases.length > 0 && (
               <Grid size={12}>
-                <Typography component="div" variant="overline">
+                <Typography component="div" variant="overline" sx={{ display: 'flex', alignItems: 'center' }}>
                   {t('model.initiative.businessUseCase', { count: initiative.businessUseCases.length })}
+                  <Tooltip title={businessUseCasesDisclaimer}>
+                    <IconButton
+                      size="small"
+                      aria-label={`À propos des cas d'utilisation métiers : ${businessUseCasesDisclaimer}`}
+                      sx={{ ml: '0.25rem' }}
+                    >
+                      <InfoOutlinedIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </Tooltip>
                 </Typography>
                 <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1, maxWidth: readableWidth }}>
                   {initiative.businessUseCases.map((businessUseCase) => {
                     return (
                       <Grid key={businessUseCase} component="li">
-                        <BusinessUseCaseChip label={businessUseCase} />
+                        <BusinessUseCaseChip
+                          label={businessUseCase}
+                          href={getDirectoryLink({ q: businessUseCase })}
+                          linkDescription="rechercher des initiatives proches"
+                        />
                       </Grid>
                     );
                   })}
@@ -251,7 +275,11 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
                   {initiative.functionalUseCases.map((functionalUseCase) => {
                     return (
                       <Grid key={functionalUseCase} component="li">
-                        <FunctionalUseCaseChip useCase={functionalUseCase} />
+                        <FunctionalUseCaseChip
+                          useCase={functionalUseCase}
+                          href={getDirectoryLink({ fnc: [functionalUseCase], orgs: organizationsIds })}
+                          linkDescription={criterionLinkDescription}
+                        />
                       </Grid>
                     );
                   })}
@@ -292,7 +320,11 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
                   {initiative.tools.map((tool) => {
                     return (
                       <Grid key={tool} component="li">
-                        <ToolChip label={tool} />
+                        <ToolChip
+                          label={tool}
+                          href={data.toolsIds[tool] ? getDirectoryLink({ tools: [data.toolsIds[tool]], orgs: organizationsIds }) : undefined}
+                          linkDescription={criterionLinkDescription}
+                        />
                       </Grid>
                     );
                   })}

@@ -27,6 +27,9 @@ const defaultMswParameters = {
         response: {
           initiative: initiatives[0],
           repositoriesStars: { [initiatives[0].repositories[0]]: 1234 },
+          toolsIds: Object.fromEntries(
+            initiatives[0].tools.map((tool, index) => [tool, `c0ffee00-0000-4000-8000-${String(index).padStart(12, '0')}`])
+          ),
         },
       }),
       getTRPCMock({

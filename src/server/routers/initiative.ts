@@ -33,6 +33,7 @@ export const initiativeRouter = router({
           include: {
             tool: {
               select: {
+                id: true,
                 name: true,
               },
             },
@@ -66,6 +67,7 @@ export const initiativeRouter = router({
         string,
         number
       >,
+      toolsIds: Object.fromEntries(initiative.ToolsOnInitiatives.map((toolOnI) => [toolOnI.tool.name, toolOnI.tool.id])) as Record<string, string>,
       initiative: initiativePrismaToModel({
         ...initiative,
         businessUseCases: initiative.BusinessUseCasesOnInitiatives.map((bucOnI) => bucOnI.businessUseCase.name),

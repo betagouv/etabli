@@ -1,4 +1,4 @@
-import { createLoader, parseAsArrayOf, parseAsBoolean, parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs/server';
+import { createLoader, createSerializer, parseAsArrayOf, parseAsBoolean, parseAsInteger, parseAsString, parseAsStringLiteral } from 'nuqs/server';
 
 import { PaginationSize } from '@etabli/src/models/actions/common';
 import {
@@ -43,6 +43,17 @@ export const directoryParsers = {
 export const loadDirectoryParams = createLoader(directoryParsers);
 
 export type DirectoryParams = Awaited<ReturnType<typeof loadDirectoryParams>>;
+
+const serializeDirectoryParams = createSerializer(directoryParsers);
+
+// A link to the directory narrowed to some criteria (e.g. from a sheet), the other ones keep their default value
+export function getDirectoryLink(params: Partial<Pick<DirectoryParams, 'q' | 'fnc' | 'tools' | 'orgs'>>): string {
+  return `/initiatives${serializeDirectoryParams({
+    ...params,
+    q: params.q?.slice(0, maximumSearchQueryLength),
+    orgs: params.orgs?.slice(0, maximumFilteredOrganizations),
+  })}`;
+}
 
 export const defaultDirectoryPageSize = PaginationSize.size10;
 

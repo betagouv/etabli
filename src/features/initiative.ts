@@ -1288,12 +1288,24 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
 
           // Get the root README in case it exists
           const readmeEntries = await glob(path.resolve(codeFolderPath, '{README.md,README.txt,README}'), {
+            nodir: true, // Some repositories have a `README` folder (or a `readme` one, that matches on a case-insensitive filesystem)
             // Note: there is no need of `nocase` because systems were it's run should match despite difference of casing in search criterias
             // nocase: true,
           });
           let readmeContent: string | null = null;
           for (const entry of readmeEntries) {
-            const entryContent = await fs.readFile(entry, 'utf-8');
+            let entryContent: string;
+
+            try {
+              entryContent = await fs.readFile(entry, 'utf-8');
+            } catch (error) {
+              // On a case-insensitive filesystem (like macOS) a repository having both `README.md` and `Readme.md` ends with a single file on disk, so one of the listed entries can be missing
+              if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                continue;
+              }
+
+              throw error;
+            }
 
             if (entryContent.trim() !== '') {
               readmeContent = entryContent;

@@ -75,6 +75,14 @@ export async function downloadRepositoryFilesToAnalyze(
   folderPath: string,
   abortSignal: AbortSignal
 ): Promise<{ filesToAnalyze: string[]; downloadedSize: number }> {
+  // An empty repository has no branch at all, so there is no tree to read and nothing to download (the description of the repository is used instead,
+  // as for any repository without file to analyze). Any other problem (not a repository, corrupted objects...) still fails below
+  const branches = await git.raw(['for-each-ref', '--count=1', '--format=%(refname)', 'refs/heads/']);
+
+  if (branches.trim() === '') {
+    return { filesToAnalyze: [], downloadedSize: (await fastFolderSizeAsync(folderPath)) ?? 0 };
+  }
+
   const filesToDownload = parseGitTreeEntries(await git.raw(['ls-tree', '-r', '-z', '--full-tree', 'HEAD'])).filter(isRepositoryFileToAnalyze);
 
   if (filesToDownload.length === 0) {

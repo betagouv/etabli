@@ -1081,6 +1081,7 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
 
             const projectGit: SimpleGit = simpleGit({
               baseDir: codeFolderPath,
+              allowEnvironment: ['GIT_TERMINAL_PROMPT'], // Variables given to git are refused unless listed, the inherited ones (like `GIT_ASKPASS` set by IDEs such as `vscode`) are removed
               progress: (event: SimpleGitProgressEvent) => {
                 // To not flood we only log a few to notice some progress
                 if (event.progress % 20 === 0) {
@@ -1100,7 +1101,6 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
               await projectGit
                 .env({
                   GIT_TERMINAL_PROMPT: 0, // This is required so it fails when a repository expects credentials (and so the git CLI expects inputs)
-                  GIT_ASKPASS: '', // This is needed because tools and IDE like `vscode` set it and it forces the GUI for credentials despite disabling `GIT_TERMINAL_PROMPT`
                 })
                 .clone(rawRepository.repositoryUrl, '.', {
                   '--single-branch': null,

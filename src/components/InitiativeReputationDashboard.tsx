@@ -489,30 +489,32 @@ export function InitiativeReputationDashboard(props: InitiativeReputationDashboa
   // Domains are sorted by reputation, so the best one is displayed by default
   const reputation = data.domains.find(({ domain }) => domain === selectedDomain) ?? data.domains[0];
 
-  const domainSelector = data.domains.length > 1 && (
-    <TextField
-      select
-      size="small"
-      label="Site analysé"
-      value={reputation.domain}
-      onChange={(event) => {
-        setSelectedDomain(event.target.value);
-      }}
-      sx={{ width: '100%', maxWidth: 420, mb: 3 }}
-    >
-      {data.domains.map(({ domain, relativeReputation }) => (
-        <MenuItem key={domain} value={domain}>
-          {/* The select repeats the content of the chosen item in its field, so there is no need for a separate render */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, width: '100%' }}>
-            <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {domain}
+  // In the narrow side column it takes the whole width, elsewhere it is capped so a short menu is not stretched across a wide area
+  const renderDomainSelector = (fullWidth: boolean) =>
+    data.domains.length > 1 && (
+      <TextField
+        select
+        size="small"
+        label="Site analysé"
+        value={reputation.domain}
+        onChange={(event) => {
+          setSelectedDomain(event.target.value);
+        }}
+        sx={{ width: '100%', maxWidth: fullWidth ? 'none' : 420, mb: 3 }}
+      >
+        {data.domains.map(({ domain, relativeReputation }) => (
+          <MenuItem key={domain} value={domain}>
+            {/* The select repeats the content of the chosen item in its field, so there is no need for a separate render */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, width: '100%' }}>
+              <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {domain}
+              </Box>
+              {!!relativeReputation && <ReputationChip relativeReputation={relativeReputation} sx={{ flexShrink: 0 }} />}
             </Box>
-            {!!relativeReputation && <ReputationChip relativeReputation={relativeReputation} sx={{ flexShrink: 0 }} />}
-          </Box>
-        </MenuItem>
-      ))}
-    </TextField>
-  );
+          </MenuItem>
+        ))}
+      </TextField>
+    );
 
   const details = (
     <>
@@ -520,7 +522,7 @@ export function InitiativeReputationDashboard(props: InitiativeReputationDashboa
         D&apos;après les liens que les autres sites font vers celui-ci, estimés par un service tiers. Données récupérées le{' '}
         {fullDateFormatter.format(reputation.lastCheckAt)}.
       </Typography>
-      {domainSelector}
+      {renderDomainSelector(false)}
       <DomainReputation key={reputation.domain} reputation={reputation} />
     </>
   );
@@ -545,7 +547,7 @@ export function InitiativeReputationDashboard(props: InitiativeReputationDashboa
         <Typography component="p" variant="overline" sx={{ mb: 1 }}>
           Informations complémentaires
         </Typography>
-        {domainSelector}
+        {renderDomainSelector(true)}
         <DomainReputationSummary reputation={reputation} />
         <Button variant="outlined" size="small" onClick={() => setDetailsOpen(true)} sx={{ mt: 3 }}>
           Voir tout le détail

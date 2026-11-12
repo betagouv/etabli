@@ -46,6 +46,7 @@ import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { bitsFor } from '@etabli/src/utils/bits';
+import { shuffle } from '@etabli/src/utils/circuit-breaker';
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
@@ -866,9 +867,12 @@ export async function feedInitiativesFromDatabase(options?: { onlyMissing?: bool
     WHERE i."lastCheckAt" IS NULL
   `;
   const domainsWithoutInventoryIds = new Set(domainsWithoutInventory.map((rawDomain) => rawDomain.id));
-  const initiativeMapsToProcess = initiativeMaps
-    .filter((initiativeMap) => !initiativeMap.RawDomainsOnInitiativeMaps.some(({ rawDomainId }) => domainsWithoutInventoryIds.has(rawDomainId)))
-    .slice(0, maximumInitiativesPerRun);
+  // Maps come grouped by forge or by domain, shuffling them spreads the load over the hosts (and a limited run is not always about the same ones)
+  const initiativeMapsToProcess = shuffle(
+    initiativeMaps.filter(
+      (initiativeMap) => !initiativeMap.RawDomainsOnInitiativeMaps.some(({ rawDomainId }) => domainsWithoutInventoryIds.has(rawDomainId))
+    )
+  ).slice(0, maximumInitiativesPerRun);
 
   console.log(`${initiativeMapsToProcess.length}/${initiativeMaps.length} initiative maps are ready to be processed`);
 

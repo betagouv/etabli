@@ -636,7 +636,8 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                         : reusableCentering
                     }
                   >
-                    <Box aria-busy={isRefreshingResults} sx={{ position: 'relative' }}>
+                    {/* As a flex item it would otherwise grow to its longest content (e.g. a website address) instead of the screen width */}
+                    <Box aria-busy={isRefreshingResults} sx={{ position: 'relative', width: '100%', minWidth: 0 }}>
                       {showRefreshIndicator && (
                         <LinearProgress aria-label="Mise à jour des résultats" sx={{ position: 'absolute', top: -12, left: 0, right: 0 }} />
                       )}

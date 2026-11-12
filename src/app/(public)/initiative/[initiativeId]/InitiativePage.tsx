@@ -43,6 +43,10 @@ function formatGenerationDate(date: Date): string {
   return `${generationDayFormatter.format(date)} à ${generationTimeFormatter.format(date)}`;
 }
 
+// Long lines are hard to read when the sheet takes the whole width (without secondary content): the text and the lists of chips stop at
+// two thirds of it (like a DSFR `fr-col-lg-8`), other parts are short anyway
+const readableWidth = 792;
+
 // On a wide screen what is secondary moves to the right, otherwise it follows the main content. Whether there is some or not, the sheet
 // keeps the width of the header and the footer
 const pageLayoutSx = (theme: Theme) => ({
@@ -121,6 +125,7 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
             <Grid
               sx={{
                 pb: 2,
+                maxWidth: readableWidth,
                 whiteSpace: 'pre-wrap !important',
                 wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
               }}
@@ -226,7 +231,7 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
                 <Typography component="div" variant="overline">
                   {t('model.initiative.businessUseCase', { count: initiative.businessUseCases.length })}
                 </Typography>
-                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1 }}>
+                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1, maxWidth: readableWidth }}>
                   {initiative.businessUseCases.map((businessUseCase) => {
                     return (
                       <Grid key={businessUseCase} component="li">
@@ -242,7 +247,7 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
                 <Typography component="div" variant="overline">
                   {t('model.initiative.functionalUseCase.label', { count: initiative.functionalUseCases.length })}
                 </Typography>
-                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1 }}>
+                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1, maxWidth: readableWidth }}>
                   {initiative.functionalUseCases.map((functionalUseCase) => {
                     return (
                       <Grid key={functionalUseCase} component="li">
@@ -283,7 +288,7 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
                 <Typography component="div" variant="overline">
                   {t('model.initiative.tool', { count: initiative.tools.length })}
                 </Typography>
-                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1 }}>
+                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1, maxWidth: readableWidth }}>
                   {initiative.tools.map((tool) => {
                     return (
                       <Grid key={tool} component="li">

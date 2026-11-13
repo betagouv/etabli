@@ -49,6 +49,8 @@
   "setup.py",
   "Pipfile",
   "pyproject.toml",
+  "environment.yml",
+  "environment.yaml",
   "Gemfile",
   "gems.rb",
   ".gemspec",

@@ -167,7 +167,8 @@ export async function downloadRepositoryFilesToAnalyze(
   // The index is filled from the tree so the paths can be given to `checkout-index`, it looks them up directly instead of comparing each of them
   // with each file as a pathspec would do (taking hours on repositories having hundreds of thousands of files)
   await git.raw(['read-tree', 'HEAD']);
-  await execa('git', ['checkout-index', '-z', '--stdin'], {
+  // Forced since on a case-insensitive filesystem two paths can be the same file (`README.md` and `readme.md`), the last one is kept instead of failing
+  await execa('git', ['checkout-index', '-f', '-z', '--stdin'], {
     cwd: folderPath,
     input: filesToDownload.map((file) => file.filePath).join('\0'),
   });

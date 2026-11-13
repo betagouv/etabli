@@ -5,14 +5,13 @@ import { subDays } from 'date-fns/subDays';
 import { subMonths } from 'date-fns/subMonths';
 import fsSync from 'fs';
 import fs from 'fs/promises';
-import https from 'https';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { ParseResultType, parseDomain } from 'parse-domain';
 import { chromium as stealthChromium } from 'patchright';
 import path from 'path';
 import { Browser, chromium } from 'playwright';
 import robotsParser from 'robots-parser';
-import { PeerCertificate, TLSSocket } from 'tls';
+import { PeerCertificate, connect } from 'tls';
 import z from 'zod';
 
 import { downloadFile, isFileOutdated } from '@etabli/src/common';
@@ -677,31 +676,32 @@ export async function updateWildcardCertificateOnDomains() {
     let authorizationError: string | null = null;
     let tlsProtocol: string | null = null;
     const certificate = await new Promise<PeerCertificate | null>((resolve, reject) => {
-      const request = https.request(
-        {
-          host: rawDomain.name,
-          port: 443, // Should always be this one
-          method: 'GET',
-          rejectUnauthorized: false, // An invalid certificate is an information to keep, not a reason to give up
-          signal: AbortSignal.timeout(2000), // Tiny timeout otherwise it slows down the whole processing (may be more than a minute of timeout)
-        },
-        (response) => {
-          const socket = response.socket;
-          const peerCertificate = socket instanceof TLSSocket ? socket.getPeerCertificate() : null;
+      // The certificate is known as soon as the handshake ends, so there is no need to wait for the page: small websites often take
+      // more than a few seconds to answer, which was taken for a network failure and left them without any TLS data
+      const socket = connect({
+        host: rawDomain.name,
+        port: 443, // Should always be this one
+        servername: rawDomain.name,
+        rejectUnauthorized: false, // An invalid certificate is an information to keep, not a reason to give up
+        timeout: certificateHandshakeTimeoutInMilliseconds,
+      });
 
-          if (socket instanceof TLSSocket) {
-            authorizationError = socket.authorized ? null : String(socket.authorizationError);
-            tlsProtocol = socket.getProtocol();
-          }
+      socket.once('secureConnect', () => {
+        isCertificateReceived = true;
+        authorizationError = socket.authorized ? null : String(socket.authorizationError);
+        tlsProtocol = socket.getProtocol();
 
-          // The certificate is all we need. Without closing the response, the timeout would still fire on it and be taken for a network failure
-          isCertificateReceived = true;
-          response.destroy();
-          resolve(peerCertificate);
-        }
-      );
+        const peerCertificate = socket.getPeerCertificate();
 
-      request.on('error', async (error) => {
+        socket.destroy();
+        resolve(peerCertificate && Object.keys(peerCertificate).length > 0 ? peerCertificate : null);
+      });
+
+      socket.once('timeout', () => {
+        socket.destroy(new Error(`the tls handshake has not ended within ${certificateHandshakeTimeoutInMilliseconds} ms`));
+      });
+
+      socket.once('error', async (error) => {
         if (isCertificateReceived) {
           return;
         }
@@ -722,8 +722,6 @@ export async function updateWildcardCertificateOnDomains() {
           reject(error);
         }
       });
-
-      request.end();
     });
 
     if (toSkip) {
@@ -798,6 +796,7 @@ const maximumRobotsTxtBytes = 512 * 1024; // Search engines do not read more of 
 
 // Websites rarely change, but a domain can be bought by someone else or start refusing being indexed
 const recheckDelayInDays = 20;
+const certificateHandshakeTimeoutInMilliseconds = 8000; // Only the handshake, but some small hostings are slow to start it
 const certificateConcurrency = 8; // Each domain is only a few handshakes, as for the mail checks it stays far from flooding
 const minimumMonthsBetweenSheetsForNewContent = 12;
 

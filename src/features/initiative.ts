@@ -1137,8 +1137,21 @@ export async function feedInitiativesFromDatabase(options?: {
             // Note: a forge not supporting partial clones ignores the filter and sends everything, it still works but relies on the size limit
             // The size is checked during the downloads since some repositories are datasets of tens of gigabytes
             let cloneSizeLimitReached = false;
+            // On a folder of hundreds of thousands of files a measure takes longer than the interval, so a new one must wait for the previous one,
+            // otherwise hundreds of `du` were stacking up and saturating the disk for every other repository
+            let isCloneSizeBeingMeasured = false;
             const cloneSizeWatcher = setInterval(async () => {
-              const cloneSize = await fastFolderSizeAsync(codeFolderPath).catch(() => undefined);
+              if (isCloneSizeBeingMeasured) {
+                return;
+              }
+
+              isCloneSizeBeingMeasured = true;
+
+              const cloneSize = await fastFolderSizeAsync(codeFolderPath)
+                .catch(() => undefined)
+                .finally(() => {
+                  isCloneSizeBeingMeasured = false;
+                });
 
               if (cloneSize !== undefined && cloneSize > maximumCloneSizeInGiB * bitsFor.GiB) {
                 cloneSizeLimitReached = true;

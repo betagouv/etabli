@@ -32,5 +32,5 @@ export const languagesExtensions: string[] = [
   '.vhd',
   '.dart',
   '.cob',
-  '.pl',
+  '.py',
 ];

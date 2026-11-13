@@ -51,7 +51,7 @@ import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
 import { getMainDestinationByRemovedMap, getMergedInitiativeMapsIdentifiers, getMovedInitiativeMaps } from '@etabli/src/utils/initiative-map';
-import { downloadRepositoryFilesToAnalyze } from '@etabli/src/utils/repository-files';
+import { downloadRepositoryFilesToAnalyze, getGitObjectsSize } from '@etabli/src/utils/repository-files';
 import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond, maximumInitiativesPerRun } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
 import { isStateReservedDomain } from '@etabli/src/utils/state-domain';
@@ -1137,8 +1137,8 @@ export async function feedInitiativesFromDatabase(options?: {
             // Note: a forge not supporting partial clones ignores the filter and sends everything, it still works but relies on the size limit
             // The size is checked during the downloads since some repositories are datasets of tens of gigabytes
             let cloneSizeLimitReached = false;
-            // On a folder of hundreds of thousands of files a measure takes longer than the interval, so a new one must wait for the previous one,
-            // otherwise hundreds of `du` were stacking up and saturating the disk for every other repository
+            // Only the downloaded objects are measured, the files written by the checkout are checked before from the tree (see `downloadRepositoryFilesToAnalyze`)
+            // Note: a measure must still wait for the previous one, measuring the whole folder used to stack up hundreds of `du` saturating the disk
             let isCloneSizeBeingMeasured = false;
             const cloneSizeWatcher = setInterval(async () => {
               if (isCloneSizeBeingMeasured) {
@@ -1147,7 +1147,7 @@ export async function feedInitiativesFromDatabase(options?: {
 
               isCloneSizeBeingMeasured = true;
 
-              const cloneSize = await fastFolderSizeAsync(codeFolderPath)
+              const cloneSize = await getGitObjectsSize(codeFolderPath)
                 .catch(() => undefined)
                 .finally(() => {
                   isCloneSizeBeingMeasured = false;
@@ -1181,7 +1181,8 @@ export async function feedInitiativesFromDatabase(options?: {
                 ({ filesToAnalyze, downloadedSize } = await downloadRepositoryFilesToAnalyze(
                   projectGit,
                   codeFolderPath,
-                  cloneAbortController.signal
+                  cloneAbortController.signal,
+                  maximumCloneSizeInGiB * bitsFor.GiB
                 ));
               });
             } catch (error) {

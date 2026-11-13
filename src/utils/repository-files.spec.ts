@@ -27,6 +27,8 @@ describe('isRepositoryFileToAnalyze()', () => {
     expect(isRepositoryFileToAnalyze(entry('src/index.ts'))).toBe(true);
     expect(isRepositoryFileToAnalyze(entry('scripts/run.js', '100755'))).toBe(true);
     expect(isRepositoryFileToAnalyze(entry('app/services/registration.py'))).toBe(true);
+    expect(isRepositoryFileToAnalyze(entry('server/index.mjs'))).toBe(true);
+    expect(isRepositoryFileToAnalyze(entry('src/solver.cc'))).toBe(true);
     expect(isRepositoryFileToAnalyze(entry('package.json'))).toBe(true);
     expect(isRepositoryFileToAnalyze(entry('README.md'))).toBe(true);
     expect(isRepositoryFileToAnalyze(entry('Readme'))).toBe(true);

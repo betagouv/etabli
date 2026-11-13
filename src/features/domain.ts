@@ -608,20 +608,8 @@ export async function updateWildcardCertificateOnDomains() {
     where: {
       OR: [{ updateWildcardCertificate: true }, { lastCertificateCheckAt: { lt: subDays(new Date(), recheckDelayInDays) } }],
       redirectDomainTargetName: null,
-      AND: {
-        OR: [
-          {
-            lastUpdateAttemptWithReachabilityError: {
-              equals: null,
-            },
-          },
-          {
-            lastUpdateAttemptWithReachabilityError: {
-              lt: subDays(new Date(), 1), // Skip rows with high probability of failure since they had recently a network reachability issue
-            },
-          },
-        ],
-      },
+      // A recent reachability error is not a reason to skip: it is shared with the content retrieval, so a page too long to load
+      // was preventing a check that only needs a handshake (with its own short timeout, a DNS check before and a circuit breaker)
     },
     select: {
       id: true,

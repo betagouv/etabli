@@ -7,6 +7,9 @@ type DatabaseClient = Prisma.TransactionClient | typeof prisma;
 const normalizedAddressSql = (column: Prisma.Sql) =>
   Prisma.sql`regexp_replace(regexp_replace(lower(${column}), '^https?://(www\\.)?', ''), '/+$', '')`;
 
+// The domain of a website address, to compare a page of a website with the website itself
+const websiteDomainSql = (column: Prisma.Sql) => Prisma.sql`split_part(${normalizedAddressSql(column)}, '/', 1)`;
+
 export interface KnownInitiativeReplacement {
   fromInitiativeId: string;
   toInitiativeId: string;
@@ -36,10 +39,27 @@ export async function redirectInitiativesBeforeRemoval(
   const knownToIds = usableKnownReplacements.map((replacement) => replacement.toInitiativeId);
 
   const redirected = await client.$executeRaw`
-    WITH removed AS (
-      SELECT i."id", i."websites" || i."repositories" AS "addresses"
-      FROM "Initiative" i
+    WITH removed_address AS MATERIALIZED (
+      SELECT i."id", ${normalizedAddressSql(Prisma.sql`address`)} AS "address", ${websiteDomainSql(
+        Prisma.sql`address`
+      )} AS "domain", true AS "isWebsite"
+      FROM "Initiative" i CROSS JOIN LATERAL unnest(i."websites") AS address
       WHERE i."id" = ANY(${removedIds})
+      UNION ALL
+      SELECT i."id", ${normalizedAddressSql(Prisma.sql`address`)}, NULL, false
+      FROM "Initiative" i CROSS JOIN LATERAL unnest(i."repositories") AS address
+      WHERE i."id" = ANY(${removedIds})
+    ),
+    candidate_address AS MATERIALIZED (
+      SELECT i."id", i."computedAt", i."originId" IS NULL AS "isOrphan", ${normalizedAddressSql(
+        Prisma.sql`address`
+      )} AS "address", ${websiteDomainSql(Prisma.sql`address`)} AS "domain", true AS "isWebsite"
+      FROM "Initiative" i CROSS JOIN LATERAL unnest(i."websites") AS address
+      WHERE i."deletedAt" IS NULL AND NOT i."id" = ANY(${removedIds})
+      UNION ALL
+      SELECT i."id", i."computedAt", i."originId" IS NULL, ${normalizedAddressSql(Prisma.sql`address`)}, NULL, false
+      FROM "Initiative" i CROSS JOIN LATERAL unnest(i."repositories") AS address
+      WHERE i."deletedAt" IS NULL AND NOT i."id" = ANY(${removedIds})
     ),
     known AS (
       SELECT DISTINCT ON (k."fromId") k."fromId", k."toId"
@@ -47,19 +67,21 @@ export async function redirectInitiativesBeforeRemoval(
       INNER JOIN "Initiative" target ON target."id" = k."toId" AND target."deletedAt" IS NULL
       ORDER BY k."fromId"
     ),
+    -- A sheet computed from a map is preferred to another old sheet still kept, then the same address to the same website domain (a sheet can list a page of a website)
     matched AS (
-      SELECT DISTINCT ON (removed."id") removed."id" AS "fromId", candidate."id" AS "toId"
-      FROM removed
-      CROSS JOIN LATERAL unnest(removed."addresses") AS removed_address
-      INNER JOIN "Initiative" candidate ON candidate."deletedAt" IS NULL
-        AND NOT candidate."id" = ANY(${removedIds})
-        AND EXISTS (
-          SELECT 1
-          FROM unnest(candidate."websites" || candidate."repositories") AS candidate_address
-          WHERE ${normalizedAddressSql(Prisma.sql`candidate_address`)} = ${normalizedAddressSql(Prisma.sql`removed_address`)}
-        )
-      WHERE NOT EXISTS (SELECT 1 FROM known WHERE known."fromId" = removed."id")
-      ORDER BY removed."id", candidate."computedAt" DESC NULLS LAST, candidate."id"
+      SELECT DISTINCT ON (candidates."fromId") candidates."fromId", candidates."toId"
+      FROM (
+        SELECT removed_address."id" AS "fromId", candidate_address."id" AS "toId", candidate_address."isOrphan", 0 AS "priority", candidate_address."computedAt"
+        FROM removed_address
+        INNER JOIN candidate_address ON candidate_address."address" = removed_address."address"
+        UNION ALL
+        SELECT removed_address."id", candidate_address."id", candidate_address."isOrphan", 1, candidate_address."computedAt"
+        FROM removed_address
+        INNER JOIN candidate_address ON candidate_address."domain" = removed_address."domain"
+        WHERE removed_address."isWebsite" AND candidate_address."isWebsite"
+      ) candidates
+      WHERE NOT EXISTS (SELECT 1 FROM known WHERE known."fromId" = candidates."fromId")
+      ORDER BY candidates."fromId", candidates."isOrphan", candidates."priority", candidates."computedAt" DESC NULLS LAST, candidates."toId"
     ),
     replacement AS (
       SELECT "fromId", "toId" FROM known
@@ -92,4 +114,60 @@ export async function getInitiativeRedirection(initiativeId: string): Promise<{ 
   });
 
   return redirection && !redirection.to.deletedAt ? { id: redirection.to.id, name: redirection.to.name } : null;
+}
+
+// A sheet whose map was merged or removed (no origin anymore) is kept to bridge the time its websites and repositories get a new sheet,
+// otherwise the product would disappear from the platform meanwhile. It is decided per sheet (not only after a complete run, which never
+// happens while some maps always wait for an inventory): once each of its addresses is described by a sheet having an origin, or is no
+// longer part of the sources, it is flagged as removed and its address leads to its replacement
+export async function softRemoveReplacedOrphanInitiatives(client: DatabaseClient): Promise<number> {
+  // Websites are compared on their domain (a sheet can list a page of a website) and repositories on their whole address
+  const replacedOrphans = await client.$queryRaw<{ id: string }[]>`
+    WITH covered AS MATERIALIZED (
+      SELECT ${websiteDomainSql(Prisma.sql`address`)} AS "address" FROM "Initiative" i CROSS JOIN LATERAL unnest(i."websites") AS address
+      WHERE i."deletedAt" IS NULL AND i."originId" IS NOT NULL
+      UNION
+      SELECT ${normalizedAddressSql(Prisma.sql`address`)} FROM "Initiative" i CROSS JOIN LATERAL unnest(i."repositories") AS address
+      WHERE i."deletedAt" IS NULL AND i."originId" IS NOT NULL
+    ),
+    sourced AS MATERIALIZED (
+      SELECT ${websiteDomainSql(Prisma.sql`'https://' || d."name"`)} AS "address" FROM "RawDomain" d WHERE d."deletedAt" IS NULL
+      UNION
+      SELECT ${normalizedAddressSql(Prisma.sql`r."repositoryUrl"`)} FROM "RawRepository" r WHERE r."deletedAt" IS NULL
+    ),
+    orphan AS MATERIALIZED (
+      SELECT i."id", i."websites", i."repositories" FROM "Initiative" i WHERE i."deletedAt" IS NULL AND i."originId" IS NULL
+    ),
+    orphan_address AS MATERIALIZED (
+      SELECT orphan."id", ${websiteDomainSql(Prisma.sql`address`)} AS "address" FROM orphan CROSS JOIN LATERAL unnest(orphan."websites") AS address
+      UNION
+      SELECT orphan."id", ${normalizedAddressSql(Prisma.sql`address`)} FROM orphan CROSS JOIN LATERAL unnest(orphan."repositories") AS address
+    ),
+    waiting AS (
+      SELECT DISTINCT oa."id"
+      FROM orphan_address oa
+      WHERE EXISTS (SELECT 1 FROM sourced s WHERE s."address" = oa."address")
+        AND NOT EXISTS (SELECT 1 FROM covered c WHERE c."address" = oa."address")
+    )
+    SELECT orphan."id" FROM orphan WHERE NOT EXISTS (SELECT 1 FROM waiting w WHERE w."id" = orphan."id")
+  `;
+  const replacedOrphansIds = replacedOrphans.map((orphan) => orphan.id);
+
+  if (replacedOrphansIds.length === 0) {
+    return 0;
+  }
+
+  await redirectInitiativesBeforeRemoval(client, replacedOrphansIds);
+
+  const removed = await client.initiative.updateMany({
+    where: {
+      id: { in: replacedOrphansIds },
+      deletedAt: null,
+    },
+    data: {
+      deletedAt: new Date(),
+    },
+  });
+
+  return removed.count;
 }

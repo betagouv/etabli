@@ -24,7 +24,7 @@ import { toFile } from 'ts-graphviz/adapter';
 import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 
-import { redirectInitiativesBeforeRemoval } from '@etabli/src/features/initiative-redirection';
+import { redirectInitiativesBeforeRemoval, softRemoveReplacedOrphanInitiatives } from '@etabli/src/features/initiative-redirection';
 import { ChunkEventEmitter, llmManagerInstance } from '@etabli/src/features/llm';
 import { buildOrganizationMatcher } from '@etabli/src/features/organization';
 import { getComparableWebsiteName, normalizeHostname, normalizeRepositoryUrl } from '@etabli/src/features/organization-matching';
@@ -1770,50 +1770,25 @@ export async function feedInitiativesFromDatabase(options?: {
       }
     });
 
-    // After computing the new or updated sheets, we make sure to delete the older ones that were kept to make the bridge
-    // between the time new initiative maps were calculated, and the time to compute modified groups (otherwise in the meantime there is a risk the product is not indexed on the platform)
-    // A partial run (limit per run, inventory not done yet, restricted to some initiative maps) would remove old sheets whose replacement does not exist yet
-    const isTargetedRun = !!options?.repositoriesUrls || !!options?.domainsNames;
-
-    if (!options?.onlyMissing && !options?.onlyWebsites && !isTargetedRun && initiativeMapsToProcess.length === initiativeMaps.length) {
-      await prisma.$transaction(
-        async (tx) => {
-          const oldInitiatives = await tx.initiative.findMany({
-            where: {
-              origin: {
-                is: null,
-              },
-            },
-            select: { id: true },
-          });
-          const oldInitiativesIds = oldInitiatives.map((initiative) => initiative.id);
-
-          // Their new sheets describe the same websites and repositories, so their addresses lead there
-          await redirectInitiativesBeforeRemoval(tx, oldInitiativesIds);
-
-          await tx.initiative.deleteMany({
-            where: {
-              id: {
-                in: oldInitiativesIds,
-              },
-            },
-          });
-        },
-        {
-          timeout: minutesToMilliseconds(10), // Thousands of sheets can be replaced after a whole run
-        }
-      );
-
-      console.log(`the old initiatives no longer part of newly computed initiative maps have been deleted`);
-    } else {
-      console.log(`the old initiatives are kept since some initiative maps have not been processed yet`);
-    }
+    // The old sheets kept to bridge the time their websites and repositories get a new sheet are removed one by one once replaced,
+    // whatever the run (a complete one never happens while some maps always wait for an inventory)
+    await removeReplacedOrphanInitiatives();
   } catch (error) {
     console.error(`error while feeding initiatives`);
     console.error(error);
 
     throw error;
   }
+}
+
+export async function removeReplacedOrphanInitiatives(): Promise<number> {
+  const removedCount = await prisma.$transaction(async (tx) => softRemoveReplacedOrphanInitiatives(tx), {
+    timeout: minutesToMilliseconds(10), // Thousands of sheets can be replaced after a whole run
+  });
+
+  console.log(`${removedCount} old initiatives replaced by newly computed ones (or no longer in the sources) have been flagged as removed`);
+
+  return removedCount;
 }
 
 export async function runInitiativeAssistant() {

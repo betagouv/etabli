@@ -22,7 +22,12 @@ import {
   updateInitiativesReputation,
 } from '@etabli/src/features/domain-reputation';
 import { reclassifyDomainsSovereignty, updateDomainsSovereignty } from '@etabli/src/features/domain-sovereignty';
-import { feedInitiativesFromDatabase, inferInitiativesFromDatabase, runInitiativeAssistant } from '@etabli/src/features/initiative';
+import {
+  feedInitiativesFromDatabase,
+  inferInitiativesFromDatabase,
+  removeReplacedOrphanInitiatives,
+  runInitiativeAssistant,
+} from '@etabli/src/features/initiative';
 import { updateDomainsLegalLinks, updateInitiativesIndicators } from '@etabli/src/features/initiative-indicators';
 import { cleanLlmSystem, ingestInitiativeListToLlmSystem, ingestToolListToLlmSystem, initLlmSystem } from '@etabli/src/features/llm';
 import { bindOrganizationsToInitiatives, formatOrganizationsIntoDatabase, saveOrganizationListFile } from '@etabli/src/features/organization';
@@ -391,6 +396,15 @@ initiative
   .option('-r, --repository [repositories...]', 'create initiative for this specific repository')
   .action(async (options) => {
     await inferInitiativesFromDatabase();
+  });
+
+initiative
+  .command('remove-replaced')
+  .description(
+    'flag as removed the old initiatives whose websites and repositories are now described by newly computed ones (it is also done after each feed)'
+  )
+  .action(async () => {
+    await removeReplacedOrphanInitiatives();
   });
 
 initiative

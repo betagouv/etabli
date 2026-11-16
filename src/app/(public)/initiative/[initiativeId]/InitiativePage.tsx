@@ -266,26 +266,6 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
                 </Grid>
               </Grid>
             )}
-            {initiative.functionalUseCases.length > 0 && (
-              <Grid size={12}>
-                <Typography component="div" variant="overline">
-                  {t('model.initiative.functionalUseCase.label', { count: initiative.functionalUseCases.length })}
-                </Typography>
-                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1, maxWidth: readableWidth }}>
-                  {initiative.functionalUseCases.map((functionalUseCase) => {
-                    return (
-                      <Grid key={functionalUseCase} component="li">
-                        <FunctionalUseCaseChip
-                          useCase={functionalUseCase}
-                          href={getDirectoryLink({ fnc: [functionalUseCase], orgs: organizationsIds })}
-                          linkDescription={criterionLinkDescription}
-                        />
-                      </Grid>
-                    );
-                  })}
-                </Grid>
-              </Grid>
-            )}
             {initiative.organizations.length > 0 && (
               <Grid size={12}>
                 <Typography
@@ -309,6 +289,26 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
                   getLink={getOrganizationInitiativesLink}
                   directoryUrls={Object.fromEntries(initiative.organizations.map((organization) => [organization.id, organization.directoryUrl]))}
                 />
+              </Grid>
+            )}
+            {initiative.functionalUseCases.length > 0 && (
+              <Grid size={12}>
+                <Typography component="div" variant="overline">
+                  {t('model.initiative.functionalUseCase.label', { count: initiative.functionalUseCases.length })}
+                </Typography>
+                <Grid container component="ul" direction="row" spacing={1} sx={{ ...ulComponentResetStyles, pt: 1, maxWidth: readableWidth }}>
+                  {initiative.functionalUseCases.map((functionalUseCase) => {
+                    return (
+                      <Grid key={functionalUseCase} component="li">
+                        <FunctionalUseCaseChip
+                          useCase={functionalUseCase}
+                          href={getDirectoryLink({ fnc: [functionalUseCase], orgs: organizationsIds })}
+                          linkDescription={criterionLinkDescription}
+                        />
+                      </Grid>
+                    );
+                  })}
+                </Grid>
               </Grid>
             )}
             {initiative.tools.length > 0 && (

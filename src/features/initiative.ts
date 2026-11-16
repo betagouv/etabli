@@ -55,6 +55,7 @@ import { downloadRepositoryFilesToAnalyze, getGitObjectsSize } from '@etabli/src
 import { chomiumMaxConcurrency, llmManagerMaximumApiRequestsPerSecond, maximumInitiativesPerRun } from '@etabli/src/utils/request';
 import { sleep } from '@etabli/src/utils/sleep';
 import { isStateReservedDomain } from '@etabli/src/utils/state-domain';
+import { getDiscardedTwinDomainsIds } from '@etabli/src/utils/twin-domains';
 
 const __root_dirname = process.cwd();
 
@@ -982,11 +983,15 @@ export async function feedInitiativesFromDatabase(options?: {
           select: {
             id: true,
             name: true,
+            mainSimilarDomainId: true,
             websiteRawContent: true,
             websiteInferredName: true,
           },
         });
         assert(initiativeMapRawDomains.length === initiativeMap.RawDomainsOnInitiativeMaps.length);
+
+        // A website served on both `example.com` and `www.example.com` is analyzed and shown once (the twin stays into the map to keep matching the sources)
+        const discardedTwinDomainsIds = getDiscardedTwinDomainsIds(initiativeMapRawDomains);
 
         const websitesTemplates: WebsiteTemplateSchemaType[] = [];
         const repositoriesTemplates: RepositoryTemplateSchemaType[] = [];
@@ -1011,6 +1016,12 @@ export async function feedInitiativesFromDatabase(options?: {
 
           const rawDomain = initiativeMapRawDomains.find((rd) => rd.id === rawDomainOnIMap.rawDomainId);
           assert(rawDomain);
+
+          if (discardedTwinDomainsIds.has(rawDomain.id)) {
+            console.log(`[${initiativeMap.id}] domain ${rawDomain.name} skipped since its twin with or without "www." is the same website`);
+
+            continue;
+          }
 
           console.log(
             `[${initiativeMap.id}] domain ${rawDomain.name} ${rawDomainOnIMap.main ? '(main)' : ''} (${rawDomain.id}) ${formatArrayProgress(
@@ -1572,7 +1583,9 @@ export async function feedInitiativesFromDatabase(options?: {
             console.log(`[${initiativeMap.id}] the JSON sanitized result has been written to: ${sanitizedGptResultPath}`);
 
             // Now prepare and save the results
-            const websites = initiativeMapRawDomains.map((rawDomain) => `https://${rawDomain.name}`);
+            const websites = initiativeMapRawDomains
+              .filter((rawDomain) => !discardedTwinDomainsIds.has(rawDomain.id))
+              .map((rawDomain) => `https://${rawDomain.name}`);
             const repositories = initiativeMap.RawRepositoriesOnInitiativeMaps.map(
               (rawRepositoryOnIMap) => rawRepositoryOnIMap.rawRepository.repositoryUrl
             );

@@ -64,6 +64,9 @@ const fastFolderSizeAsync = promisify(fastFolderSize);
 // without notoriety and almost all keeping less than 1 MB of code to analyze once cleaned (their weight comes from images, datasets or models)
 const maximumCloneSizeInGiB = 1;
 
+// The relations of the maps are fetched with the identifiers of all the maps of a chunk, and a query is limited to 32,767 parameters
+const initiativeMapsChunkSize = 10_000;
+
 // Many repositories of a run can be on the same forge (a university GitLab...), so whatever the global concurrency only a few clones
 // target the same host at once, otherwise small forges answer with "too many requests"
 const maximumConcurrentClonesPerHost = 3;
@@ -814,79 +817,101 @@ export async function feedInitiativesFromDatabase(options?: {
     return index + 1;
   });
 
-  const initiativeMaps = await prisma.initiativeMap.findMany({
-    where: {
-      update: true,
-      ...(options?.onlyMissing ? { Initiative: { is: null } } : {}), // Each sheet is charged, so the existing ones can wait for a later run
-      ...(options?.onlyWebsites ? { RawDomainsOnInitiativeMaps: { some: {} } } : {}), // Repositories alone are the longest and the less valuable ones
-      // Targeting allows recomputing a few sheets without the others waiting for an update (each sheet is charged)
-      ...(options?.repositoriesUrls || options?.domainsNames
-        ? {
-            OR: [
-              ...(options.repositoriesUrls
-                ? [{ RawRepositoriesOnInitiativeMaps: { some: { rawRepository: { repositoryUrl: { in: options.repositoriesUrls } } } } }]
-                : []),
-              ...(options.domainsNames ? [{ RawDomainsOnInitiativeMaps: { some: { rawDomain: { name: { in: options.domainsNames } } } } }] : []),
-            ],
-          }
-        : {}),
-      AND: {
-        OR: [
-          {
-            lastUpdateAttemptWithReachabilityError: {
-              equals: null,
-            },
-          },
-          {
-            lastUpdateAttemptReachabilityError: {
-              not: {
-                in: [
-                  // If one of these error codes has been reported to the database it means the situation will not change by retrying, saving resources
-                  noInitiativeContentToComputeError.code, // Could be be due to the initiative having only 1 repository but this one requires authentication
-                  llmResponseFormatError.code, // Having a LLM response not parsable, since we set no creativity to the LLM it won't change over time
-                ],
+  // Loading every map at once exceeds the limit of parameters of a database query once there are more than ~30k (their relations are fetched
+  // with the identifiers of all of them), so they are fetched by chunks following their identifiers
+  const fetchInitiativeMapsChunk = (afterInitiativeMapId: string | null) =>
+    prisma.initiativeMap.findMany({
+      where: {
+        update: true,
+        ...(options?.onlyMissing ? { Initiative: { is: null } } : {}), // Each sheet is charged, so the existing ones can wait for a later run
+        ...(options?.onlyWebsites ? { RawDomainsOnInitiativeMaps: { some: {} } } : {}), // Repositories alone are the longest and the less valuable ones
+        // Targeting allows recomputing a few sheets without the others waiting for an update (each sheet is charged)
+        ...(options?.repositoriesUrls || options?.domainsNames
+          ? {
+              OR: [
+                ...(options.repositoriesUrls
+                  ? [{ RawRepositoriesOnInitiativeMaps: { some: { rawRepository: { repositoryUrl: { in: options.repositoriesUrls } } } } }]
+                  : []),
+                ...(options.domainsNames ? [{ RawDomainsOnInitiativeMaps: { some: { rawDomain: { name: { in: options.domainsNames } } } } }] : []),
+              ],
+            }
+          : {}),
+        AND: {
+          OR: [
+            {
+              lastUpdateAttemptWithReachabilityError: {
+                equals: null,
               },
             },
-            lastUpdateAttemptWithReachabilityError: {
-              // Skip rows with high probability of failure since they had recently a network reachability issue
-              // Note: since from scratch this batch can take several days and could be retried multiple times, we wait for 48 hours minimum
-              lt: subDays(new Date(), 2),
+            {
+              lastUpdateAttemptReachabilityError: {
+                not: {
+                  in: [
+                    // If one of these error codes has been reported to the database it means the situation will not change by retrying, saving resources
+                    noInitiativeContentToComputeError.code, // Could be be due to the initiative having only 1 repository but this one requires authentication
+                    llmResponseFormatError.code, // Having a LLM response not parsable, since we set no creativity to the LLM it won't change over time
+                  ],
+                },
+              },
+              lastUpdateAttemptWithReachabilityError: {
+                // Skip rows with high probability of failure since they had recently a network reachability issue
+                // Note: since from scratch this batch can take several days and could be retried multiple times, we wait for 48 hours minimum
+                lt: subDays(new Date(), 2),
+              },
             },
+          ],
+        },
+      },
+      select: {
+        id: true,
+        RawDomainsOnInitiativeMaps: {
+          orderBy: {
+            main: 'desc', // We want to have `main: true` first of the list due to some filtering below
           },
-        ],
-      },
-    },
-    select: {
-      id: true,
-      RawDomainsOnInitiativeMaps: {
-        orderBy: {
-          main: 'desc', // We want to have `main: true` first of the list due to some filtering below
-        },
-        select: {
-          main: true,
-          // We no longer get the domain object from here since the content of each one cumulated was breaking either the Prisma client (ref: https://github.com/prisma/prisma/issues/13864#issuecomment-1966122882)
-          // or the JavaScript heap memory maximum. So in opposite to what we have done for `matchDomains()` into `domain.ts`, chunking this `findMany(...)` is not much appropriate since we tried we even 2000 as chunk and it was failing and it would require freeing the memory as each iteration, so keeping the logic more simple here
-          rawDomainId: true,
-        },
-      },
-      RawRepositoriesOnInitiativeMaps: {
-        orderBy: {
-          main: 'desc', // We want to have `main: true` first of the list due to some filtering below
-        },
-        select: {
-          main: true,
-          rawRepository: {
-            select: {
-              id: true,
-              name: true,
-              repositoryUrl: true,
-              description: true,
-            },
+          select: {
+            main: true,
+            // We no longer get the domain object from here since the content of each one cumulated was breaking either the Prisma client (ref: https://github.com/prisma/prisma/issues/13864#issuecomment-1966122882)
+            // or the JavaScript heap memory maximum. So in opposite to what we have done for `matchDomains()` into `domain.ts`, chunking this `findMany(...)` is not much appropriate since we tried we even 2000 as chunk and it was failing and it would require freeing the memory as each iteration, so keeping the logic more simple here
+            rawDomainId: true,
           },
         },
+        RawRepositoriesOnInitiativeMaps: {
+          orderBy: {
+            main: 'desc', // We want to have `main: true` first of the list due to some filtering below
+          },
+          select: {
+            main: true,
+            rawRepository: {
+              select: {
+                id: true,
+                name: true,
+                repositoryUrl: true,
+                description: true,
+              },
+            },
+          },
+        },
       },
-    },
-  });
+      orderBy: {
+        id: 'asc',
+      },
+      take: initiativeMapsChunkSize,
+      ...(afterInitiativeMapId ? { cursor: { id: afterInitiativeMapId }, skip: 1 } : {}),
+    });
+
+  const initiativeMaps: Awaited<ReturnType<typeof fetchInitiativeMapsChunk>> = [];
+  while (true) {
+    const initiativeMapsChunk = await fetchInitiativeMapsChunk(initiativeMaps.at(-1)?.id ?? null);
+
+    initiativeMaps.push(...initiativeMapsChunk);
+
+    console.log(`${initiativeMaps.length} initiative maps to update have been retrieved from the database`);
+
+    // A chunk not full means it was the last one
+    if (initiativeMapsChunk.length < initiativeMapsChunkSize) {
+      break;
+    }
+  }
 
   // Tools of websites come from the inventory of domains, so what it has not reached yet waits for a next run
   const domainsWithoutInventory = await prisma.$queryRaw<{ id: string }[]>`
@@ -1221,9 +1246,7 @@ export async function feedInitiativesFromDatabase(options?: {
 
                 if (error instanceof Error) {
                   // A clone stopped for its size proves the forge answers, like the repository-specific errors the breaker ignores
-                  if (
-                    cloneHostCircuitBreaker.record(new URL(rawRepository.repositoryUrl).host, cloneSizeLimitReached ? null : error.message)
-                  ) {
+                  if (cloneHostCircuitBreaker.record(new URL(rawRepository.repositoryUrl).host, cloneSizeLimitReached ? null : error.message)) {
                     console.error(
                       `giving up the clones on ${new URL(rawRepository.repositoryUrl).host} for this run since at least ${
                         cloneHostCircuitBreakerMinimumSameErrorShare * 100

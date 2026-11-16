@@ -118,15 +118,15 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ env.STORE_PATH }}/${{ env.PLAYWRIGHT_BROWSERS_CACHE_FOLDER_SUFFIX }}
         run: make deps-ci
 
+      - name: Prepare linting
+        run: make lint-prepare
+
       - name: Download pretrained models
         # Authenticate the HuggingFace download so it is not throttled (HTTP 429) on the shared CI IPs.
         # `@xenova/transformers` reads `HF_TOKEN` from the environment automatically. A read-only token is enough.
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: make download-models
-
-      - name: Prepare linting
-        run: make lint-prepare
 
       - name: Lint
         run: make lint

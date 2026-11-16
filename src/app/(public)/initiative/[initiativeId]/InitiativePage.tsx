@@ -32,6 +32,7 @@ import { getDirectoryLink } from '@etabli/src/utils/initiatives-directory';
 import { getOrganizationPath } from '@etabli/src/utils/organization';
 import { serverPrefetchedQueryStaleTime } from '@etabli/src/utils/query';
 import { RelatedInitiative } from '@etabli/src/utils/related-initiatives';
+import { formatDisplayedUrl, oneLineUrlStyles } from '@etabli/src/utils/url';
 
 const numberFormatter = new Intl.NumberFormat('fr-FR');
 // The time zone is fixed so the server renders the same text as browsers
@@ -164,19 +165,17 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
                 <ul style={{ ...ulComponentResetStyles }}>
                   {initiative.websites.map((website) => {
                     return (
-                      <li key={website}>
+                      <li key={website} style={{ display: 'flex', alignItems: 'center' }}>
                         <Link
                           component={NextLink}
                           href={website}
+                          title={website}
                           variant="subtitle2"
                           underline="none"
                           target="_blank"
-                          sx={{
-                            whiteSpace: 'pre-wrap !important',
-                            wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
-                          }}
+                          sx={oneLineUrlStyles}
                         >
-                          {website}
+                          {formatDisplayedUrl(website)}
                           <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                         </Link>
                       </li>
@@ -205,26 +204,24 @@ export function InitiativePage({ params: { initiativeId }, relatedInitiatives }:
                 <ul style={{ ...ulComponentResetStyles }}>
                   {initiative.repositories.map((repository) => {
                     return (
-                      <li key={repository}>
+                      <li key={repository} style={{ display: 'flex', alignItems: 'center' }}>
                         <Link
                           component={NextLink}
                           href={repository}
+                          title={repository}
                           variant="subtitle2"
                           underline="none"
                           target="_blank"
-                          sx={{
-                            whiteSpace: 'pre-wrap !important',
-                            wordBreak: 'break-word !important', // Needed in case of word/sentence bigger than parent width
-                          }}
+                          sx={oneLineUrlStyles}
                         >
-                          {repository}
+                          {formatDisplayedUrl(repository)}
                           <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                         </Link>
                         {!!data.repositoriesStars[repository] && (
                           <Typography
                             component="span"
                             variant="caption"
-                            sx={{ display: 'inline-flex', alignItems: 'center', gap: '2px', ml: 1, verticalAlign: 'middle', whiteSpace: 'nowrap' }}
+                            sx={{ display: 'inline-flex', alignItems: 'center', gap: '2px', ml: 1, flexShrink: 0, whiteSpace: 'nowrap' }}
                           >
                             <StarBorderIcon aria-hidden="true" sx={{ fontSize: 16 }} />
                             {numberFormatter.format(data.repositoriesStars[repository])}

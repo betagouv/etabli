@@ -31,3 +31,16 @@ export function hasPathnameThisMatch(pathname: string | null, rootPathname: stri
 
   return pathname === rootPathname;
 }
+
+// The protocol brings nothing to read an address shown to users
+export function formatDisplayedUrl(url: string): string {
+  return url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+}
+
+// A long address is cut with an ellipsis instead of wrapping on several lines (to use with the whole address as `title`)
+export const oneLineUrlStyles = {
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+} as const;

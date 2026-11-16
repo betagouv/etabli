@@ -16,6 +16,7 @@ import { InitiativeRankingChips } from '@etabli/src/components/ReputationChip';
 import { InitiativeSchemaType } from '@etabli/src/models/entities/initiative';
 import { ulComponentResetStyles } from '@etabli/src/utils/grid';
 import { summarizeOrganizations } from '@etabli/src/utils/organization';
+import { formatDisplayedUrl, oneLineUrlStyles } from '@etabli/src/utils/url';
 
 // Around 3 lines of a card at the usual widths, so the server already renders the "Voir plus" most of the time
 const likelyClampedDescriptionLength = 150;
@@ -132,12 +133,13 @@ export function InitiativeCard(props: InitiativeCardProps) {
                       <Link
                         component={NextLink}
                         href={props.initiative.websites[0]}
+                        title={props.initiative.websites[0]}
                         variant="subtitle2"
                         underline="none"
                         target="_blank"
-                        sx={cardUrlSx}
+                        sx={{ ...cardUrlSx, ...oneLineUrlStyles }}
                       >
-                        {props.initiative.websites[0]}
+                        {formatDisplayedUrl(props.initiative.websites[0])}
                         <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                       </Link>
                     </Typography>
@@ -157,12 +159,13 @@ export function InitiativeCard(props: InitiativeCardProps) {
                       <Link
                         component={NextLink}
                         href={props.initiative.repositories[0]}
+                        title={props.initiative.repositories[0]}
                         variant="subtitle2"
                         underline="none"
                         target="_blank"
-                        sx={cardUrlSx}
+                        sx={{ ...cardUrlSx, ...oneLineUrlStyles }}
                       >
-                        {props.initiative.repositories[0]}
+                        {formatDisplayedUrl(props.initiative.repositories[0])}
                         <span className="fr-sr-only"> (nouvelle fenêtre)</span>
                       </Link>
                     </Typography>

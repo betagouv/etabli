@@ -7,6 +7,7 @@ import { detectLegalLinksFromDocument } from '@etabli/src/utils/legal-links';
 import { securityGrades } from '@etabli/src/utils/security-grade';
 
 // Contrary to the reputation that keeps the best site of an initiative, its weakest site is what matters here
+// Note: only the shown websites count, the twin address of a website (with or without "www.") stays into the map but is not displayed
 export async function updateInitiativesIndicators(): Promise<number> {
   return await prisma.$executeRaw`
     UPDATE "Initiative" i
@@ -27,7 +28,7 @@ export async function updateInitiativesIndicators(): Promise<number> {
           FROM "RawDomainsOnInitiativeMaps" dm
           INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
           INNER JOIN "DomainHttpSecurity" hs ON hs."domain" = d."name"
-          WHERE dm."initiativeMapId" = i2."originId" AND hs."grade" = ANY(${securityGrades}::TEXT[])
+          WHERE dm."initiativeMapId" = i2."originId" AND ('https://' || d."name") = ANY(i2."websites") AND hs."grade" = ANY(${securityGrades}::TEXT[])
           ORDER BY array_position(${securityGrades}::TEXT[], hs."grade") DESC
           LIMIT 1
         ) AS "httpSecurityGrade",
@@ -35,7 +36,7 @@ export async function updateInitiativesIndicators(): Promise<number> {
           SELECT MAX(d."tlsLevel")
           FROM "RawDomainsOnInitiativeMaps" dm
           INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
-          WHERE dm."initiativeMapId" = i2."originId"
+          WHERE dm."initiativeMapId" = i2."originId" AND ('https://' || d."name") = ANY(i2."websites")
         ) AS "tlsLevel",
         COALESCE(
           (
@@ -43,7 +44,7 @@ export async function updateInitiativesIndicators(): Promise<number> {
             FROM "RawDomainsOnInitiativeMaps" dm
             INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
             CROSS JOIN LATERAL unnest(d."tlsIssues") AS issue
-            WHERE dm."initiativeMapId" = i2."originId"
+            WHERE dm."initiativeMapId" = i2."originId" AND ('https://' || d."name") = ANY(i2."websites")
           ),
           ARRAY[]::TEXT[]
         ) AS "tlsIssues",
@@ -52,7 +53,7 @@ export async function updateInitiativesIndicators(): Promise<number> {
           FROM "RawDomainsOnInitiativeMaps" dm
           INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
           INNER JOIN "DomainMailSecurity" ms ON ms."domain" = d."name"
-          WHERE dm."initiativeMapId" = i2."originId"
+          WHERE dm."initiativeMapId" = i2."originId" AND ('https://' || d."name") = ANY(i2."websites")
         ) AS "mailSecurityLevel",
         COALESCE(
           (
@@ -61,7 +62,7 @@ export async function updateInitiativesIndicators(): Promise<number> {
             INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
             INNER JOIN "DomainMailSecurity" ms ON ms."domain" = d."name"
             CROSS JOIN LATERAL unnest(ms."issues") AS issue
-            WHERE dm."initiativeMapId" = i2."originId"
+            WHERE dm."initiativeMapId" = i2."originId" AND ('https://' || d."name") = ANY(i2."websites")
           ),
           ARRAY[]::TEXT[]
         ) AS "mailIssues",
@@ -69,13 +70,13 @@ export async function updateInitiativesIndicators(): Promise<number> {
           SELECT bool_and(d."websiteHasLegalNotice")
           FROM "RawDomainsOnInitiativeMaps" dm
           INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
-          WHERE dm."initiativeMapId" = i2."originId"
+          WHERE dm."initiativeMapId" = i2."originId" AND ('https://' || d."name") = ANY(i2."websites")
         ) AS "hasLegalNotice",
         (
           SELECT bool_and(d."websiteHasPrivacyPolicy")
           FROM "RawDomainsOnInitiativeMaps" dm
           INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
-          WHERE dm."initiativeMapId" = i2."originId"
+          WHERE dm."initiativeMapId" = i2."originId" AND ('https://' || d."name") = ANY(i2."websites")
         ) AS "hasPrivacyPolicy",
         GREATEST(
           (
@@ -83,7 +84,7 @@ export async function updateInitiativesIndicators(): Promise<number> {
             FROM "RawDomainsOnInitiativeMaps" dm
             INNER JOIN "RawDomain" d ON d."id" = dm."rawDomainId"
             INNER JOIN "DomainSovereignty" ds ON ds."domain" = d."name"
-            WHERE dm."initiativeMapId" = i2."originId"
+            WHERE dm."initiativeMapId" = i2."originId" AND ('https://' || d."name") = ANY(i2."websites")
           ),
           CASE
             WHEN cardinality(i2."repositories") = 0 THEN NULL

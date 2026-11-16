@@ -81,6 +81,7 @@ export const initiativeRouter = router({
     const initiative = await prisma.initiative.findUnique({
       where: { id: input.id },
       select: {
+        websites: true,
         origin: {
           select: {
             RawDomainsOnInitiativeMaps: {
@@ -96,7 +97,11 @@ export const initiativeRouter = router({
       throw initiativeNotFoundError;
     }
 
-    const domains = initiative.origin?.RawDomainsOnInitiativeMaps.map(({ rawDomain }) => rawDomain.name) ?? [];
+    // The twin address of a website (with or without "www.") stays into the map but is not shown, so its details are not either
+    const domains =
+      initiative.origin?.RawDomainsOnInitiativeMaps.map(({ rawDomain }) => rawDomain.name).filter((domain) =>
+        initiative.websites.includes(`https://${domain}`)
+      ) ?? [];
 
     // Only the reviewed columns are returned, `summary` stays internal
     const reputations = await prisma.domainReputation.findMany({

@@ -10,6 +10,6 @@ export default defineConfig({
   },
   migrations: {
     path: path.join('src', 'prisma', 'migrations'),
-    seed: 'tsx --tsconfig ./tsx-fallback.json src/prisma/seed.script.ts',
+    seed: 'tsx src/prisma/seed.script.ts',
   },
 });

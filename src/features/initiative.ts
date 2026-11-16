@@ -46,7 +46,7 @@ import { prisma } from '@etabli/src/prisma';
 import { analyzeWithSemgrep } from '@etabli/src/semgrep/index';
 import { watchGracefulExitInLoop } from '@etabli/src/server/system';
 import { bitsFor } from '@etabli/src/utils/bits';
-import { shuffle } from '@etabli/src/utils/circuit-breaker';
+import { HostCircuitBreaker, shuffle } from '@etabli/src/utils/circuit-breaker';
 import { formatDiffResultLog, getDiff } from '@etabli/src/utils/comparaison';
 import { capitalizeFirstLetter, formatArrayProgress } from '@etabli/src/utils/format';
 import { getClosestSinkNode } from '@etabli/src/utils/graph';
@@ -69,12 +69,33 @@ const maximumCloneSizeInGiB = 1;
 const maximumConcurrentClonesPerHost = 3;
 const ongoingClonesPerHost = new Map<string, number>();
 
-async function withCloneSlotForHost<T>(repositoryUrl: string, clone: () => Promise<T>): Promise<T> {
+// Over the last 20 clones of a forge, 16 failing with the same error means the forge refuses us (banned VPN exit, outage...)
+const cloneHostCircuitBreakerWindowSize = 20;
+const cloneHostCircuitBreakerMinimumSameErrorShare = 0.8;
+
+export class CloneHostGivenUpError extends Error {
+  public constructor(public readonly host: string) {
+    super(`the clones on ${host} have been given up for this run`);
+  }
+}
+
+async function withCloneSlotForHost<T>(repositoryUrl: string, hostCircuitBreaker: HostCircuitBreaker, clone: () => Promise<T>): Promise<T> {
   const host = new URL(repositoryUrl).host;
+
+  // Checked again once a slot is free since the host may have been given up while waiting
+  const throwIfGivenUp = () => {
+    if (hostCircuitBreaker.shouldSkip(host)) {
+      throw new CloneHostGivenUpError(host);
+    }
+  };
+
+  throwIfGivenUp();
 
   while ((ongoingClonesPerHost.get(host) ?? 0) >= maximumConcurrentClonesPerHost) {
     await sleep(500);
   }
+
+  throwIfGivenUp();
 
   ongoingClonesPerHost.set(host, (ongoingClonesPerHost.get(host) ?? 0) + 1);
 
@@ -915,6 +936,8 @@ export async function feedInitiativesFromDatabase(options?: {
 
     console.log(`initiative maps will be computed with a maximum concurrency of ${maxConcurrency}`);
 
+    const cloneHostCircuitBreaker = new HostCircuitBreaker(cloneHostCircuitBreakerWindowSize, cloneHostCircuitBreakerMinimumSameErrorShare);
+
     await eachOfLimit(initiativeMapsToProcess, maxConcurrency, async function (initiativeMap, initiativeMapIndex) {
       watchGracefulExitInLoop();
 
@@ -1163,7 +1186,7 @@ export async function feedInitiativesFromDatabase(options?: {
             let downloadedSize = 0;
 
             try {
-              await withCloneSlotForHost(rawRepository.repositoryUrl, async () => {
+              await withCloneSlotForHost(rawRepository.repositoryUrl, cloneHostCircuitBreaker, async () => {
                 await projectGit
                   .env({
                     GIT_TERMINAL_PROMPT: 0, // This is required so it fails when a repository expects credentials (and so the git CLI expects inputs)
@@ -1184,10 +1207,31 @@ export async function feedInitiativesFromDatabase(options?: {
                   cloneAbortController.signal,
                   maximumCloneSizeInGiB * bitsFor.GiB
                 ));
+
+                cloneHostCircuitBreaker.record(new URL(rawRepository.repositoryUrl).host, null);
               });
             } catch (error) {
               try {
+                if (error instanceof CloneHostGivenUpError) {
+                  // Nothing is written so the map stays queued for the next run, a failed attempt would postpone it for days
+                  console.log(`skip processing ${initiativeMap.id} since the clones on ${error.host} have been given up for this run`);
+
+                  return;
+                }
+
                 if (error instanceof Error) {
+                  // A clone stopped for its size proves the forge answers, like the repository-specific errors the breaker ignores
+                  if (
+                    cloneHostCircuitBreaker.record(new URL(rawRepository.repositoryUrl).host, cloneSizeLimitReached ? null : error.message)
+                  ) {
+                    console.error(
+                      `giving up the clones on ${new URL(rawRepository.repositoryUrl).host} for this run since at least ${
+                        cloneHostCircuitBreakerMinimumSameErrorShare * 100
+                      }% of its last ${cloneHostCircuitBreakerWindowSize} clones failed with the same error, this forge probably bans our IP (a VPN exit for example) or is down, its remaining repositories stay queued`
+                    );
+                    console.error(error.message);
+                  }
+
                   if (error.message.includes('terminal prompts disabled') && error.message.includes('could not read Username')) {
                     // This is triggered by the setting `GIT_TERMINAL_PROMPT=0`, it's very likely the repository requires authentication
                     // Since we cannot overcome this, we just skip this repository if there is other content to analyze, otherwise it will put in quarantine the initiative
@@ -1783,6 +1827,12 @@ export async function feedInitiativesFromDatabase(options?: {
         }
       }
     });
+
+    for (const givenUpHost of cloneHostCircuitBreaker.getGivenUpHosts()) {
+      console.error(
+        `the clones on ${givenUpHost.host} have been given up during this run (${givenUpHost.skipped} repository clones skipped), the repeated error was: ${givenUpHost.error}`
+      );
+    }
 
     // The old sheets kept to bridge the time their websites and repositories get a new sheet are removed one by one once replaced,
     // whatever the run (a complete one never happens while some maps always wait for an inventory)

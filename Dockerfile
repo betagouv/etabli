@@ -26,7 +26,10 @@ RUN apt-get update && apt-get install -y \
   && rm -rf /var/lib/apt/lists/*
 
 # Prisma is only used to run `prisma migrate deploy` at start (the standalone application has no `node_modules` with it)
-RUN npm install --prefix /opt/prisma "prisma@${PRISMA_VERSION}"
+# It is installed apart from the lockfile, the security overrides of `package.json` for its dependencies must be repeated here
+RUN mkdir /opt/prisma \
+  && echo '{ "overrides": { "effect": "^3.22.1" } }' > /opt/prisma/package.json \
+  && npm install --prefix /opt/prisma "prisma@${PRISMA_VERSION}"
 
 RUN addgroup --system --gid 800 nodejs
 RUN adduser --system --home /home/nextjs --uid 800 nextjs

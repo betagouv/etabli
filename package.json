@@ -261,6 +261,9 @@
     "puppeteer-core": {
       "ws": "^8.21.0"
     },
+    "@prisma/config": {
+      "effect": "^3.22.1"
+    },
     "tar-fs": "^2.1.4",
     "tmp": "^0.2.6"
   },

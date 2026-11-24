@@ -20,6 +20,7 @@ import LinearProgress from '@mui/material/LinearProgress';
 import Link from '@mui/material/Link';
 import MenuItem from '@mui/material/MenuItem';
 import Pagination from '@mui/material/Pagination';
+import PaginationItem from '@mui/material/PaginationItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
@@ -699,6 +700,27 @@ export function InitiativeListPage(props: InitiativeListPageProps) {
                         onChange={(event, pageNumber) => {
                           setParams({ page: pageNumber });
                         }}
+                        // Links and not buttons: each page has its own address (screen readers announce a link, it can be opened in a new tab)
+                        // and crawlers reach every sheet through them. A simple click still updates the list without reloading the page
+                        renderItem={(item) => (
+                          <PaginationItem
+                            {...item}
+                            component="a"
+                            href={
+                              item.page !== null && !item.disabled
+                                ? `${linkRegistry.get('initiatives', undefined)}${serializeDirectoryParams({ ...params, page: item.page })}`
+                                : undefined
+                            }
+                            onClick={(event: React.MouseEvent<HTMLAnchorElement>) => {
+                              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+                                return; // Opened elsewhere by the browser
+                              }
+
+                              event.preventDefault();
+                              item.onClick(event);
+                            }}
+                          />
+                        )}
                         color="primary"
                         showFirstButton
                         showLastButton

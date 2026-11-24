@@ -11,16 +11,33 @@ import {
   buildListInitiativesInput,
   defaultDirectoryPageSize,
   getDirectoryOrganizationIds,
+  isDirectoryIndexable,
   loadDirectoryParams,
 } from '@etabli/src/utils/initiatives-directory';
 import { formatPageTitle } from '@etabli/src/utils/page';
-
-export const metadata: Metadata = {
-  title: formatPageTitle(`Annuaire des initiatives`),
-};
+import { getBaseUrl } from '@etabli/src/utils/url';
 
 export interface InitiativesRoutePageProps extends InitiativeListPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export async function generateMetadata(props: InitiativesRoutePageProps): Promise<Metadata> {
+  const params = loadDirectoryParams(await props.searchParams);
+
+  if (!isDirectoryIndexable(params)) {
+    return {
+      title: formatPageTitle(`Annuaire des initiatives`),
+      robots: { index: false, follow: true },
+    };
+  }
+
+  // Each page of the whole directory is its own page for search engines (they reach every sheet through them), not a copy of the first one
+  return {
+    title: formatPageTitle(params.page > 1 ? `Annuaire des initiatives (page ${params.page})` : `Annuaire des initiatives`),
+    alternates: {
+      canonical: `${getBaseUrl()}/initiatives${params.page > 1 ? `?page=${params.page}` : ''}`,
+    },
+  };
 }
 
 // Rendered for each request: the data given to the browser must never come from a page cached for someone else

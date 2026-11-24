@@ -57,6 +57,14 @@ export function getDirectoryLink(params: Partial<Pick<DirectoryParams, 'q' | 'fn
 
 export const defaultDirectoryPageSize = PaginationSize.size10;
 
+// Search engines only keep the whole directory and its pages, they link to every sheet. Searches and filters are linked from every
+// sheet (its business use cases, tools, organizations...) and give countless thin pages listing mostly the same sheets under the same title
+export function isDirectoryIndexable(params: DirectoryParams): boolean {
+  const { page, ...otherParams } = params;
+
+  return serializeDirectoryParams(otherParams) === '';
+}
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const organizationIdPattern = uuidPattern;
 

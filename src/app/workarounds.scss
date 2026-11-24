@@ -17,6 +17,18 @@
   }
 }
 
+a.MuiPaginationItem-root {
+  background-image: none !important;
+
+  &:not(.Mui-selected):hover {
+    background-color: var(--background-default-grey-hover) !important;
+  }
+
+  &:not(.Mui-selected):active {
+    background-color: var(--background-default-grey-active) !important;
+  }
+}
+
 a.MuiMenuItem-root {
   background-image: none !important;
 

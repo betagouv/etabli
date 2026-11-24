@@ -65,6 +65,10 @@ export function InitiativeCard(props: InitiativeCardProps) {
         '& .initiative-card-overlay-link': {
           backgroundImage: 'none !important',
           textDecoration: 'none !important',
+          // DSFR tints links when hovered or pressed, the overlay covering the card would hide its text
+          '&:hover, &:active': {
+            backgroundColor: 'transparent !important',
+          },
         },
         '& .show-more-less-clickable': {
           // This must keep priority as link over the card

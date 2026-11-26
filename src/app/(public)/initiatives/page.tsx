@@ -1,8 +1,10 @@
 import { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import { notFound } from 'next/navigation';
 
 import { InitiativeListPage, InitiativeListPageProps } from '@etabli/src/app/(public)/initiatives/InitiativeListPage';
 import { HydrateClient } from '@etabli/src/client/HydrateClient';
+import { maximumListPage } from '@etabli/src/models/actions/initiative';
 import { appRouter } from '@etabli/src/server/app-router';
 import { createContext } from '@etabli/src/server/context';
 import { PrefetchedQuery, serializePrefetchedQueries } from '@etabli/src/server/prefetch';
@@ -46,10 +48,10 @@ export const dynamic = 'force-dynamic';
 export default async function Page(props: InitiativesRoutePageProps) {
   // The list is fetched by the browser through tRPC, giving it the same results makes the server render the links to the sheets
   // (search engines, no JavaScript) and the browser does not ask for them again. If anything fails here the browser fetches them as before
+  const params = loadDirectoryParams(await props.searchParams);
   let prefetchedState: ReturnType<typeof serializePrefetchedQueries> | null = null;
+  let isPageBeyondLastOne = false;
   try {
-    const params = loadDirectoryParams(await props.searchParams);
-
     // The map is drawn by the browser only, and it is not meant for search engines
     if (params.view !== 'map') {
       const caller = appRouter.createCaller(await createContext({ type: 'rsc' }));
@@ -57,7 +59,12 @@ export default async function Page(props: InitiativesRoutePageProps) {
       const listInput = buildListInitiativesInput(params, organizationIds, defaultDirectoryPageSize);
 
       const queries: Promise<PrefetchedQuery>[] = [
-        caller.listInitiatives(listInput).then((data) => ({ path: 'listInitiatives', input: listInput, data: data })),
+        caller.listInitiatives(listInput).then((data) => {
+          // The default page size is the smallest one, a page out of it is out for every size the browser may use
+          isPageBeyondLastOne = params.page > 1 && (params.page > maximumListPage || data.initiatives.length === 0);
+
+          return { path: 'listInitiatives', input: listInput, data: data };
+        }),
       ];
 
       // Readable names of active filters
@@ -73,6 +80,11 @@ export default async function Page(props: InitiativesRoutePageProps) {
     }
   } catch (error) {
     console.error(error);
+  }
+
+  // Outside the existing pages there is nothing to read, it must not be a page telling no sheet exists (search engines take it as a soft 404)
+  if (isPageBeyondLastOne) {
+    notFound();
   }
 
   const initialListDisplay = parseListDisplay((await cookies()).get(listDisplayCookieName)?.value);

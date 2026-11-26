@@ -208,6 +208,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Get the day of the build
+        id: build-day
+        if: ${{ !github.event.act && (github.ref_name == 'dev' || github.ref_name == 'main') }}
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
       - name: Build the application Docker image
         if: ${{ !github.event.act && (github.ref_name == 'dev' || github.ref_name == 'main') }}
         uses: docker/build-push-action@v5
@@ -215,6 +220,8 @@ jobs:
           context: .
           load: true
           push: false
+          build-args: |
+            SECURITY_UPDATES_DATE=${{ steps.build-day.outputs.date }}
           tags: ${{ env.CONTAINER_IMAGE_FOLDER }}/${{ env.APP_NAME }}-${{ github.ref_name }}:${{ github.sha }},${{ env.CONTAINER_IMAGE_FOLDER }}/${{ env.APP_NAME }}-${{ github.ref_name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max

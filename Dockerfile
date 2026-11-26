@@ -68,6 +68,10 @@ ARG PORT
 
 USER root
 
+# Given the day of the build by the CI: its layers cache would otherwise keep the security updates of the first build forever
+# (any change of this value rebuilds the following layers, so the Debian updates are applied again at least once a day)
+ARG SECURITY_UPDATES_DATE
+
 # Runtime tools of the data update (websites content and tools, code analysis) and of the startup script
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
   "chromium" \
